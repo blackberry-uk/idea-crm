@@ -1,0 +1,184 @@
+
+import { useState, useEffect, useMemo } from 'react';
+import { AppData, Idea, Contact, Note, User, Invitation, Interaction } from '../types.ts';
+import { apiClient } from '../lib/api/client';
+
+export const CURRENT_DATA_MODEL_VERSION = 1;
+
+export interface ParseResult {
+  data: AppData;
+  fileVersion: number;
+  orphanFields: Record<string, string[]>;
+}
+
+const EMPTY_DATA: AppData = {
+  users: [], ideas: [], contacts: [], notes: [], interactions: [], invitations: [],
+  globalNoteCategories: ['Competitor', 'Call Notes', 'Action Plan'],
+  currentUser: null
+};
+
+let globalState: AppData = { ...EMPTY_DATA };
+let isHydrated = false;
+const listeners = new Set<(state: AppData) => void>();
+
+const notify = () => {
+  listeners.forEach(fn => fn({ ...globalState }));
+};
+
+const hydrate = async () => {
+  const token = apiClient.getToken();
+  if (!token) {
+    isHydrated = true;
+    notify();
+    return;
+  }
+
+  try {
+    const user = await apiClient.get('/me');
+    const allData = await apiClient.get('/data');
+    globalState = { 
+      ...allData, 
+      currentUser: user,
+      globalNoteCategories: globalState.globalNoteCategories 
+    };
+  } catch (e) {
+    console.error("Hydration failed", e);
+    apiClient.clearToken();
+    globalState = { ...EMPTY_DATA };
+  } finally {
+    isHydrated = true;
+    notify();
+  }
+};
+
+// Start initialization
+hydrate();
+
+export const useStore = () => {
+  const [state, setState] = useState<AppData>(globalState);
+
+  useEffect(() => {
+    listeners.add(setState);
+    return () => { listeners.delete(setState); };
+  }, []);
+
+  const myIdeas = useMemo(() => {
+    if (!state.currentUser) return [];
+    const userId = state.currentUser.id;
+    return state.ideas.filter(i => 
+      i.ownerId === userId || (i.collaboratorIds && i.collaboratorIds.includes(userId))
+    );
+  }, [state.ideas, state.currentUser]);
+
+  return {
+    data: state,
+    isHydrated,
+    myIdeas,
+
+    login: async (email: string, password?: string) => {
+      try {
+        const res = await apiClient.post('/login', { email, password });
+        apiClient.setToken(res.token);
+        await hydrate();
+        return !!globalState.currentUser;
+      } catch (e) {
+        return false;
+      }
+    },
+
+    register: async (email: string, name: string, password?: string) => {
+      try {
+        const res = await apiClient.post('/register', { email, name, password });
+        apiClient.setToken(res.token);
+        await hydrate();
+        return !!globalState.currentUser;
+      } catch (e) {
+        return false;
+      }
+    },
+
+    logout: () => {
+      apiClient.clearToken();
+      globalState = { ...EMPTY_DATA };
+      notify();
+    },
+
+    addIdea: async (idea: any) => {
+      const res = await apiClient.post('/ideas', idea);
+      await hydrate();
+      return res;
+    },
+
+    updateIdea: async (id: string, updates: Partial<Idea>) => {
+      const res = await apiClient.put(`/ideas/${id}`, updates);
+      await hydrate();
+      return res;
+    },
+
+    shareIdea: async (ideaId: string, email: string) => {
+      const res = await apiClient.post('/invitations', { email, ideaId, type: 'IdeaAccess' });
+      await hydrate();
+      return res;
+    },
+
+    addNote: async (note: any) => {
+      const res = await apiClient.post('/notes', note);
+      await hydrate();
+      return res;
+    },
+
+    updateNote: async (id: string, updates: Partial<Note>) => {
+      const res = await apiClient.put(`/notes/${id}`, updates);
+      await hydrate();
+      return res;
+    },
+
+    togglePinNote: async (id: string) => {
+      const note = globalState.notes.find(n => n.id === id);
+      if (note) {
+        await apiClient.put(`/notes/${id}`, { isPinned: !note.isPinned });
+        await hydrate();
+      }
+    },
+
+    addContact: async (contact: any) => {
+      const res = await apiClient.post('/contacts', contact);
+      await hydrate();
+      return res;
+    },
+
+    updateContact: async (id: string, updates: Partial<Contact>) => {
+      const res = await apiClient.put(`/contacts/${id}`, updates);
+      await hydrate();
+      return res;
+    },
+
+    addInteraction: async (interaction: any) => {
+      const res = await apiClient.post('/interactions', interaction);
+      await hydrate();
+      return res;
+    },
+
+    handleInvitation: async (id: string, accept: boolean) => {
+      const status = accept ? 'accept' : 'decline';
+      await apiClient.post(`/invitations/${id}/${status}`, {});
+      await hydrate();
+    },
+
+    updateGlobalCategories: (categories: string[]) => {
+      globalState.globalNoteCategories = categories;
+      notify();
+    },
+
+    updatePersonalSettings: async (settings: Partial<User>) => {
+      if (!globalState.currentUser) return;
+      await apiClient.put(`/users/${globalState.currentUser.id}`, settings);
+      await hydrate();
+    },
+
+    applyImport: async (importData: Partial<AppData>) => {
+      await apiClient.post('/import', importData);
+      await hydrate();
+    }
+  };
+};
