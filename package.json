@@ -1,6 +1,7 @@
 {
   "name": "idea-crm",
   "version": "1.0.0",
+  "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "prisma generate && vite build",

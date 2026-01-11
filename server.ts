@@ -4,8 +4,8 @@ import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 import cors from 'cors';
 import 'dotenv/config';
-import { sendInvitationEmail, sendTaskAssignmentEmail, sendNoteMentionEmail } from './lib/email';
-import prisma from './lib/prisma';
+import { sendInvitationEmail, sendTaskAssignmentEmail, sendNoteMentionEmail } from './lib/email.js';
+import prisma from './lib/prisma.js';
 
 const app = express();
 const JWT_SECRET = process.env.JWT_SECRET || 'ideacrm-dev-secret';
