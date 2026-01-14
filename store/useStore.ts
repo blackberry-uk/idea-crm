@@ -1,6 +1,6 @@
 
 import { useState, useEffect, useMemo } from 'react';
-import { AppData, Idea, Contact, Note, User, Invitation, Interaction } from '../types.ts';
+import { AppData, Idea, Contact, Note, User, Invitation, Interaction, Confirmation } from '../types.ts';
 import { apiClient } from '../lib/api/client';
 
 export const CURRENT_DATA_MODEL_VERSION = 1;
@@ -13,8 +13,10 @@ export interface ParseResult {
 
 const EMPTY_DATA: AppData = {
   users: [], ideas: [], contacts: [], notes: [], interactions: [], invitations: [],
-  globalNoteCategories: ['Competitor', 'Call Notes', 'Action Plan'],
-  currentUser: null
+  globalNoteCategories: ['Competitor', 'Insight', 'Action', 'Mockup', 'AI Analysis'],
+  currentUser: null,
+  toast: null,
+  confirmation: null
 };
 
 let globalState: AppData = { ...EMPTY_DATA };
@@ -36,10 +38,12 @@ const hydrate = async () => {
   try {
     const user = await apiClient.get('/me');
     const allData = await apiClient.get('/data');
-    globalState = { 
-      ...allData, 
+    globalState = {
+      ...allData,
       currentUser: user,
-      globalNoteCategories: globalState.globalNoteCategories 
+      globalNoteCategories: globalState.globalNoteCategories,
+      toast: globalState.toast,
+      confirmation: globalState.confirmation
     };
   } catch (e) {
     console.error("Hydration failed", e);
@@ -65,7 +69,7 @@ export const useStore = () => {
   const myIdeas = useMemo(() => {
     if (!state.currentUser) return [];
     const userId = state.currentUser.id;
-    return state.ideas.filter(i => 
+    return state.ideas.filter(i =>
       i.ownerId === userId || (i.collaboratorIds && i.collaboratorIds.includes(userId))
     );
   }, [state.ideas, state.currentUser]);
@@ -115,6 +119,16 @@ export const useStore = () => {
       return res;
     },
 
+    deleteIdea: async (id: string) => {
+      await apiClient.delete(`/ideas/${id}`);
+      await hydrate();
+    },
+
+    leaveIdea: async (id: string) => {
+      await apiClient.post(`/ideas/${id}/leave`, {});
+      await hydrate();
+    },
+
     shareIdea: async (ideaId: string, email: string) => {
       const res = await apiClient.post('/invitations', { email, ideaId, type: 'IdeaAccess' });
       await hydrate();
@@ -141,6 +155,11 @@ export const useStore = () => {
       }
     },
 
+    deleteNote: async (id: string) => {
+      await apiClient.delete(`/notes/${id}`);
+      await hydrate();
+    },
+
     addContact: async (contact: any) => {
       const res = await apiClient.post('/contacts', contact);
       await hydrate();
@@ -163,6 +182,44 @@ export const useStore = () => {
       const status = accept ? 'accept' : 'decline';
       await apiClient.post(`/invitations/${id}/${status}`, {});
       await hydrate();
+    },
+
+    resendInvitation: async (id: string) => {
+      await apiClient.post(`/invitations/${id}/resend`, {});
+    },
+
+    uninviteCollaborator: async (ideaId: string, userId: string) => {
+      await apiClient.delete(`/ideas/${ideaId}/collaborators/${userId}`);
+      await hydrate();
+    },
+
+    deleteInvitation: async (id: string) => {
+      await apiClient.delete(`/invitations/${id}`);
+      await hydrate();
+    },
+
+    showToast: (message: string, type: 'success' | 'error' | 'info' = 'success') => {
+      globalState.toast = { id: Math.random().toString(36).substring(7), message, type };
+      notify();
+      setTimeout(() => {
+        globalState.toast = null;
+        notify();
+      }, 3000);
+    },
+
+    hideToast: () => {
+      globalState.toast = null;
+      notify();
+    },
+
+    confirm: (options: Omit<Confirmation, 'id'>) => {
+      globalState.confirmation = { ...options, id: Math.random().toString(36).substring(7) };
+      notify();
+    },
+
+    closeConfirmation: () => {
+      globalState.confirmation = null;
+      notify();
     },
 
     updateGlobalCategories: (categories: string[]) => {

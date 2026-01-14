@@ -4,7 +4,7 @@ import { useStore, CURRENT_DATA_MODEL_VERSION } from '../store/useStore';
 import { Settings as SettingsIcon, Save, Trash2, Plus, GripVertical, User as UserIcon, Tag } from 'lucide-react';
 
 const Settings: React.FC = () => {
-  const { data, updateGlobalCategories, updatePersonalSettings } = useStore();
+  const { data, updateGlobalCategories, updatePersonalSettings, showToast } = useStore();
   const [categories, setCategories] = useState<string[]>(data.globalNoteCategories);
   const [personalEntities, setPersonalEntities] = useState<string[]>(data.currentUser?.personalEntities || []);
   const [newCat, setNewCat] = useState('');
@@ -13,7 +13,7 @@ const Settings: React.FC = () => {
   const handleSave = () => {
     updateGlobalCategories(categories.filter(c => c.trim() !== ''));
     updatePersonalSettings({ personalEntities: personalEntities.filter(e => e.trim() !== '') });
-    alert('Settings saved successfully!');
+    showToast('Settings saved successfully!', 'success');
   };
 
   return (
@@ -23,7 +23,7 @@ const Settings: React.FC = () => {
           <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight">Settings</h1>
           <p className="text-gray-500 mt-1">Configure your personal workspace</p>
         </div>
-        <button 
+        <button
           onClick={handleSave}
           className="flex items-center gap-2 px-6 py-2.5 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-100"
         >
@@ -55,9 +55,9 @@ const Settings: React.FC = () => {
           <div className="space-y-2">
             {categories.map((cat, i) => (
               <div key={i} className="flex gap-2">
-                <input 
-                  className="flex-1 bg-gray-50 border rounded-lg px-3 py-2 text-sm" 
-                  value={cat} 
+                <input
+                  className="flex-1 bg-gray-50 border rounded-lg px-3 py-2 text-sm"
+                  value={cat}
                   onChange={e => {
                     const next = [...categories];
                     next[i] = e.target.value;
@@ -68,12 +68,12 @@ const Settings: React.FC = () => {
               </div>
             ))}
             <div className="flex gap-2 pt-2">
-              <input 
-                className="flex-1 border rounded-lg px-3 py-2 text-sm" 
-                placeholder="New Tag..." 
-                value={newCat} 
+              <input
+                className="flex-1 border rounded-lg px-3 py-2 text-sm"
+                placeholder="New Tag..."
+                value={newCat}
                 onChange={e => setNewCat(e.target.value)}
-                onKeyDown={e => { if(e.key === 'Enter') { setCategories([...categories, newCat]); setNewCat(''); } }}
+                onKeyDown={e => { if (e.key === 'Enter') { setCategories([...categories, newCat]); setNewCat(''); } }}
               />
               <button onClick={() => { setCategories([...categories, newCat]); setNewCat(''); }} className="bg-gray-900 text-white p-2 rounded-lg"><Plus className="w-5 h-5" /></button>
             </div>
@@ -90,9 +90,9 @@ const Settings: React.FC = () => {
           <div className="space-y-2">
             {personalEntities.map((ent, i) => (
               <div key={i} className="flex gap-2">
-                <input 
-                  className="flex-1 bg-gray-50 border rounded-lg px-3 py-2 text-sm" 
-                  value={ent} 
+                <input
+                  className="flex-1 bg-gray-50 border rounded-lg px-3 py-2 text-sm"
+                  value={ent}
                   onChange={e => {
                     const next = [...personalEntities];
                     next[i] = e.target.value;
@@ -103,12 +103,12 @@ const Settings: React.FC = () => {
               </div>
             ))}
             <div className="flex gap-2 pt-2">
-              <input 
-                className="flex-1 border rounded-lg px-3 py-2 text-sm" 
-                placeholder="New Label..." 
-                value={newEntity} 
+              <input
+                className="flex-1 border rounded-lg px-3 py-2 text-sm"
+                placeholder="New Label..."
+                value={newEntity}
                 onChange={e => setNewEntity(e.target.value)}
-                onKeyDown={e => { if(e.key === 'Enter') { setPersonalEntities([...personalEntities, newEntity]); setNewEntity(''); } }}
+                onKeyDown={e => { if (e.key === 'Enter') { setPersonalEntities([...personalEntities, newEntity]); setNewEntity(''); } }}
               />
               <button onClick={() => { setPersonalEntities([...personalEntities, newEntity]); setNewEntity(''); }} className="bg-gray-900 text-white p-2 rounded-lg"><Plus className="w-5 h-5" /></button>
             </div>

@@ -1,13 +1,13 @@
 
 import React, { useEffect, useState, useRef } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { 
-  LayoutDashboard, 
-  Lightbulb, 
-  Users, 
-  Plus, 
-  Search, 
-  LogOut, 
+import {
+  LayoutDashboard,
+  Lightbulb,
+  Users,
+  Plus,
+  Search,
+  LogOut,
   X,
   Keyboard,
   Download,
@@ -17,6 +17,7 @@ import {
   Mail
 } from 'lucide-react';
 import { useStore } from '../store/useStore.ts';
+import { getInitials, getAvatarColor } from '../lib/utils';
 import NoteComposer from './NoteComposer';
 import ImportModal from './ImportModal';
 
@@ -30,7 +31,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const navigate = useNavigate();
   const [isNoteModalOpen, setIsNoteModalOpen] = useState(false);
 
-  const pendingInvs = data.invitations.filter(i => 
+  const pendingInvs = data.invitations.filter(i =>
     i.email === data.currentUser?.email && i.status === 'Pending'
   ).length;
 
@@ -45,7 +46,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   if (!data.currentUser) return <>{children}</>;
 
   return (
-    <div className="flex h-screen bg-gray-50 text-gray-900 overflow-hidden">
+    <div className="flex h-screen bg-[#F2F3F4] text-gray-900 overflow-hidden">
       {/* Sidebar */}
       <aside className="w-64 border-r border-gray-200 bg-white flex flex-col hidden md:flex shrink-0">
         <div className="p-6 flex items-center gap-2">
@@ -62,11 +63,10 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
               <Link
                 key={item.name}
                 to={item.path}
-                className={`flex items-center gap-3 px-3 py-2 rounded-md transition-colors relative ${
-                  isActive 
-                    ? 'bg-indigo-50 text-indigo-700 font-medium' 
-                    : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
-                }`}
+                className={`flex items-center gap-3 px-3 py-2 rounded-md transition-colors relative ${isActive
+                  ? 'bg-indigo-50 text-indigo-700 font-medium'
+                  : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+                  }`}
               >
                 <item.icon className="w-5 h-5" />
                 {item.name}
@@ -82,8 +82,11 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 
         <div className="p-4 border-t border-gray-200 space-y-2">
           <div className="flex items-center gap-3 px-3 py-2 bg-gray-50 rounded-xl mb-4">
-            <div className={`w-8 h-8 rounded-lg ${data.currentUser.avatarColor || 'bg-indigo-600'} flex items-center justify-center text-white text-xs font-bold`}>
-              {data.currentUser.name[0]}
+            <div
+              className={`w-9 h-9 rounded-lg ${getAvatarColor(data.currentUser.id)} flex items-center justify-center text-white text-[13px] font-black shadow-md premium-tooltip premium-tooltip-left ring-1 ring-white/20`}
+              data-tooltip={data.currentUser.name}
+            >
+              {getInitials(data.currentUser.name)}
             </div>
             <div className="min-w-0">
               <p className="text-xs font-bold truncate">{data.currentUser.name}</p>

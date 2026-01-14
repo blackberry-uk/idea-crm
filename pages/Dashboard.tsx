@@ -43,7 +43,7 @@ const Dashboard: React.FC = () => {
         </div>
         <div className="hidden sm:flex items-center gap-2 px-4 py-2 bg-indigo-50 border border-indigo-100 rounded-xl text-indigo-700">
           <TrendingUp className="w-5 h-5" />
-          <span className="font-semibold text-sm">{(data.ideas || []).filter(i => i.status === 'Won').length} Ideas Won</span>
+          <span className="font-semibold text-sm">{(data.ideas || []).filter(i => i.status === 'Launched').length} Ideas Launched</span>
         </div>
       </div>
 
@@ -112,7 +112,11 @@ const Dashboard: React.FC = () => {
                     <MessageSquare className="w-4 h-4" />
                   </div>
                   <div className="min-w-0">
-                    <p className="text-xs text-gray-700 line-clamp-2 font-medium mb-1">{note.body}</p>
+                    <p className="text-xs text-gray-700 line-clamp-2 font-medium mb-1">
+                      {note.body.startsWith('{') && note.body.includes('"template"')
+                        ? '[Call Minute Log]'
+                        : note.body}
+                    </p>
                     <p className="text-[9px] text-gray-400 font-bold uppercase tracking-widest">
                       {format(new Date(note.createdAt), 'EEE, MMM d, h:mm a')}
                     </p>

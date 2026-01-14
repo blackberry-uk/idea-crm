@@ -4,7 +4,7 @@ import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 import cors from 'cors';
 import 'dotenv/config';
-import { sendInvitationEmail, sendTaskAssignmentEmail, sendNoteMentionEmail } from './lib/email.js';
+import { sendInvitationEmail, sendTaskAssignmentEmail, sendNoteMentionEmail, sendInvitationAcceptedEmail } from './lib/email.js';
 import prisma from './lib/prisma.js';
 
 const app = express();
@@ -13,7 +13,8 @@ const JWT_SECRET = process.env.JWT_SECRET || 'ideacrm-dev-secret';
 // @ts-ignore - Argument of type 'NextHandleFunction' mismatch with Express middleware signature in certain type environments
 app.use(cors());
 // @ts-ignore - Middleware type mismatch for express.json middleware in certain type environments
-app.use(express.json());
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
 app.get("/health", (_req, res) => {
   res.json({ ok: true });
@@ -115,6 +116,7 @@ app.get('/api/data', authenticate, async (req: any, res) => {
       tags: JSON.parse(idea.tags || '[]'),
       todos: JSON.parse(idea.todos || '[]'),
       linkedContactIds: JSON.parse(idea.linkedContactIds || '[]'),
+      customNoteCategories: JSON.parse(idea.customNoteCategories || '[]'),
     }));
 
     // Transform notes to match frontend types
@@ -219,6 +221,39 @@ app.put('/api/ideas/:id', authenticate, async (req: any, res) => {
   }
 });
 
+app.delete('/api/ideas/:id', authenticate, async (req: any, res) => {
+  try {
+    const idea = await prisma.idea.findUnique({
+      where: { id: req.params.id }
+    });
+    if (!idea) return res.status(404).json({ error: 'Idea not found' });
+    if (idea.ownerId !== req.userId) return res.status(403).json({ error: 'Only the owner can delete this idea' });
+
+    await prisma.idea.delete({
+      where: { id: req.params.id }
+    });
+    res.json({ success: true });
+  } catch (err: any) {
+    res.status(500).json({ error: 'Failed to delete idea', details: err.message });
+  }
+});
+
+app.post('/api/ideas/:id/leave', authenticate, async (req: any, res) => {
+  try {
+    await prisma.idea.update({
+      where: { id: req.params.id },
+      data: {
+        collaborators: {
+          disconnect: { id: req.userId }
+        }
+      }
+    });
+    res.json({ success: true });
+  } catch (err: any) {
+    res.status(500).json({ error: 'Failed to leave project', details: err.message });
+  }
+});
+
 // --- CONTACTS ---
 app.post('/api/contacts', authenticate, async (req: any, res) => {
   try {
@@ -266,10 +301,16 @@ app.post('/api/notes', authenticate, async (req: any, res) => {
 
     const user = await prisma.user.findUnique({ where: { id: req.userId } });
 
-    const note = await prisma.note.create({
+    if (req.body.imageUrl) {
+      console.log(`Note creation with image. Length: ${req.body.imageUrl.length}`);
+    }
+
+    const note = await (prisma.note as any).create({
       data: {
-        ...noteData,
-        content: body,
+        content: body || '',
+        imageUrl: req.body.imageUrl || null,
+        location: req.body.location || null,
+        isPinned: req.body.isPinned || false,
         categories: categories ? (Array.isArray(categories) ? JSON.stringify(categories) : categories) : '[]',
         createdAt: createdAt ? new Date(createdAt) : undefined,
         createdById: req.userId,
@@ -308,7 +349,10 @@ app.post('/api/notes', authenticate, async (req: any, res) => {
     res.json(note);
   } catch (err: any) {
     console.error('Create note error details:', err);
-    res.status(500).json({ error: 'Failed to create note', details: err.message });
+    res.status(500).json({
+      error: 'Failed to create note',
+      details: `${err.name}: ${err.message}${err.code ? ' (Code: ' + err.code + ')' : ''}`
+    });
   }
 });
 
@@ -325,6 +369,10 @@ app.put('/api/notes/:id', authenticate, async (req: any, res) => {
 
   if (taggedContactIds) data.taggedContacts = { set: taggedContactIds.map((id: string) => ({ id })) };
   if (taggedUserIds) data.taggedUsers = { set: taggedUserIds.map((id: string) => ({ id })) };
+
+  if (updates.imageUrl !== undefined) data.imageUrl = updates.imageUrl;
+  if (updates.location !== undefined) data.location = updates.location;
+  if (updates.isPinned !== undefined) data.isPinned = updates.isPinned;
 
   const oldNote = await prisma.note.findUnique({
     where: { id: req.params.id },
@@ -403,7 +451,7 @@ app.post('/api/invitations', authenticate, async (req: any, res) => {
     const idea = ideaId ? await prisma.idea.findUnique({ where: { id: ideaId } }) : null;
 
     if (sender && idea) {
-      sendInvitationEmail(inv.email, idea.title, sender.name, inv.id)
+      sendInvitationEmail(inv.email, idea.title, sender.name || 'A partner', inv.id)
         .catch(err => console.error('Failed to send invitation email:', err));
     }
 
@@ -420,17 +468,89 @@ app.post('/api/invitations/:id/:action', authenticate, async (req: any, res) => 
 
   const invitation = await prisma.invitation.update({
     where: { id },
-    data: { status }
+    data: { status },
+    include: { idea: true, sender: true }
   });
 
   if (status === 'Accepted' && invitation.ideaId) {
+    // 1. Link collaborator to idea
     await prisma.idea.update({
       where: { id: invitation.ideaId },
       data: { collaborators: { connect: { id: req.userId } } }
     });
+
+    // 2. Notify the owner
+    const accepter = await prisma.user.findUnique({ where: { id: req.userId } });
+    if (invitation.sender?.email && invitation.idea && accepter) {
+      sendInvitationAcceptedEmail(
+        invitation.sender.email,
+        invitation.idea.title,
+        accepter.name || 'A user',
+        invitation.ideaId
+      ).catch(err => console.error('Failed to notify owner of acceptance:', err));
+    }
   }
 
   res.json(invitation);
+});
+
+app.post('/api/invitations/:id/resend', authenticate, async (req: any, res) => {
+  try {
+    const inv = await prisma.invitation.findUnique({
+      where: { id: req.params.id },
+      include: { idea: true, sender: true }
+    });
+
+    if (!inv || inv.status !== 'Pending') {
+      return res.status(400).json({ error: 'Invitation not found or already accepted/declined' });
+    }
+
+    if (inv.senderId !== req.userId) {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+
+    if (inv.sender && inv.idea) {
+      await sendInvitationEmail(inv.email, inv.idea.title, inv.sender.name || 'A partner', inv.id);
+    }
+
+    res.json({ ok: true });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete('/api/invitations/:id', authenticate, async (req: any, res) => {
+  try {
+    const { id } = req.params;
+    const inv = await prisma.invitation.findUnique({ where: { id } });
+
+    if (!inv) return res.status(404).json({ error: 'Invitation not found' });
+    if (inv.senderId !== req.userId) return res.status(403).json({ error: 'Forbidden' });
+
+    await prisma.invitation.delete({ where: { id } });
+    res.json({ ok: true });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete('/api/ideas/:ideaId/collaborators/:userId', authenticate, async (req: any, res) => {
+  try {
+    const { ideaId, userId } = req.params;
+    const idea = await prisma.idea.findUnique({ where: { id: ideaId } });
+
+    if (!idea) return res.status(404).json({ error: 'Idea not found' });
+    if (idea.ownerId !== req.userId) return res.status(403).json({ error: 'Only owners can remove collaborators' });
+
+    await prisma.idea.update({
+      where: { id: ideaId },
+      data: { collaborators: { disconnect: { id: userId } } }
+    });
+
+    res.json({ ok: true });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // --- USER SETTINGS ---

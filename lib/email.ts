@@ -8,11 +8,12 @@ export const sendInvitationEmail = async (email: string, ideaTitle: string, send
     return { id: 'mocked-id' };
   }
 
-  const inviteLink = `${process.env.FRONTEND_URL || 'http://localhost:3002'}/#/invitations?id=${inviteId}`;
+  const inviteLink = `${process.env.FRONTEND_URL || 'https://idea-crm.com'}/#/invitations?id=${inviteId}`;
 
+  const fromAddress = process.env.RESEND_FROM || 'Idea-CRM <noreply@idea-crm.com>';
   try {
     const data = await resend.emails.send({
-      from: 'Idea-CRM <onboarding@resend.dev>',
+      from: fromAddress,
       to: [email],
       subject: `Collaboration Invitation: ${ideaTitle}`,
       html: `
@@ -87,10 +88,13 @@ export const sendInvitationEmail = async (email: string, ideaTitle: string, send
       `,
     });
 
-    console.log('Invitation email sent:', data);
+    console.log('Invitation email sent successfully:', data);
     return data;
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error sending invitation email:', error);
+    if (error.message?.includes('testing emails')) {
+      console.warn('RESEND TIP: You are using the test domain. You can only send to your own registered email until you verify a custom domain.');
+    }
     throw error;
   }
 };
@@ -101,11 +105,12 @@ export const sendTaskAssignmentEmail = async (email: string, ideaTitle: string, 
     return { id: 'mocked-id' };
   }
 
-  const ideaLink = `${process.env.FRONTEND_URL || 'http://localhost:3002'}/#/ideas/${ideaId}`;
+  const ideaLink = `${process.env.FRONTEND_URL || 'https://idea-crm.com'}/#/ideas/${ideaId}`;
 
+  const fromAddress = process.env.RESEND_FROM || 'Idea-CRM <noreply@idea-crm.com>';
   try {
     const data = await resend.emails.send({
-      from: 'Idea-CRM <onboarding@resend.dev>',
+      from: fromAddress,
       to: [email],
       subject: `New Task Assigned: ${ideaTitle}`,
       html: `
@@ -176,10 +181,13 @@ export const sendTaskAssignmentEmail = async (email: string, ideaTitle: string, 
       `,
     });
 
-    console.log('Task assignment email sent:', data);
+    console.log('Task assignment email sent successfully:', data);
     return data;
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error sending task assignment email:', error);
+    if (error.message?.includes('testing emails')) {
+      console.warn('RESEND TIP: You are using the test domain. You can only send to your own registered email until you verify a custom domain.');
+    }
     throw error;
   }
 };
@@ -190,11 +198,12 @@ export const sendNoteMentionEmail = async (email: string, ideaTitle: string, not
     return { id: 'mocked-id' };
   }
 
-  const ideaLink = `${process.env.FRONTEND_URL || 'http://localhost:3002'}/#/ideas/${ideaId}`;
+  const ideaLink = `${process.env.FRONTEND_URL || 'https://idea-crm.com'}/#/ideas/${ideaId}`;
 
+  const fromAddress = process.env.RESEND_FROM || 'Idea-CRM <noreply@idea-crm.com>';
   try {
     const data = await resend.emails.send({
-      from: 'Idea-CRM <onboarding@resend.dev>',
+      from: fromAddress,
       to: [email],
       subject: `Mentioned in ${ideaTitle}`,
       html: `
@@ -265,10 +274,97 @@ export const sendNoteMentionEmail = async (email: string, ideaTitle: string, not
       `,
     });
 
-    console.log('Note mention email sent:', data);
+    console.log('Note mention email sent successfully:', data);
     return data;
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error sending note mention email:', error);
+    if (error.message?.includes('testing emails')) {
+      console.warn('RESEND TIP: You are using the test domain. You can only send to your own registered email until you verify a custom domain.');
+    }
+    throw error;
+  }
+};
+
+export const sendInvitationAcceptedEmail = async (ownerEmail: string, ideaTitle: string, assigneeName: string, ideaId: string) => {
+  if (!process.env.RESEND_API_KEY) {
+    console.warn('RESEND_API_KEY is not set. Skipping email sending.');
+    return { id: 'mocked-id' };
+  }
+
+  const ideaLink = `${process.env.FRONTEND_URL || 'https://idea-crm.com'}/#/ideas/${ideaId}`;
+
+  const fromAddress = process.env.RESEND_FROM || 'Idea-CRM <noreply@idea-crm.com>';
+  try {
+    const data = await resend.emails.send({
+      from: fromAddress,
+      to: [ownerEmail],
+      subject: `New Collaborator Joined: ${ideaTitle}`,
+      html: `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <style>
+            @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+          </style>
+        </head>
+        <body style="margin: 0; padding: 0; font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #f8fafc;">
+          <table width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color: #f8fafc; padding: 40px 20px;">
+            <tr>
+              <td align="center">
+                <table width="100%" border="0" cellspacing="0" cellpadding="0" style="max-width: 600px; background-color: #ffffff; border-radius: 24px; overflow: hidden; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);">
+                  <!-- Header Gradient -->
+                  <tr>
+                    <td style="background: linear-gradient(135deg, #4f46e5 0%, #0ea5e9 100%); padding: 40px; text-align: center;">
+                      <div style="background-color: rgba(255, 255, 255, 0.2); padding: 12px; border-radius: 12px; display: inline-block; margin-bottom: 20px;">
+                        <span style="color: white; font-weight: 700; font-size: 24px; letter-spacing: -0.025em;">Idea-CRM</span>
+                      </div>
+                      <h1 style="color: white; margin: 0; font-size: 20px; font-weight: 600; line-height: 1.4;">Project Growth</h1>
+                    </td>
+                  </tr>
+                  
+                  <!-- Content -->
+                  <tr>
+                    <td style="padding: 40px;">
+                      <p style="font-size: 16px; color: #475569; margin-bottom: 24px; line-height: 1.6;">
+                        Great news!
+                      </p>
+                      <p style="font-size: 16px; color: #1e293b; margin-bottom: 32px; line-height: 1.6;">
+                        <strong style="color: #4f46e5;">${assigneeName}</strong> has just accepted your invitation and joined the project: <strong>${ideaTitle}</strong>.
+                      </p>
+                      
+                      <!-- CTA Button -->
+                      <div style="text-align: center; margin-bottom: 32px;">
+                        <a href="${ideaLink}" style="background: linear-gradient(135deg, #4f46e5 0%, #0ea5e9 100%); color: white; padding: 16px 32px; border-radius: 12px; text-decoration: none; font-weight: 600; font-size: 16px; display: inline-block; box-shadow: 0 4px 6px -1px rgba(79, 70, 229, 0.2), 0 2px 4px -1px rgba(79, 70, 229, 0.1);">
+                          Go to Workspace
+                        </a>
+                      </div>
+                    </td>
+                  </tr>
+                  
+                  <!-- Footer -->
+                  <tr>
+                    <td style="background-color: #f8fafc; padding: 32px; border-top: 1px solid #e2e8f0; text-align: center;">
+                      <p style="font-size: 12px; color: #94a3b8; margin: 0;">
+                        Idea-CRM &bull; Collaborative Innovation
+                      </p>
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+          </table>
+        </body>
+        </html>
+      `,
+    });
+
+    console.log('Join notification email sent successfully:', data);
+    return data;
+  } catch (error: any) {
+    console.error('Error sending join notification email:', error);
+    if (error.message?.includes('testing emails')) {
+      console.warn('RESEND TIP: You are using the test domain. You can only send to your own registered email until you verify a custom domain.');
+    }
     throw error;
   }
 };

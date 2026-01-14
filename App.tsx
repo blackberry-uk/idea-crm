@@ -56,7 +56,7 @@ const AuthPage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4 py-12">
+    <div className="min-h-screen flex items-center justify-center bg-[#F2F3F4] px-4 py-12">
       <div className="max-w-md w-full space-y-10 bg-white p-12 rounded-[2.5rem] shadow-2xl border border-gray-100 animate-in fade-in zoom-in-95 duration-500">
         <div className="text-center space-y-2">
           <div className="inline-flex items-center justify-center w-20 h-20 bg-indigo-600 rounded-3xl shadow-xl shadow-indigo-100 text-white mb-6">
@@ -64,7 +64,7 @@ const AuthPage: React.FC = () => {
           </div>
           <h2 className="text-4xl font-black text-gray-900 tracking-tighter">Idea-CRM</h2>
           <p className="text-sm text-gray-500 font-medium tracking-tight">
-            {isRegister ? 'Create your personal workspace profile' : 'Welcome back to your venture pipeline'}
+            {isRegister ? 'Create your personal workspace profile' : 'All your ideas in one place'}
           </p>
         </div>
 
@@ -83,7 +83,7 @@ const AuthPage: React.FC = () => {
                 type="text"
                 required
                 className="w-full px-5 py-4 bg-gray-50 border border-transparent rounded-2xl outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white transition-all font-semibold"
-                placeholder="Alex Founder"
+                placeholder="Pepito Pérez"
                 value={name}
                 onChange={e => setName(e.target.value)}
               />
@@ -96,7 +96,7 @@ const AuthPage: React.FC = () => {
               type="email"
               required
               className="w-full px-5 py-4 bg-gray-50 border border-transparent rounded-2xl outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white transition-all font-semibold"
-              placeholder="founder@example.com"
+              placeholder="pepito.perez@example.com"
               value={email}
               onChange={e => setEmail(e.target.value)}
             />
@@ -147,7 +147,7 @@ const AuthPage: React.FC = () => {
             }}
             className="text-xs font-bold text-gray-400 hover:text-indigo-600 transition-colors uppercase tracking-widest"
           >
-            {isRegister ? 'Already have a profile? Sign in' : 'New collaborator? Register here'}
+            {isRegister ? 'Already have a profile? Sign in' : 'Sign up here'}
           </button>
 
           <div className="flex items-center gap-2 text-[10px] font-bold text-green-600 bg-green-50 px-3 py-1 rounded-full uppercase tracking-tighter">
@@ -160,13 +160,16 @@ const AuthPage: React.FC = () => {
   );
 };
 
+import Toast from './components/Toast';
+import ConfirmDialog from './components/ConfirmDialog';
+
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { data, isHydrated } = useStore();
   const token = apiClient.getToken();
 
   if (token && !isHydrated) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 gap-4">
+      <div className="min-h-screen flex flex-col items-center justify-center bg-[#F2F3F4] gap-4">
         <div className="w-12 h-12 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
         <p className="text-sm font-bold text-gray-400 uppercase tracking-widest animate-pulse">Initializing Workspace...</p>
       </div>
@@ -177,7 +180,13 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
     return <Navigate to="/login" replace />;
   }
 
-  return <Layout>{children}</Layout>;
+  return (
+    <Layout>
+      {children}
+      <Toast />
+      <ConfirmDialog />
+    </Layout>
+  );
 };
 
 const App: React.FC = () => {

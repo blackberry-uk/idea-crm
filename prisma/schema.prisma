@@ -107,6 +107,7 @@ model Note {
 
   taggedContacts Contact[] @relation("TaggedContacts")
   taggedUsers    User[]    @relation("TaggedUsers")
+  imageUrl    String?
 }
 
 model Interaction {
