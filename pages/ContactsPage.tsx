@@ -70,7 +70,7 @@ const ContactsPage: React.FC = () => {
                 {contact.role} @ {contact.org}
               </p>
 
-              <div className="mt-auto pt-4 border-t border-gray-50 space-y-2">
+              <div className="mt-auto pt-4 border-t border-gray-200 space-y-2">
                 {contact.email && (
                   <div className="flex items-center gap-2 text-xs text-gray-400">
                     <Mail className="w-3.5 h-3.5" />

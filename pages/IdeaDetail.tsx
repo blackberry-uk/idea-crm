@@ -1,8 +1,11 @@
 
 import React, { useState, useMemo } from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useNavigate, useParams, Link } from 'react-router-dom';
 import { useStore } from '../store/useStore';
 import { format } from 'date-fns';
+import CallMinuteModal from '../components/CallMinuteModal';
+import CallMinuteViewer from '../components/CallMinuteViewer';
+import { Note, Idea, Contact, User, IdeaType, IdeaStatus } from '../types';
 import {
   Trash2,
   Plus,
@@ -22,15 +25,31 @@ import {
   Calendar,
   Clock,
   X,
-  Check
+  Check,
+  RefreshCw,
+  UserMinus,
+  ClipboardList,
+  Search,
+  Save,
+  Activity,
+  StickyNote,
+  LogOut,
+  Layout
 } from 'lucide-react';
 import NoteComposer from '../components/NoteComposer';
-import { Note, IdeaType } from '../types';
+import { getInitials, getAvatarColor } from '../lib/utils';
+import KanbanModal from '../components/KanbanModal';
+
+const STAGES_MAP: Record<IdeaType, IdeaStatus[]> = {
+  'Product': ['Ideation', 'Research', 'Prototype', 'Testing', 'Launched'],
+  'Consulting': ['Scoping', 'Research', 'Proposal', 'Approval', 'Execution'],
+  'New Business': ['Ideation', 'Research', 'Business Plan', 'Capital Raise', 'Launched']
+};
 
 const IdeaDetail: React.FC = () => {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { data, updateIdea, togglePinNote, shareIdea } = useStore();
+  const { data, updateIdea, togglePinNote, shareIdea, resendInvitation, uninviteCollaborator, deleteInvitation, showToast, confirm, deleteNote, deleteIdea, leaveIdea } = useStore();
   const idea = data.ideas.find(i => i.id === id);
 
 
@@ -45,6 +64,8 @@ const IdeaDetail: React.FC = () => {
   const [noteSearchQuery, setNoteSearchQuery] = useState('');
   const [activeCategoryFilter, setActiveCategoryFilter] = useState<string | null>(null);
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
+  const [editingCallMinute, setEditingCallMinute] = useState<Note | null>(null);
+  const [viewingCallMinute, setViewingCallMinute] = useState<Note | null>(null);
   const [todoInput, setTodoInput] = useState('');
   const [todoDueDate, setTodoDueDate] = useState('');
   const [todoAssigneeId, setTodoAssigneeId] = useState<string>('');
@@ -54,6 +75,41 @@ const IdeaDetail: React.FC = () => {
   const [editingTodoText, setEditingTodoText] = useState('');
   const [editingTodoDueDate, setEditingTodoDueDate] = useState('');
   const [editingTodoAssigneeId, setEditingTodoAssigneeId] = useState('');
+  const [draggedTodoIndex, setDraggedTodoIndex] = useState<number | null>(null);
+  const [isKanbanOpen, setIsKanbanOpen] = useState(false);
+
+  const handleTodoDragStart = (idx: number) => {
+    setDraggedTodoIndex(idx);
+  };
+
+  const handleTodoDragOver = (e: React.DragEvent, idx: number) => {
+    e.preventDefault();
+    if (draggedTodoIndex === null || draggedTodoIndex === idx) return;
+
+    const newTodos = [...(idea?.todos || [])];
+    const draggedItem = newTodos[draggedTodoIndex];
+    newTodos.splice(draggedTodoIndex, 1);
+    newTodos.splice(idx, 0, draggedItem);
+
+    if (idea) {
+      updateIdea(idea.id, { todos: newTodos });
+    }
+    setDraggedTodoIndex(idx);
+  };
+
+  const handleTodoDragEnd = () => {
+    setDraggedTodoIndex(null);
+  };
+  const [showComposer, setShowComposer] = useState(() => {
+    const saved = localStorage.getItem('hideComposer');
+    return saved !== 'true';
+  });
+
+  const toggleComposer = () => {
+    const newVal = !showComposer;
+    setShowComposer(newVal);
+    localStorage.setItem('hideComposer', (!newVal).toString());
+  };
 
   // Sync editedIdea when entering edit mode
   React.useEffect(() => {
@@ -85,11 +141,12 @@ const IdeaDetail: React.FC = () => {
     if (!inviteEmail.trim()) return;
     try {
       await shareIdea(idea.id, inviteEmail.trim());
+      const email = inviteEmail.trim();
       setInviteEmail('');
-      alert('Invitation sent to ' + inviteEmail);
-    } catch (err) {
+      showToast(`Invitation sent to ${email}`, 'success');
+    } catch (err: any) {
       console.error('Failed to send invitation:', err);
-      alert('Failed to send invitation. Please check the console.');
+      showToast(err.message || 'Failed to send invitation', 'error');
     }
   };
 
@@ -110,7 +167,8 @@ const IdeaDetail: React.FC = () => {
       date: now, // Deprecated
       createdAt: now,
       dueDate: todoDueDate || undefined,
-      assigneeId: todoAssigneeId || data.currentUser?.id
+      assigneeId: todoAssigneeId || data.currentUser?.id,
+      status: 'Not Started'
     };
     updateIdea(idea.id, {
       todos: [...(idea.todos || []), newTodo]
@@ -129,7 +187,8 @@ const IdeaDetail: React.FC = () => {
         return {
           ...t,
           completed: newCompleted,
-          completedAt: newCompleted ? new Date().toISOString() : undefined
+          completedAt: newCompleted ? new Date().toISOString() : undefined,
+          status: newCompleted ? 'Done' : 'Working'
         };
       }
       return t;
@@ -209,7 +268,7 @@ const IdeaDetail: React.FC = () => {
               <Link
                 key={`mention-contact-${contact.id}-${i}`}
                 to={`/contacts/${contact.id}`}
-                className="bg-indigo-50 text-indigo-700 px-1.5 py-0.5 rounded-md font-bold hover:bg-indigo-100 transition-colors border border-indigo-100 inline-flex items-center gap-0.5 no-underline mx-0.5 align-baseline"
+                className="bg-violet-50 text-violet-700 px-1.5 py-0.5 rounded-md font-bold hover:bg-violet-100 transition-colors border border-violet-100 inline-flex items-center gap-0.5 no-underline mx-0.5 align-baseline"
               >
                 <AtSign className="w-2.5 h-2.5" />
                 {contact.fullName}
@@ -235,8 +294,8 @@ const IdeaDetail: React.FC = () => {
             return (
               <span
                 key={`mention-user-${user.id}-${i}`}
-                className="bg-purple-50 text-purple-700 px-1.5 py-0.5 rounded-md font-bold border border-purple-100 inline-flex items-center gap-0.5 no-underline mx-0.5 align-baseline cursor-default"
-                title={`${user.name} (Collaborator)`}
+                className="bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded-md font-bold border border-blue-100 inline-flex items-center gap-0.5 no-underline mx-0.5 align-baseline cursor-default"
+                title={`${user.name} (Idea-crm user)`}
               >
                 <AtSign className="w-2.5 h-2.5" />
                 {user.name}
@@ -263,206 +322,498 @@ const IdeaDetail: React.FC = () => {
       );
     }
 
+    const isStructured = note.body.startsWith('{') && note.body.includes('"template"');
+    let structuredData: any = null;
+    if (isStructured) {
+      try {
+        structuredData = JSON.parse(note.body);
+      } catch (e) { }
+    }
+
     const isPinned = note.isPinned;
     const author = data.users.find(u => u.id === note.createdById);
 
-    return (
-      <div key={note.id} className={`group relative p-6 rounded-2xl border transition-all ${isPinned ? 'bg-indigo-50 border-indigo-200 mb-8 shadow-md' : 'bg-white border-gray-100 shadow-sm mb-4 hover:border-indigo-100'}`}>
-        <div className="flex flex-wrap items-center gap-3 mb-4">
-          <div className={`w-6 h-6 rounded-full ${author?.avatarColor || 'bg-gray-400'} flex items-center justify-center text-[10px] text-white font-bold`}>
-            {note.createdBy[0]}
-          </div>
-          <div className="flex flex-col">
-            <span className="text-[10px] font-black text-gray-900 uppercase tracking-tighter">
-              {note.createdBy}
-            </span>
-            <span className="text-[9px] text-gray-400 font-bold uppercase tracking-widest">
-              {format(new Date(note.createdAt), 'MMM d · h:mm a')}
-            </span>
-          </div>
+    const renderStructuredBody = (data: any) => {
+      if (data.template === 'call-minute') {
+        const typeColors: Record<string, string> = {
+          'Insight': 'bg-blue-50 text-blue-700 border-blue-100',
+          'Agreement': 'bg-emerald-50 text-emerald-700 border-emerald-100',
+          'To do': 'bg-amber-50 text-amber-700 border-amber-100',
+          'Decision': 'bg-purple-50 text-purple-700 border-purple-100',
+          'Data Point': 'bg-indigo-50 text-indigo-700 border-indigo-100',
+          'Reference': 'bg-gray-50 text-gray-700 border-gray-100'
+        };
 
-          <div className="flex items-center gap-2 ml-auto">
-            {note.location && (
-              <div className="flex items-center gap-1 text-[9px] font-bold text-gray-400 bg-gray-50 px-2 py-0.5 rounded-full">
-                <MapPin className="w-2.5 h-2.5" />
-                {note.location}
+        const segments = data.segments || (data.data ? [data.data] : []);
+        const displayedSegments = segments.slice(0, 5);
+        const hasMore = segments.length > 5;
+
+        return (
+          <div className="space-y-1 font-sans py-2">
+            {data.attendees && (
+              <div className="flex items-center gap-2 text-[10px] font-bold text-gray-400 mb-4">
+                <Users className="w-3 h-3" />
+                Attendees: <span className="text-gray-500 font-bold">{data.attendees}</span>
               </div>
             )}
-            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
-              {note.createdById === data.currentUser?.id && (
-                <button onClick={() => setEditingNoteId(note.id)} className="p-1.5 rounded hover:bg-indigo-100 text-indigo-600"><Edit3 className="w-3.5 h-3.5" /></button>
+
+            <div className="space-y-0 border-l border-gray-100 ml-1.5 pl-4 flex flex-col">
+              {segments.map((seg: any, i: number) => {
+                const isLast = i === (displayedSegments.length - 1) && !hasMore;
+                return (
+                  <div key={i} className="flex items-center gap-3 h-8 relative group/seg">
+                    {/* Tree Node Indicator */}
+                    <div className="absolute -left-[19.5px] top-1/2 -translate-y-1/2 w-2.5 h-[1px] bg-gray-300"></div>
+                    <div className="absolute -left-[21px] top-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full bg-white border border-gray-300 shadow-sm z-10"></div>
+
+                    <span className="w-20 px-1.5 py-0.5 text-[9px] uppercase rounded border bg-gray-50 text-gray-500 border-gray-200 shrink-0 text-center tracking-widest shadow-sm whitespace-nowrap">
+                      {seg.type}
+                    </span>
+                    <p className="text-xs font-normal text-gray-500 truncate max-w-lg transition-colors group-hover/seg:text-gray-900">
+                      {seg.topic || 'No topic specified'}
+                    </p>
+                  </div>
+                );
+              })}
+              {hasMore && (
+                <div className="flex items-center gap-3 h-8 relative group/seg opacity-60">
+                  <div className="absolute -left-[19.5px] top-1/2 -translate-y-1/2 w-2.5 h-[1px] bg-gray-300"></div>
+                  <div className="absolute -left-[20px] top-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full bg-gray-50 border border-gray-200"></div>
+                  <p className="text-[10px] text-gray-400 font-medium italic translate-x-[76px]">
+                    + {segments.length - 5} more items...
+                  </p>
+                </div>
               )}
-              <button onClick={() => togglePinNote(note.id)} className={`p-1.5 rounded hover:bg-yellow-100 transition-all ${isPinned ? 'text-yellow-600' : 'text-gray-300'}`}><Pin className={`w-3.5 h-3.5 ${isPinned ? 'fill-current' : ''}`} /></button>
+            </div>
+
+            <div className="pt-4 ml-1.5">
+              <button
+                onClick={() => setViewingCallMinute(note)}
+                className="inline-flex items-center gap-2 px-3 py-1.5 bg-white border border-indigo-100/50 text-indigo-500 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-indigo-50 hover:text-indigo-700 transition-all shadow-sm group"
+              >
+                Read full note
+                <ExternalLink className="w-3.5 h-3.5 group-hover:scale-110 transition-transform" />
+              </button>
             </div>
           </div>
-        </div>
+        );
+      }
+      return <p className="text-xs text-red-400 italic">Unsupported Template</p>;
+    };
 
-        <div className="text-sm text-gray-800 leading-relaxed font-mono whitespace-pre-wrap">
-          {renderBodyWithLinks(note.body, note)}
-        </div>
+    return (
+      <div key={note.id} className={`group relative pb-8 mb-8 border-b border-gray-400 last:border-0 transition-all ${isPinned ? 'bg-indigo-50/30 -mx-6 px-6 pt-6 rounded-2xl border-none shadow-sm' : ''}`}>
+        <div className="flex items-center flex-wrap gap-x-4 gap-y-1 mb-3 text-[13px] leading-none">
+          <span className="text-blue-400 hover:underline cursor-default transition-colors" title={note.location || undefined}>
+            {format(new Date(note.createdAt), "EEE, MMM d ''yy · h:mm a")}
+          </span>
+          <span className="text-blue-400">{note.createdBy}</span>
 
-        {note.categories && note.categories.length > 0 && (
-          <div className="mt-4 pt-4 border-t border-gray-50 flex flex-wrap gap-2">
-            {note.categories.map(cat => (
-              <span key={cat} className="px-2 py-1 bg-gray-50 text-gray-400 rounded-lg text-[10px] font-bold border border-gray-100">
-                {cat}
-              </span>
-            ))}
+          <div className="ml-auto flex items-center gap-4">
+            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
+              {note.createdById === data.currentUser?.id && (
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => {
+                      if (isStructured && structuredData?.template === 'call-minute') {
+                        setEditingCallMinute(note);
+                      } else {
+                        setEditingNoteId(note.id);
+                      }
+                    }}
+                    className="p-1.5 rounded-lg hover:bg-indigo-50 text-gray-400 hover:text-indigo-600 transition-all"
+                    title="Edit Note"
+                  >
+                    <Edit3 className="w-4 h-4" />
+                  </button>
+                  <button
+                    onClick={() => {
+                      confirm({
+                        title: 'Delete Note',
+                        message: 'Are you sure you want to delete this note? This action cannot be undone.',
+                        confirmLabel: 'Delete',
+                        type: 'danger',
+                        onConfirm: () => {
+                          confirm({
+                            title: 'Final Confirmation',
+                            message: 'Please confirm one last time. This will permanently remove this insight.',
+                            confirmLabel: 'Delete Permanently',
+                            type: 'danger',
+                            onConfirm: () => deleteNote(note.id)
+                          });
+                        }
+                      });
+                    }}
+                    className="p-1.5 rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-500 transition-all"
+                    title="Delete Note"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {note.categories && note.categories.length > 0 && (
+              <div className="flex flex-wrap gap-1.5">
+                {note.categories.map(cat => (
+                  <span key={cat} className="px-1.5 py-0.5 bg-indigo-50 text-indigo-700 rounded text-[9px] font-black uppercase tracking-tighter border border-indigo-200">
+                    {cat}
+                  </span>
+                ))}
+              </div>
+            )}
+            {note.createdById === data.currentUser?.id && (
+              <button
+                onClick={() => togglePinNote(note.id)}
+                className={`p-1.5 rounded-lg transition-all flex items-center justify-center ${isPinned ? 'bg-amber-50 text-amber-600 border border-amber-200 shadow-sm' : 'text-gray-300 hover:text-gray-500 hover:bg-gray-100'}`}
+                title={isPinned ? 'Unpin' : 'Pin'}
+              >
+                <Pin className={`w-4 h-4 ${isPinned ? 'fill-current' : ''}`} />
+              </button>
+            )}
           </div>
-        )}
+        </div>
+
+        <div className="text-[14px] text-slate-800 font-medium leading-relaxed whitespace-pre-wrap font-sans">
+          {note.imageUrl && (
+            <div className="mb-4 rounded-2xl overflow-hidden border border-gray-100 shadow-lg max-w-xl">
+              <img src={note.imageUrl} alt="Attached" className="w-full h-auto" />
+            </div>
+          )}
+          {isStructured && structuredData
+            ? renderStructuredBody(structuredData)
+            : <div>{renderBodyWithLinks(note.body, note)}</div>
+          }
+        </div>
       </div>
     );
   };
 
   return (
-    <div className="max-w-6xl mx-auto pb-20 animate-in fade-in slide-in-from-bottom-4 px-6">
-      <div className="sticky top-0 z-30 bg-white/80 backdrop-blur-md pt-6 pb-4 mb-8 border-b border-gray-200">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+    <div className="max-w-6xl mx-auto pb-20 animate-in fade-in transition-all px-6">
+      <div className="sticky top-0 z-30 bg-white/95 backdrop-blur-md rounded-b-[32px] border-x border-b border-gray-100 shadow-md pt-5 pb-3 -mx-6 mb-10 px-12">
+        <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
           <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 mb-2">
-              {isEditingIdea ? (
-                <div className="flex gap-2">
-                  <select
-                    className="text-[10px] font-bold uppercase bg-white border border-gray-200 rounded px-2 py-0.5 outline-indigo-500"
-                    value={editedIdea.type}
-                    onChange={e => setEditedIdea({ ...editedIdea, type: e.target.value as IdeaType })}
-                  >
-                    <option value="Product">Product</option>
-                    <option value="Consulting">Consulting</option>
-                    <option value="New Business">New Business</option>
-                  </select>
-                  <select
-                    className="text-[10px] font-bold uppercase bg-white border border-gray-200 rounded px-2 py-0.5 outline-indigo-500"
-                    value={editedIdea.entity}
-                    onChange={e => setEditedIdea({ ...editedIdea, entity: e.target.value })}
-                  >
-                    {personalEntities.map(ent => <option key={ent} value={ent}>{ent}</option>)}
-                  </select>
+            <div className="flex flex-wrap items-center gap-3 mb-5">
+              <div className="flex items-center gap-2">
+                {isEditingIdea ? (
+                  <div className="flex gap-2">
+                    <select
+                      className="text-[10px] font-bold uppercase bg-white border border-gray-200 rounded px-2 py-1 outline-indigo-500 shadow-sm"
+                      value={editedIdea.type}
+                      onChange={e => setEditedIdea({ ...editedIdea, type: e.target.value as IdeaType })}
+                    >
+                      <option value="Product">Product</option>
+                      <option value="Consulting">Consulting</option>
+                      <option value="New Business">New Business</option>
+                    </select>
+                    <select
+                      className="text-[10px] font-bold uppercase bg-white border border-gray-200 rounded px-2 py-1 outline-indigo-500 shadow-sm"
+                      value={editedIdea.entity}
+                      onChange={e => setEditedIdea({ ...editedIdea, entity: e.target.value })}
+                    >
+                      {personalEntities.map(ent => <option key={ent} value={ent}>{ent}</option>)}
+                    </select>
+                  </div>
+                ) : (
+                  <>
+                    <span className="px-3 py-1 bg-indigo-50 text-indigo-600 rounded-full text-[10px] font-black uppercase tracking-tight border border-indigo-100 shadow-sm">
+                      {idea.type}
+                    </span>
+                    <span className="px-3 py-1 bg-indigo-50 text-indigo-700 rounded-full text-[10px] font-black uppercase tracking-tight border border-indigo-100 shadow-sm">
+                      {idea.entity}
+                    </span>
+                  </>
+                )}
+              </div>
+
+              {!isEditingIdea && owner && (
+                <div className="flex items-center gap-2 pl-3 border-l border-gray-100">
+                  <span className="text-[9px] font-black text-gray-300 uppercase tracking-widest">Owner</span>
+                  <span className="px-3 py-1 bg-amber-50 text-amber-600 rounded-full text-[10px] font-black uppercase tracking-tight border border-amber-100 shadow-sm">
+                    {owner.name}
+                  </span>
                 </div>
-              ) : (
-                <>
-                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase bg-indigo-50 text-indigo-600 border border-indigo-100">
-                    {idea.type}
-                  </span>
-                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase bg-gray-100 text-gray-600">
-                    {idea.entity}
-                  </span>
-                </>
               )}
             </div>
+
             {isEditingIdea ? (
-              <div className="space-y-3">
+              <div className="space-y-3 mb-6">
                 <input
                   className="text-3xl font-extrabold w-full outline-none border-b-2 border-indigo-500 bg-transparent"
                   value={editedIdea.title}
                   onChange={e => setEditedIdea({ ...editedIdea, title: e.target.value })}
                   placeholder="Idea Title"
                 />
-                <div className="flex items-center gap-2">
-                  <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Tags:</span>
-                  <input
-                    className="text-xs font-bold bg-white border border-gray-200 rounded px-2 py-0.5 outline-indigo-500 w-full"
-                    value={Array.isArray(editedIdea.tags) ? editedIdea.tags.join(', ') : ''}
-                    onChange={e => setEditedIdea({ ...editedIdea, tags: e.target.value.split(',').map(s => s.trim()).filter(Boolean) })}
-                    placeholder="Enter tags separated by commas..."
-                  />
-                </div>
               </div>
             ) : (
-              <div>
-                <h1 className="text-3xl font-extrabold text-gray-900 truncate tracking-tight mb-2">{idea.title}</h1>
-                {idea.tags && idea.tags.length > 0 && (
-                  <div className="flex flex-wrap gap-2 mb-2">
-                    {idea.tags.map(tag => (
-                      <span key={tag} className="px-2 py-0.5 bg-gray-100 text-gray-600 rounded text-[9px] font-bold uppercase tracking-wider">
-                        #{tag}
-                      </span>
-                    ))}
-                  </div>
+              <h1 className="text-3xl font-extrabold text-gray-900 truncate tracking-tight mb-4">{idea.title}</h1>
+            )}
+
+            <div className="flex-col flex sm:flex-row items-center gap-4 mb-2">
+              <div className="flex-1 flex items-center h-8 font-bold text-[10px] sm:text-[11px] tracking-tight rounded-lg border border-gray-100 shadow-sm w-full bg-slate-50/50 p-[1px]">
+                {(STAGES_MAP[idea.type] || STAGES_MAP['Product']).map((s, idx, arr) => {
+                  const statusOrder = STAGES_MAP[idea.type] || STAGES_MAP['Product'];
+                  const currentIdx = statusOrder.indexOf(idea.status as any);
+                  const isPassed = currentIdx > idx;
+                  const isCurrent = currentIdx === idx;
+                  const isUntouched = currentIdx < idx;
+
+                  return (
+                    <div
+                      key={s}
+                      onClick={() => {
+                        if (isOwner) {
+                          updateIdea(idea.id, { status: s as any });
+                          showToast(`Moved to ${s}`, 'success');
+                        }
+                      }}
+                      className={`relative flex-1 flex items-center justify-center h-full transition-all cursor-pointer group/status border-r last:border-r-0 border-white/20 ${isCurrent
+                        ? 'bg-indigo-100 text-indigo-700 z-20 shadow-sm rounded-md border border-indigo-200' :
+                        isPassed
+                          ? 'bg-indigo-50/30 text-indigo-400 z-10' :
+                          'bg-transparent text-slate-300'
+                        } hover:brightness-95`}
+                      title={isOwner ? `Set status to ${s}` : undefined}
+                    >
+                      <span>{s}</span>
+                      {!isPassed && isOwner && (
+                        <div className="absolute inset-0 bg-emerald-50/0 group-hover/status:bg-emerald-50/50 transition-colors" />
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div className="flex gap-2 shrink-0">
+                <button
+                  onClick={() => isOwner && updateIdea(idea.id, { status: 'On Hold' })}
+                  className={`px-4 h-8 rounded-lg text-[9px] font-black uppercase tracking-widest border transition-all ${idea.status === 'On Hold'
+                    ? 'bg-amber-500 text-white border-amber-600 shadow-lg shadow-amber-100'
+                    : 'bg-white text-amber-500 border-amber-100 hover:bg-amber-50'
+                    }`}
+                >
+                  On Hold
+                </button>
+                <button
+                  onClick={() => isOwner && updateIdea(idea.id, { status: 'Dead' })}
+                  className={`px-4 h-8 rounded-lg text-[9px] font-black uppercase tracking-widest border transition-all ${idea.status === 'Dead'
+                    ? 'bg-red-500 text-white border-red-600 shadow-lg shadow-red-100'
+                    : 'bg-white text-red-500 border-red-100 hover:bg-red-50'
+                    }`}
+                >
+                  Dead
+                </button>
+              </div>
+            </div>
+
+          </div>
+          <div className="flex items-center gap-2">
+            {isOwner ? (
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setIsEditingIdea(!isEditingIdea)}
+                  className={`p-1.5 rounded-lg transition-all flex items-center justify-center bg-transparent ${isEditingIdea
+                    ? 'text-red-400 hover:bg-red-50'
+                    : 'text-gray-300 hover:text-gray-500 hover:bg-gray-100 active:scale-95'
+                    }`}
+                  title={isEditingIdea ? 'Cancel' : 'Edit Idea'}
+                >
+                  {isEditingIdea ? <X className="w-4 h-4" /> : <Edit3 className="w-4 h-4" />}
+                </button>
+                {!isEditingIdea && (
+                  <button
+                    onClick={() => {
+                      confirm({
+                        title: 'Delete Idea',
+                        message: `Permanently delete "${idea.title}"? This action cannot be undone.`,
+                        confirmLabel: 'Delete',
+                        type: 'danger',
+                        onConfirm: async () => {
+                          try {
+                            await deleteIdea(idea.id);
+                            showToast('Idea deleted', 'success');
+                            navigate('/ideas');
+                          } catch (err: any) {
+                            showToast(err.message || 'Failed to delete idea', 'error');
+                          }
+                        }
+                      });
+                    }}
+                    className="p-1.5 rounded-lg transition-all flex items-center justify-center text-gray-300 hover:text-red-500 hover:bg-red-50 active:scale-95"
+                    title="Delete Idea"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
                 )}
               </div>
-            )}
-          </div>
-          <div className="flex gap-3">
-            {isOwner && (
-              <button onClick={() => setIsEditingIdea(!isEditingIdea)} className="px-4 py-2 bg-indigo-50 text-indigo-600 rounded-xl font-bold flex items-center gap-2 transition-colors hover:bg-indigo-100">
-                <Edit3 className="w-4 h-4" />
-                {isEditingIdea ? 'Cancel' : 'Edit Idea'}
+            ) : (
+              <button
+                onClick={() => {
+                  confirm({
+                    title: 'Leave Project',
+                    message: `Stop collaborating on "${idea.title}"?`,
+                    confirmLabel: 'Leave',
+                    type: 'danger',
+                    onConfirm: async () => {
+                      try {
+                        await leaveIdea(idea.id);
+                        showToast('You have left the project', 'info');
+                        navigate('/ideas');
+                      } catch (err: any) {
+                        showToast(err.message || 'Failed to leave project', 'error');
+                      }
+                    }
+                  });
+                }}
+                className="flex items-center gap-2 px-4 py-1.5 bg-white border border-gray-100 rounded-xl text-gray-400 hover:text-red-500 hover:bg-red-50 transition-all text-[10px] font-black uppercase tracking-widest active:scale-95 shadow-sm"
+              >
+                <LogOut className="w-3.5 h-3.5" />
+                Leave
               </button>
             )}
-            {isEditingIdea && <button onClick={handleSaveIdea} className="px-6 py-2 bg-indigo-600 text-white rounded-xl font-bold shadow-lg shadow-indigo-100 hover:bg-indigo-700">Save Changes</button>}
+            {isEditingIdea && (
+              <button
+                onClick={handleSaveIdea}
+                className="px-6 h-[46px] bg-indigo-600 text-white rounded-2xl font-bold shadow-lg shadow-indigo-100 hover:bg-indigo-700 active:scale-95 transition-all flex items-center justify-center gap-2"
+              >
+                <Save className="w-5 h-5" />
+                <span>Save</span>
+              </button>
+            )}
           </div>
         </div>
-      </div>
+      </div >
 
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_350px] gap-8">
         <div className="space-y-6">
-          <div className="bg-white rounded-2xl border p-8 shadow-sm">
-            <h2 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-4">Idea Brief</h2>
-            {isEditingIdea ? (
-              <textarea
-                className="w-full text-lg text-gray-700 leading-relaxed font-medium bg-gray-50 p-4 rounded-xl outline-indigo-500 min-h-[100px] resize-none"
-                value={editedIdea.oneLiner ?? ''}
-                onChange={e => setEditedIdea({ ...editedIdea, oneLiner: e.target.value })}
-              />
-            ) : (
-              <p className="text-xl text-gray-700 leading-relaxed font-medium">{idea.oneLiner ?? ''}</p>
-            )}
-          </div>
 
-          <div className="bg-white rounded-3xl border p-8 shadow-sm">
-            <div className="mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-              <h2 className="text-xl font-bold tracking-tight">Timeline</h2>
-              <div className="relative">
-                <Edit3 className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
-                <input className="pl-8 pr-4 py-1.5 border border-gray-100 rounded-xl text-xs bg-gray-50 focus:ring-2 focus:ring-indigo-500 outline-none w-full sm:w-48" placeholder="Search logs..." value={noteSearchQuery} onChange={e => setNoteSearchQuery(e.target.value)} />
+          <div className="bg-white rounded-[32px] border border-gray-200 shadow-sm overflow-hidden">
+            {showComposer && (
+              <div className="animate-in fade-in slide-in-from-top-4 duration-300 bg-[#FEFADA]">
+                <NoteComposer
+                  defaultIdeaId={idea.id}
+                  onComplete={() => setShowComposer(false)}
+                  title="New Note"
+                  titleIcon={<StickyNote className="w-4 h-4 text-indigo-500" />}
+                  onCancel={toggleComposer}
+                  flat
+                />
               </div>
-            </div>
-            <div className="mb-10"><NoteComposer defaultIdeaId={idea.id} /></div>
-            <div className="space-y-4">
-              {pinnedNote && renderNote(pinnedNote)}
-              {ideaNotes.map(renderNote)}
-              {ideaNotes.length === 0 && !pinnedNote && (
-                <div className="py-20 text-center border-2 border-dashed border-gray-100 rounded-2xl">
-                  <p className="text-gray-400 font-medium">No logs recorded yet. Start the conversation above.</p>
+            )}
+
+            <div className="p-10">
+              <div className="mb-10 flex flex-col sm:flex-row sm:items-center justify-between gap-6">
+                <div className="flex items-center gap-4">
+                  <h2 className="text-sm font-black text-gray-400 uppercase tracking-widest flex items-center gap-2">
+                    <Activity className="w-4 h-4 text-indigo-500" />
+                    Activity
+                  </h2>
+                  {!showComposer && (
+                    <button
+                      onClick={toggleComposer}
+                      className="text-[10px] font-black uppercase tracking-widest text-indigo-600 hover:text-indigo-800 transition-all hover:underline"
+                    >
+                      ( + Add Note )
+                    </button>
+                  )}
                 </div>
-              )}
+                <div className="relative group">
+                  <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 group-focus-within:text-indigo-500 transition-colors" />
+                  <input className="pl-11 pr-6 py-3 border border-gray-100 rounded-2xl text-sm bg-gray-50/50 focus:ring-4 focus:ring-indigo-500/10 focus:bg-white focus:border-indigo-300 outline-none w-full sm:w-64 transition-all" placeholder="Search project history..." value={noteSearchQuery} onChange={e => setNoteSearchQuery(e.target.value)} />
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                {pinnedNote && renderNote(pinnedNote)}
+                {ideaNotes.map(renderNote)}
+                {ideaNotes.length === 0 && !pinnedNote && (
+                  <div className="py-20 text-center border-2 border-dashed border-gray-100 rounded-[28px]">
+                    <p className="text-gray-400 font-bold text-sm tracking-tight italic">No activity logged yet. Share your first thought above.</p>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>
 
         <div className="space-y-8">
-          {/* Owner Info - Dotted Pill Styling */}
+          {/* Program Brief Area */}
           <section className="bg-white rounded-2xl border p-6 shadow-sm">
-            <h2 className="text-sm font-black text-gray-400 uppercase tracking-widest mb-6">Ownership</h2>
-            <div className="border-2 border-dashed border-indigo-100 p-4 rounded-2xl flex items-center gap-4">
-              <div className={`w-12 h-12 rounded-xl ${owner?.avatarColor || 'bg-indigo-600'} flex items-center justify-center text-white text-lg font-bold shadow-inner`}>
-                {owner?.name[0]}
-              </div>
-              <div className="min-w-0">
-                <p className="text-sm font-bold text-gray-900 truncate">{owner?.name}</p>
-                <p className="text-[10px] text-gray-400 uppercase font-bold tracking-tighter">{owner?.email}</p>
-              </div>
-            </div>
+            <h2 className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-4 flex items-center gap-2">
+              <ClipboardList className="w-4 h-4 text-indigo-500" />
+              Program Brief
+            </h2>
+            {isEditingIdea ? (
+              <textarea
+                className="w-full text-sm text-gray-700 leading-relaxed font-medium bg-gray-50 p-4 rounded-xl outline-indigo-500 min-h-[100px] resize-none border border-gray-100"
+                value={editedIdea.oneLiner ?? ''}
+                onChange={e => setEditedIdea({ ...editedIdea, oneLiner: e.target.value })}
+                placeholder="Describe the mission..."
+              />
+            ) : (
+              <p className="text-sm text-gray-700 leading-relaxed font-medium">
+                {idea.oneLiner || <span className="text-gray-400 italic">No mission statement defined.</span>}
+              </p>
+            )}
           </section>
 
-          {/* Checklist Area */}
-          <section className="bg-white rounded-2xl border p-6 shadow-sm">
+          {/* Checklist Area - Moved up */}
+          <section className="bg-white rounded-2xl border p-6 shadow-sm overflow-hidden flex flex-col">
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-sm font-black text-gray-400 uppercase tracking-widest flex items-center gap-2">
-                <ListChecks className="w-4 h-4" />
-                Checklist
+                <ListChecks className="w-4 h-4 text-indigo-500" />
+                TO DOS
               </h2>
               <button
-                onClick={() => setIsAddingTodo(!isAddingTodo)}
-                className="text-[10px] font-bold text-indigo-600 uppercase tracking-wider hover:text-indigo-700 transition-colors"
+                onClick={() => setIsKanbanOpen(true)}
+                className="text-[10px] font-black text-indigo-500 uppercase tracking-widest hover:text-indigo-700 transition-all flex items-center gap-1.5 bg-indigo-50/50 px-3 py-1.5 rounded-xl border border-indigo-100/50 hover:bg-indigo-50 group active:scale-95"
               >
-                {isAddingTodo ? 'Cancel' : 'Add Task'}
+                <Layout className="w-3.5 h-3.5 transition-transform group-hover:rotate-12" />
+                Kanban Board
               </button>
             </div>
 
-            <div className="space-y-4 mb-6">
-              {(idea.todos || []).map(todo => {
+            <div className="mb-6">
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  if (!todoInput.trim()) return;
+                  handleAddTodo(e);
+                }}
+                className="flex gap-2"
+              >
+                <input
+                  className="flex-1 text-xs border border-gray-200 rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-indigo-500 bg-gray-50"
+                  placeholder="What needs to be done? (+ Enter to add)"
+                  value={todoInput}
+                  onChange={e => setTodoInput(e.target.value)}
+                />
+                <button
+                  type="submit"
+                  disabled={!todoInput.trim()}
+                  className="bg-indigo-600 text-white p-2 rounded-lg hover:bg-indigo-700 transition-all shadow-md active:scale-95"
+                >
+                  <Plus className="w-5 h-5" />
+                </button>
+              </form>
+            </div>
+
+            <div className="space-y-2 mb-6">
+              {useMemo(() => {
+                const weights = { 'Working': 0, 'Not Started': 1, 'Done': 2, 'Archived': 3 };
+                return [...(idea.todos || [])]
+                  .filter(t => t.status !== 'Archived')
+                  .sort((a, b) => {
+                    const statusA = a.status || (a.completed ? 'Done' : 'Not Started');
+                    const statusB = b.status || (b.completed ? 'Done' : 'Not Started');
+
+                    if (weights[statusA] !== weights[statusB]) {
+                      return (weights[statusA] ?? 1) - (weights[statusB] ?? 1);
+                    }
+                    return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+                  });
+              }, [idea.todos]).map((todo, idx) => {
                 const isUrgent = todo.isUrgent;
                 const isDone = todo.completed;
                 const assignee = data.users.find(u => u.id === todo.assigneeId);
@@ -522,7 +873,14 @@ const IdeaDetail: React.FC = () => {
                 }
 
                 return (
-                  <div key={todo.id} className="group relative">
+                  <div
+                    key={todo.id}
+                    draggable
+                    onDragStart={() => handleTodoDragStart(idx)}
+                    onDragOver={(e) => handleTodoDragOver(e, idx)}
+                    onDragEnd={handleTodoDragEnd}
+                    className={`group relative transition-all ${draggedTodoIndex === idx ? 'opacity-30 scale-95' : ''}`}
+                  >
                     <div className="flex items-start gap-3">
                       <button
                         onClick={() => toggleTodo(todo.id)}
@@ -533,45 +891,47 @@ const IdeaDetail: React.FC = () => {
                       <div className="flex-1 min-w-0">
                         <div className="flex items-start justify-between gap-2">
                           <p
-                            className={`text-sm leading-snug break-words flex-1 cursor-pointer ${isDone ? 'text-gray-400 line-through font-normal' : 'text-gray-700 font-bold'}`}
+                            className={`text-[13px] leading-snug break-words flex-1 cursor-pointer transition-colors ${isDone
+                              ? 'text-gray-300 line-through font-normal'
+                              : todo.status === 'Working'
+                                ? 'text-gray-900 font-bold'
+                                : 'text-gray-600 font-normal'
+                              }`}
                             onClick={() => startEditingTodo(todo)}
                           >
                             {todo.text}
                           </p>
                           {assignee && (
                             <div
-                              className={`w-5 h-5 rounded-full ${assignee.avatarColor || 'bg-gray-400'} flex items-center justify-center text-[8px] text-white font-bold shrink-0 shadow-sm`}
-                              title={`Assigned to ${assignee.name}`}
+                              className={`w-7 h-7 rounded-lg ${getAvatarColor(assignee.id)} flex items-center justify-center text-[11px] text-white font-black shrink-0 shadow-md premium-tooltip premium-tooltip-right ring-1 ring-white/20`}
+                              data-tooltip={assignee.name}
                             >
-                              {assignee.name[0]}
+                              {getInitials(assignee.name)}
                             </div>
                           )}
                         </div>
                         <div className="flex items-center gap-3 mt-1.5 flex-wrap">
                           {todo.dueDate && (
-                            <div className={`flex items-center gap-1 text-[9px] font-bold uppercase tracking-tight ${isDone ? 'text-gray-300' : 'text-orange-500'}`}>
+                            <div className={`flex items-center gap-1 text-[9px] font-bold uppercase tracking-tight ${isDone ? 'text-gray-200' : 'text-orange-500'}`}>
                               <Calendar className="w-2.5 h-2.5" />
                               Due {format(new Date(todo.dueDate), 'MMM d')}
                             </div>
-                          )}
+                          )
+                          }
                           <div className="flex items-center gap-2">
-                            <button
-                              onClick={() => toggleUrgent(todo.id)}
-                              className={`text-[8px] font-black uppercase px-2 py-0.5 rounded transition-all ${isUrgent ? 'bg-red-50 text-red-600 border border-red-100' : 'text-gray-300 hover:text-red-400 border border-transparent'}`}
-                            >
-                              Urgent
-                            </button>
+                            {isUrgent && (
+                              <button
+                                onClick={() => toggleUrgent(todo.id)}
+                                className="text-[8px] font-black uppercase px-2 py-0.5 rounded transition-all bg-red-50 text-red-600 border border-red-100"
+                              >
+                                Urgent
+                              </button>
+                            )}
                             {isDone && todo.completedAt && (
-                              <span className="text-[8px] text-gray-300 font-bold uppercase tracking-tighter">
+                              <span className="text-[8px] text-gray-300 font-bold uppercase tracking-tighter ml-auto">
                                 Completed {format(new Date(todo.completedAt), 'MMM d, h:mm a')}
                               </span>
                             )}
-                            <button
-                              onClick={() => deleteTodo(todo.id)}
-                              className="opacity-0 group-hover:opacity-100 p-1 text-gray-300 hover:text-red-500 transition-all ml-auto"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
                           </div>
                         </div>
                       </div>
@@ -579,99 +939,108 @@ const IdeaDetail: React.FC = () => {
                   </div>
                 );
               })}
-              {(idea.todos || []).length === 0 && !isAddingTodo && (
+              {(idea.todos || []).length === 0 && (
                 <p className="text-[10px] text-gray-400 italic text-center py-4">No tasks yet. Ready to start?</p>
               )}
             </div>
-
-            {isAddingTodo && (
-              <form onSubmit={handleAddTodo} className="bg-gray-50 p-4 rounded-xl space-y-3 animate-in fade-in slide-in-from-top-2">
-                <input
-                  type="text"
-                  autoFocus
-                  className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2 text-xs outline-none focus:ring-2 focus:ring-indigo-500 transition-all font-medium"
-                  placeholder="What needs to be done?"
-                  value={todoInput}
-                  onChange={e => setTodoInput(e.target.value)}
-                />
-                <div className="grid grid-cols-2 gap-2">
-                  <div className="relative">
-                    <Calendar className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-400" />
-                    <input
-                      type="date"
-                      className="w-full pl-8 pr-3 py-1.5 bg-white border border-gray-200 rounded-lg text-[10px] outline-none focus:ring-2 focus:ring-indigo-500"
-                      value={todoDueDate}
-                      onChange={e => setTodoDueDate(e.target.value)}
-                    />
-                  </div>
-                  <div className="relative">
-                    <Users className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-400" />
-                    <select
-                      className="w-full pl-8 pr-3 py-1.5 bg-white border border-gray-200 rounded-lg text-[10px] outline-none focus:ring-2 focus:ring-indigo-500 appearance-none"
-                      value={todoAssigneeId}
-                      onChange={e => setTodoAssigneeId(e.target.value)}
-                    >
-                      <option value="">Assign to...</option>
-                      <option value={owner?.id}>{owner?.name} (Owner)</option>
-                      {collaborators.map(c => (
-                        <option key={c.id} value={c.id}>{c.name}</option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setIsUrlUrgent(!isUrlUrgent)}
-                    className={`flex-1 py-1.5 rounded-lg text-[10px] font-bold border transition-all ${isUrlUrgent ? 'bg-red-50 text-red-600 border-red-200' : 'bg-white text-gray-400 border-gray-100'}`}
-                  >
-                    Mark as Urgent
-                  </button>
-                  <button
-                    type="submit"
-                    className="bg-indigo-600 text-white px-6 py-1.5 rounded-lg text-[10px] font-bold shadow-md shadow-indigo-100 hover:bg-indigo-700 active:scale-95 transition-all"
-                  >
-                    Add Task
-                  </button>
-                </div>
-              </form>
-            )}
           </section>
 
           {/* Collaborators Panel */}
           <section className="bg-white rounded-2xl border p-6 shadow-sm">
             <h2 className="text-sm font-black text-gray-400 uppercase tracking-widest mb-6 flex items-center gap-2">
-              <Share2 className="w-4 h-4" />
+              <Share2 className="w-4 h-4 text-indigo-500" />
               Collaborators
             </h2>
 
             <div className="space-y-3">
               {collaborators.map(collab => (
-                <div key={collab.id} className="flex items-center gap-3 p-3 border border-gray-100 rounded-xl hover:border-indigo-100 transition-colors">
-                  <div className={`w-8 h-8 rounded-lg ${collab.avatarColor || 'bg-gray-400'} flex items-center justify-center text-white text-xs font-bold`}>
-                    {collab.name[0]}
+                <div key={collab.id} className="group flex items-center gap-3 p-3 border border-gray-100 rounded-xl hover:border-indigo-100 transition-colors">
+                  <div
+                    className={`w-9 h-9 rounded-lg ${getAvatarColor(collab.id)} flex items-center justify-center text-white text-[13px] font-black shadow-md premium-tooltip premium-tooltip-left ring-1 ring-white/20`}
+                    data-tooltip={collab.name}
+                  >
+                    {getInitials(collab.name)}
                   </div>
-                  <div className="min-w-0">
+                  <div className="min-w-0 flex-1">
                     <p className="text-xs font-bold text-gray-700 truncate">{collab.name}</p>
                     <p className="text-[9px] text-gray-400 truncate">{collab.email}</p>
                   </div>
+                  {isOwner && (
+                    <button
+                      onClick={() => {
+                        confirm({
+                          title: 'Remove Collaborator',
+                          message: `Are you sure you want to remove ${collab.name}? They will lose access to this workspace.`,
+                          confirmLabel: 'Remove',
+                          type: 'danger',
+                          onConfirm: async () => {
+                            await uninviteCollaborator(idea.id, collab.id);
+                            showToast(`${collab.name} removed from project`, 'info');
+                          }
+                        });
+                      }}
+                      className="opacity-0 group-hover:opacity-100 p-1.5 text-gray-300 hover:text-red-500 transition-all rounded-lg hover:bg-red-50"
+                      title="Uninvite"
+                    >
+                      <UserMinus className="w-3.5 h-3.5" />
+                    </button>
+                  )}
                 </div>
               ))}
 
               {/* Pending Invitations */}
               {data.invitations.filter(inv => inv.ideaId === idea.id && inv.status === 'Pending').map(inv => (
-                <div key={inv.id} className="flex items-center gap-3 p-3 border border-dashed border-gray-100 rounded-xl opacity-60">
-                  <div className="w-8 h-8 rounded-lg bg-gray-200 flex items-center justify-center text-gray-400">
+                <div key={inv.id} className="group flex items-center gap-3 p-3 border border-dashed border-gray-100 rounded-xl hover:border-indigo-100 transition-all">
+                  <div className="w-8 h-8 rounded-lg bg-gray-50 flex items-center justify-center text-gray-400 opacity-60">
                     <AtSign className="w-4 h-4" />
                   </div>
-                  <div className="min-w-0">
+                  <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
                       <p className="text-xs font-bold text-gray-500 truncate">{inv.email}</p>
                       <span className="text-[8px] bg-gray-100 text-gray-400 px-1 rounded font-bold uppercase">Pending</span>
                     </div>
                     <p className="text-[9px] text-gray-400 truncate tracking-tighter">Waiting for response...</p>
                   </div>
+                  {isOwner && (
+                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
+                      <button
+                        onClick={async () => {
+                          try {
+                            await resendInvitation(inv.id);
+                            showToast('Invitation resent successfully', 'success');
+                          } catch (err: any) {
+                            showToast(err.message || 'Failed to resend', 'error');
+                          }
+                        }}
+                        className="p-1.5 text-gray-300 hover:text-indigo-600 transition-all rounded-lg hover:bg-indigo-50"
+                        title="Resend Invite"
+                      >
+                        <RefreshCw className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        onClick={() => {
+                          confirm({
+                            title: 'Revoke Invitation',
+                            message: `Delete this pending invitation for ${inv.email}?`,
+                            confirmLabel: 'Delete',
+                            type: 'danger',
+                            onConfirm: async () => {
+                              try {
+                                await deleteInvitation(inv.id);
+                                showToast('Invitation deleted', 'info');
+                              } catch (err: any) {
+                                showToast(err.message || 'Failed to delete invitation', 'error');
+                              }
+                            }
+                          });
+                        }}
+                        className="p-1.5 text-gray-300 hover:text-red-500 transition-all rounded-lg hover:bg-red-50"
+                        title="Delete Invitation"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  )}
                 </div>
               ))}
 
@@ -699,6 +1068,30 @@ const IdeaDetail: React.FC = () => {
           </section>
         </div>
       </div>
+      <CallMinuteModal
+        isOpen={!!editingCallMinute}
+        onClose={() => setEditingCallMinute(null)}
+        ideaId={idea.id}
+        idea={idea}
+        editingNote={editingCallMinute || undefined}
+      />
+
+      <KanbanModal
+        isOpen={isKanbanOpen}
+        onClose={() => setIsKanbanOpen(false)}
+        idea={idea}
+        users={data.users}
+        notes={data.notes}
+        onUpdateIdea={updateIdea}
+      />
+      <CallMinuteViewer
+        isOpen={!!viewingCallMinute}
+        onClose={() => setViewingCallMinute(null)}
+        note={viewingCallMinute}
+        idea={idea}
+        contacts={data.contacts}
+        users={data.users}
+      />
     </div>
   );
 };

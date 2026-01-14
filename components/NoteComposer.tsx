@@ -1,19 +1,23 @@
-
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useStore } from '../store/useStore';
-import { Save, Calendar, Tag, MapPin, Pin, Plus, AtSign, Search } from 'lucide-react';
+import { Save, RefreshCw, Calendar, Tag, MapPin, Pin, Plus, AtSign, Search, ClipboardList, Image, X, ChevronDown, Sparkles, MessageSquare, CheckCircle, Zap } from 'lucide-react';
+import CallMinuteModal from './CallMinuteModal';
 import { format } from 'date-fns';
-import { Note } from '../types';
+import { Note, IdeaStatus } from '../types';
 
 interface NoteComposerProps {
   onComplete?: () => void;
   defaultIdeaId?: string;
   defaultContactId?: string;
   editingNote?: Note;
+  title?: string;
+  titleIcon?: React.ReactNode;
+  onCancel?: () => void;
+  flat?: boolean;
 }
 
-const NoteComposer: React.FC<NoteComposerProps> = ({ onComplete, defaultIdeaId, defaultContactId, editingNote }) => {
-  const { data, addNote, updateNote, updateIdea } = useStore();
+const NoteComposer: React.FC<NoteComposerProps> = ({ onComplete, defaultIdeaId, defaultContactId, editingNote, title, titleIcon, onCancel, flat }) => {
+  const { data, addNote, updateNote, updateIdea, showToast } = useStore();
   const [body, setBody] = useState(editingNote?.body || '');
   const [noteDate, setNoteDate] = useState(format(editingNote ? new Date(editingNote.createdAt) : new Date(), 'yyyy-MM-dd'));
   const [selectedCategories, setSelectedCategories] = useState<string[]>(editingNote?.categories || []);
@@ -21,6 +25,12 @@ const NoteComposer: React.FC<NoteComposerProps> = ({ onComplete, defaultIdeaId, 
   const [taggedContacts, setTaggedContacts] = useState<string[]>(editingNote?.taggedContactIds || []);
   const [taggedUserIds, setTaggedUserIds] = useState<string[]>(editingNote?.taggedUserIds || []);
   const [newCustomCategory, setNewCustomCategory] = useState('');
+  const [showCallMinuteModal, setShowCallMinuteModal] = useState(false);
+  const [activeMenu, setActiveMenu] = useState<'tags' | 'templates' | null>(null);
+  const [selectedImage, setSelectedImage] = useState<string | null>(editingNote?.imageUrl || null);
+  const [isDragging, setIsDragging] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Mention system state
   const [mentionQuery, setMentionQuery] = useState('');
@@ -34,7 +44,17 @@ const NoteComposer: React.FC<NoteComposerProps> = ({ onComplete, defaultIdeaId, 
   );
 
   const availableCategories = useMemo(() => {
-    const custom = currentIdea?.customNoteCategories || [];
+    let custom = currentIdea?.customNoteCategories || [];
+    // Defensive check if somehow it came back as a string from the API
+    if (typeof custom === 'string') {
+      try {
+        custom = JSON.parse(custom);
+      } catch (e) {
+        custom = [];
+      }
+    }
+    if (!Array.isArray(custom)) custom = [];
+
     return Array.from(new Set([...data.globalNoteCategories, ...custom]));
   }, [currentIdea, data.globalNoteCategories]);
 
@@ -56,7 +76,6 @@ const NoteComposer: React.FC<NoteComposerProps> = ({ onComplete, defaultIdeaId, 
       });
     }
 
-    // Deduplicate (someone might be a user and a contact)
     const unique = Array.from(new Map(list.map(item => [item.id, item])).values());
 
     if (!mentionQuery) return unique.slice(0, 5);
@@ -77,7 +96,6 @@ const NoteComposer: React.FC<NoteComposerProps> = ({ onComplete, defaultIdeaId, 
       setMentionQuery(mentionMatch[1]);
       setShowMentionList(true);
 
-      // Basic positioning logic (approximate)
       const rect = e.target.getBoundingClientRect();
       const lineHeight = 20;
       const lines = textBeforeCursor.split('\n');
@@ -120,14 +138,105 @@ const NoteComposer: React.FC<NoteComposerProps> = ({ onComplete, defaultIdeaId, 
     const targetIdeaId = defaultIdeaId || editingNote?.ideaId;
     if (!newCustomCategory.trim() || !targetIdeaId) return;
     const cat = newCustomCategory.trim();
-    const currentCustom = currentIdea?.customNoteCategories || [];
-    if (!currentCustom.includes(cat)) {
+    let currentCustom = currentIdea?.customNoteCategories || [];
+    if (typeof currentCustom === 'string') {
+      try {
+        currentCustom = JSON.parse(currentCustom);
+      } catch (e) {
+        currentCustom = [];
+      }
+    }
+    if (!Array.isArray(currentCustom)) currentCustom = [];
+
+    if (!currentCustom.includes(cat) && !data.globalNoteCategories.includes(cat)) {
       updateIdea(targetIdeaId, {
         customNoteCategories: [...currentCustom, cat]
       });
     }
-    handleToggleCategory(cat);
+
+    if (!selectedCategories.includes(cat)) {
+      setSelectedCategories(prev => [...prev, cat]);
+    }
     setNewCustomCategory('');
+  };
+
+  const handleRemoveCustomCategory = (e: React.MouseEvent, cat: string) => {
+    e.stopPropagation();
+    const targetIdeaId = defaultIdeaId || editingNote?.ideaId;
+    if (!targetIdeaId || !currentIdea) return;
+
+    let currentCustom = currentIdea?.customNoteCategories || [];
+    if (typeof currentCustom === 'string') {
+      try {
+        currentCustom = JSON.parse(currentCustom);
+      } catch (e) {
+        currentCustom = [];
+      }
+    }
+    if (!Array.isArray(currentCustom)) currentCustom = [];
+
+    updateIdea(targetIdeaId, {
+      customNoteCategories: currentCustom.filter(c => c !== cat)
+    });
+
+    if (selectedCategories.includes(cat)) {
+      setSelectedCategories(prev => prev.filter(c => c !== cat));
+    }
+  };
+
+  const processFile = (file: File) => {
+    if (!file.type.startsWith('image/')) {
+      showToast('Please upload an image file', 'error');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const img = new window.Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const MAX_WIDTH = 1200;
+        let width = img.width;
+        let height = img.height;
+
+        if (width > MAX_WIDTH) {
+          height *= MAX_WIDTH / width;
+          width = MAX_WIDTH;
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx?.drawImage(img, 0, 0, width, height);
+
+        const compressed = canvas.toDataURL('image/jpeg', 0.8);
+        setSelectedImage(compressed);
+      };
+      img.src = reader.result as string;
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) processFile(file);
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file) processFile(file);
   };
 
   const [locationStr, setLocationStr] = useState(editingNote?.location || 'Detecting location...');
@@ -177,7 +286,8 @@ const NoteComposer: React.FC<NoteComposerProps> = ({ onComplete, defaultIdeaId, 
   }, [editingNote]);
 
   const handleSave = async () => {
-    if (!body.trim()) return;
+    if (!body.trim() || isSaving) return;
+    setIsSaving(true);
 
     const finalLocation = locationStr === 'Detecting location...' ? 'Unknown Location' : locationStr;
 
@@ -193,6 +303,7 @@ const NoteComposer: React.FC<NoteComposerProps> = ({ onComplete, defaultIdeaId, 
           isPinned,
           taggedContactIds: taggedContacts,
           taggedUserIds: taggedUserIds,
+          imageUrl: selectedImage || undefined,
           createdAt: selectedDateWithCurrentTime.toISOString()
         });
       } else {
@@ -205,6 +316,7 @@ const NoteComposer: React.FC<NoteComposerProps> = ({ onComplete, defaultIdeaId, 
           location: finalLocation,
           taggedContactIds: taggedContacts,
           taggedUserIds: taggedUserIds,
+          imageUrl: selectedImage || undefined,
           createdAt: selectedDateWithCurrentTime.toISOString()
         });
       }
@@ -215,137 +327,288 @@ const NoteComposer: React.FC<NoteComposerProps> = ({ onComplete, defaultIdeaId, 
         setTaggedContacts([]);
         setTaggedUserIds([]);
         setIsPinned(false);
+        setSelectedImage(null);
+        setActiveMenu(null);
       }
 
       if (onComplete) onComplete();
-    } catch (err) {
-      console.error('Failed to save note:', err);
-      alert('Failed to save note. Please check the console for details.');
+    } catch (err: any) {
+      console.error('Save error:', err);
+      const message = err.message || 'Failed to save note';
+      const detail = err.details || '';
+      showToast(`${message}${detail ? ': ' + detail : ''}`, 'error');
+    } finally {
+      setIsSaving(false);
     }
   };
 
   const today = format(new Date(), 'yyyy-MM-dd');
 
   return (
-    <div className={`space-y-4 p-4 rounded-2xl border transition-all animate-in fade-in slide-in-from-top-2 ${editingNote ? 'bg-white border-indigo-200 shadow-lg' : 'bg-white border-gray-100 shadow-sm'}`}>
-      <div className="relative">
-        <textarea
-          ref={textareaRef}
-          className="w-full min-h-[120px] p-4 text-sm border border-gray-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent resize-none bg-gray-50/50 shadow-inner transition-all font-mono"
-          placeholder="Capture a thought... (Pro-tip: Type @ to mention someone)"
-          value={body}
-          onChange={handleTextChange}
-        />
-
-        {/* Mention Dropdown */}
-        {showMentionList && (
-          <div
-            className="absolute z-[100] w-48 bg-white border border-gray-200 rounded-xl shadow-2xl p-1 animate-in zoom-in-95 duration-100"
-            style={{ top: mentionPosition.top, left: mentionPosition.left }}
-          >
-            {mentionCandidates.length > 0 ? mentionCandidates.map(c => (
+    <div
+      className={`relative group transition-all animate-in fade-in slide-in-from-top-2`}
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+    >
+      <div className={`transition-all relative ${flat ? '' : `rounded-[32px] border border-yellow-300 shadow-sm bg-[#FEFADA] ${isDragging ? 'ring-4 ring-yellow-400 ring-opacity-50' : ''} ${editingNote ? 'border-indigo-100' : ''}`}`}>
+        {title && (
+          <div className="pt-10 px-10 flex items-center justify-between">
+            <h3 className="text-sm font-black text-gray-400 uppercase tracking-widest flex items-center gap-2">
+              {titleIcon}
+              {title}
+            </h3>
+            {onCancel && (
               <button
-                key={`${c.type}-${c.id}`}
-                onClick={() => insertMention(c.id, c.name, c.type)}
-                className="w-full text-left px-3 py-2 text-xs font-bold text-gray-700 hover:bg-indigo-50 hover:text-indigo-600 rounded-lg flex items-center gap-2"
+                onClick={onCancel}
+                className="p-1.5 rounded-lg text-gray-400 hover:bg-black/5 transition-colors"
               >
-                <div className={`w-5 h-5 rounded flex items-center justify-center text-[10px] ${c.type === 'user' ? 'bg-purple-100 text-purple-600' : 'bg-indigo-100 text-indigo-600'}`}>
-                  {c.type === 'user' ? <AtSign className="w-3 h-3" /> : c.name[0]}
-                </div>
-                <div className="flex flex-col">
-                  <span className="truncate">{c.name}</span>
-                  <span className="text-[8px] uppercase tracking-tighter opacity-50">{c.type}</span>
-                </div>
+                <X className="w-4 h-4" />
               </button>
-            )) : (
-              <div className="px-3 py-2 text-xs text-gray-400 italic">No candidates found</div>
             )}
           </div>
         )}
+        <div className="relative p-6">
+          <textarea
+            ref={textareaRef}
+            className={`w-full min-h-[160px] p-6 text-sm outline-none resize-none transition-all placeholder:text-gray-400 bg-white rounded-[24px] shadow-sm font-normal leading-relaxed font-sans text-slate-700 border border-yellow-100`}
+            placeholder="Capture a thought... (Pro-tip: Type @ to mention someone)"
+            value={body}
+            onChange={handleTextChange}
+          />
 
-        <button
-          onClick={() => setIsPinned(!isPinned)}
-          className={`absolute top-4 right-4 p-2 rounded-lg transition-all ${isPinned ? 'bg-yellow-100 text-yellow-600 shadow-sm' : 'text-gray-300 hover:text-gray-500 hover:bg-gray-100'}`}
-          title="Pin this note (only one per idea)"
-        >
-          <Pin className={`w-4 h-4 ${isPinned ? 'fill-current' : ''}`} />
-        </button>
-      </div>
-
-      {/* Category Chips */}
-      <div className="flex flex-wrap gap-2">
-        {availableCategories.map(cat => (
-          <button
-            key={cat}
-            onClick={() => handleToggleCategory(cat)}
-            className={`px-3 py-1 rounded-full text-[10px] font-bold border transition-all ${selectedCategories.includes(cat)
-              ? 'bg-indigo-600 border-indigo-600 text-white shadow-md'
-              : 'bg-white border-gray-200 text-gray-400 hover:border-indigo-300 hover:text-indigo-600'
-              }`}
-          >
-            {cat}
-          </button>
-        ))}
-        {(defaultIdeaId || editingNote?.ideaId) && (
-          <div className="flex items-center gap-1 bg-gray-50 px-2 py-0.5 rounded-full border border-gray-200">
-            <input
-              type="text"
-              placeholder="Custom tag..."
-              className="bg-transparent text-[10px] outline-none w-20 py-0.5"
-              value={newCustomCategory}
-              onChange={(e) => setNewCustomCategory(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleAddCustomCategory()}
-            />
-            <button onClick={handleAddCustomCategory} className="text-gray-400 hover:text-indigo-600">
-              <Plus className="w-3 h-3" />
+          <div className="absolute top-8 right-8 flex items-center gap-2">
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              className="p-2 rounded-xl text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 transition-all shadow-sm bg-white/80 backdrop-blur-sm border border-gray-100"
+              title="Add Image"
+            >
+              <Image className="w-4 h-4" />
             </button>
-          </div>
-        )}
-      </div>
-
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 pt-2 border-t border-gray-50">
-        <div className="flex items-center gap-4">
-          <div className="relative group/date">
-            <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none group-hover/date:text-indigo-500 transition-colors" />
             <input
-              type="date"
-              max={today}
-              className="pl-9 pr-3 py-1.5 text-xs font-bold text-gray-600 bg-white border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer shadow-sm"
-              value={noteDate}
-              onChange={(e) => setNoteDate(e.target.value)}
+              type="file"
+              ref={fileInputRef}
+              className="hidden"
+              accept="image/*"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) {
+                  const reader = new FileReader();
+                  reader.onloadend = () => setSelectedImage(reader.result as string);
+                  reader.readAsDataURL(file);
+                }
+              }}
             />
           </div>
-          <div className="flex items-center gap-1.5 text-[10px] font-bold text-gray-400">
-            <MapPin className="w-3 h-3" />
-            {locationStr}
-          </div>
-          {taggedContacts.length + taggedUserIds.length > 0 && (
-            <div className="flex items-center gap-1.5 text-[10px] font-bold text-indigo-500">
-              <AtSign className="w-3 h-3" />
-              {taggedContacts.length + taggedUserIds.length} Linked
+
+          {showMentionList && mentionCandidates.length > 0 && (
+            <div
+              className="absolute z-50 w-64 bg-white rounded-2xl shadow-2xl border border-gray-100 overflow-hidden animate-in fade-in zoom-in-95"
+              style={{
+                top: mentionPosition.top,
+                left: mentionPosition.left
+              }}
+            >
+              {mentionCandidates.map((candidate) => (
+                <button
+                  key={`${candidate.type}-${candidate.id}`}
+                  onClick={() => insertMention(candidate.id, candidate.name, candidate.type)}
+                  className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 transition-colors border-b border-gray-50 last:border-0"
+                >
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-bold ${candidate.type === 'user' ? 'bg-indigo-50 text-indigo-600' : 'bg-emerald-50 text-emerald-600'}`}>
+                    {candidate.name.charAt(0)}
+                  </div>
+                  <span className="text-[11px] font-bold text-gray-700">{candidate.name}</span>
+                </button>
+              ))}
+            </div>
+          )}
+
+          {selectedImage && (
+            <div className="mt-4 relative group/img inline-block">
+              <img src={selectedImage} alt="Preview" className="max-h-48 rounded-2xl shadow-lg border-4 border-white" />
+              <button
+                onClick={() => setSelectedImage(null)}
+                className="absolute -top-2 -right-2 bg-red-600 text-white rounded-full p-1 shadow-lg opacity-0 group-hover/img:opacity-100 transition-all"
+              >
+                <X className="w-3 h-3" />
+              </button>
             </div>
           )}
         </div>
 
-        <div className="flex gap-2 w-full sm:w-auto">
-          {editingNote && onComplete && (
+        {editingNote && (
+          <div className="px-6 py-4 bg-white/50 border-t border-yellow-100/50 flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <div className="relative">
+                <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" />
+                <input
+                  type="date"
+                  max={today}
+                  className="pl-9 pr-3 py-1.5 text-xs font-bold text-gray-600 bg-white border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer shadow-sm"
+                  value={noteDate}
+                  onChange={(e) => setNoteDate(e.target.value)}
+                />
+              </div>
+              <button
+                onClick={() => setIsPinned(!isPinned)}
+                className={`h-8 px-3 rounded-xl text-[10px] font-black uppercase transition-all flex items-center gap-2 border ${isPinned ? 'bg-yellow-100 border-yellow-200 text-yellow-700' : 'bg-gray-50 border-gray-200 text-gray-400'
+                  }`}
+              >
+                <Pin className={`w-3 h-3 ${isPinned ? 'fill-current' : ''}`} />
+                {isPinned ? 'Pinned' : 'Pin Note'}
+              </button>
+            </div>
+
             <button
               onClick={onComplete}
-              className="flex-1 sm:w-auto px-6 py-2.5 rounded-xl text-sm font-bold border border-gray-200 text-gray-500 hover:bg-gray-50 transition-all"
+              className="px-4 py-1.5 rounded-xl text-[10px] font-black uppercase text-gray-400 hover:bg-gray-100 transition-all"
             >
               Cancel
             </button>
-          )}
+          </div>
+        )}
+
+        <div className="px-8 pb-8 pt-4 flex items-center justify-between gap-6">
+          <div className="flex items-center gap-3">
+            <div className="relative">
+              <button
+                onClick={() => setActiveMenu(activeMenu === 'tags' ? null : 'tags')}
+                className={`h-11 px-5 rounded-2xl text-[11px] font-black uppercase tracking-wider transition-all flex items-center gap-2 border ${activeMenu === 'tags' ? 'bg-indigo-600 border-indigo-600 text-white shadow-lg' : 'bg-gray-100/80 border-transparent text-gray-500 hover:bg-gray-200'
+                  }`}
+              >
+                <Tag className="w-3.5 h-3.5" />
+                +Tags
+                <ChevronDown className={`w-3 h-3 transition-transform ${activeMenu === 'tags' ? 'rotate-180' : ''}`} />
+              </button>
+
+              {activeMenu === 'tags' && (
+                <>
+                  <div className="fixed inset-0 z-40" onClick={() => setActiveMenu(null)} />
+                  <div className="absolute bottom-full left-0 mb-3 w-64 bg-white border border-gray-200 rounded-3xl shadow-2xl p-4 animate-in fade-in slide-in-from-bottom-2 z-50">
+                    <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3 px-2">Select Categories</h4>
+                    <div className="flex flex-wrap gap-2 mb-4">
+                      {availableCategories.map(cat => {
+                        const isGlobal = data.globalNoteCategories.includes(cat);
+                        return (
+                          <div key={cat} className="group/tag relative">
+                            <button
+                              onClick={() => handleToggleCategory(cat)}
+                              className={`px-3 py-1.5 rounded-xl text-[10px] font-bold border transition-all ${selectedCategories.includes(cat)
+                                ? 'bg-indigo-600 border-indigo-600 text-white shadow-md'
+                                : 'bg-white border-gray-300 text-gray-700 hover:border-indigo-400 hover:text-indigo-600 shadow-sm'
+                                }`}
+                            >
+                              {cat}
+                            </button>
+                            {!isGlobal && (
+                              <button
+                                onClick={(e) => handleRemoveCustomCategory(e, cat)}
+                                className="absolute -top-2 -right-2 w-5 h-5 bg-red-600 text-white rounded-full flex items-center justify-center opacity-70 group-hover/tag:opacity-100 transition-all hover:bg-red-700 shadow-md z-10 border-2 border-white"
+                                title="Delete custom tag"
+                              >
+                                <X className="w-2.5 h-2.5 stroke-[4px]" />
+                              </button>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                    <div className="flex items-center gap-2 bg-gray-50 px-3 py-2 rounded-xl border border-gray-300">
+                      <Plus className="w-3 h-3 text-gray-400" />
+                      <input
+                        type="text"
+                        placeholder="Add custom tag..."
+                        className="bg-transparent text-[10px] font-bold outline-none w-full"
+                        value={newCustomCategory}
+                        onChange={(e) => setNewCustomCategory(e.target.value)}
+                        onKeyDown={(e) => e.key === 'Enter' && handleAddCustomCategory()}
+                      />
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+
+            <div className="relative">
+              <button
+                onClick={() => setActiveMenu(activeMenu === 'templates' ? null : 'templates')}
+                className={`h-11 px-5 rounded-2xl text-[11px] font-black uppercase tracking-wider transition-all flex items-center gap-2 border ${activeMenu === 'templates' ? 'bg-pink-100 border-pink-200 text-pink-700' : 'bg-gray-100/80 border-transparent text-gray-500 hover:bg-gray-200'
+                  }`}
+              >
+                <ClipboardList className="w-3.5 h-3.5" />
+                +Templates
+                <ChevronDown className={`w-3 h-3 transition-transform ${activeMenu === 'templates' ? 'rotate-180' : ''}`} />
+              </button>
+
+              {activeMenu === 'templates' && (
+                <>
+                  <div className="fixed inset-0 z-40" onClick={() => setActiveMenu(null)} />
+                  <div className="absolute bottom-full left-0 mb-3 w-56 bg-white border border-gray-100 rounded-3xl shadow-2xl p-2 animate-in fade-in slide-in-from-bottom-2 z-50 overflow-hidden">
+                    <button
+                      onClick={() => { setShowCallMinuteModal(true); setActiveMenu(null); }}
+                      className="w-full flex items-center gap-3 px-4 py-3 text-[11px] font-bold text-gray-700 hover:bg-indigo-50 hover:text-indigo-600 rounded-2xl transition-all group"
+                    >
+                      <div className="w-8 h-8 rounded-xl bg-indigo-50 group-hover:bg-indigo-100 flex items-center justify-center transition-colors">
+                        <Zap className="w-4 h-4 text-indigo-500" />
+                      </div>
+                      Meeting (Minutes)
+                    </button>
+                    <button className="w-full flex items-center gap-3 px-4 py-3 text-[11px] font-bold text-gray-700 hover:bg-indigo-50 hover:text-indigo-600 rounded-2xl transition-all group opacity-50 cursor-not-allowed">
+                      <div className="w-8 h-8 rounded-xl bg-orange-50 flex items-center justify-center">
+                        <Sparkles className="w-4 h-4 text-orange-500" />
+                      </div>
+                      Insight
+                    </button>
+                    <button className="w-full flex items-center gap-3 px-4 py-3 text-[11px] font-bold text-gray-700 hover:bg-indigo-50 hover:text-indigo-600 rounded-2xl transition-all group opacity-50 cursor-not-allowed">
+                      <div className="w-8 h-8 rounded-xl bg-blue-50 flex items-center justify-center">
+                        <MessageSquare className="w-4 h-4 text-blue-500" />
+                      </div>
+                      Follow up
+                    </button>
+                    <button className="w-full flex items-center gap-3 px-4 py-3 text-[11px] font-bold text-gray-700 hover:bg-indigo-50 hover:text-indigo-600 rounded-2xl transition-all group opacity-50 cursor-not-allowed">
+                      <div className="w-8 h-8 rounded-xl bg-purple-50 flex items-center justify-center">
+                        <CheckCircle className="w-4 h-4 text-purple-500" />
+                      </div>
+                      Decision
+                    </button>
+                    <button className="w-full flex items-center gap-3 px-4 py-3 text-[11px] font-bold text-gray-700 hover:bg-indigo-50 hover:text-indigo-600 rounded-2xl transition-all group opacity-50 cursor-not-allowed">
+                      <div className="w-8 h-8 rounded-xl bg-pink-50 flex items-center justify-center">
+                        <Sparkles className="w-3 h-3 text-pink-400" />
+                      </div>
+                      Generate AI Summary
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+
           <button
-            disabled={!body.trim()}
+            disabled={!body.trim() || isSaving}
             onClick={handleSave}
-            className="flex-2 sm:w-auto bg-indigo-600 text-white px-8 py-2.5 rounded-xl text-sm font-bold hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-lg shadow-indigo-100 transition-all active:scale-95"
+            className="h-11 px-8 bg-indigo-600 text-white rounded-2xl text-[11px] font-black uppercase tracking-widest hover:bg-indigo-700 disabled:opacity-30 disabled:cursor-not-allowed transition-all active:scale-95 shadow-lg shadow-indigo-100/50 flex items-center gap-2"
           >
-            <Save className="w-4 h-4" />
-            {editingNote ? 'Update Note' : 'Add Note'}
+            {isSaving ? (
+              <RefreshCw className="w-4 h-4 animate-spin" />
+            ) : (
+              <Save className="w-4 h-4" />
+            )}
+            {editingNote ? (isSaving ? 'Updating...' : 'Update') : (isSaving ? 'Saving...' : 'Add Text Note')}
           </button>
         </div>
       </div>
+
+      {!editingNote && (
+        <CallMinuteModal
+          isOpen={showCallMinuteModal}
+          onClose={() => setShowCallMinuteModal(false)}
+          ideaId={defaultIdeaId}
+          contactId={defaultContactId}
+          location={locationStr}
+          idea={currentIdea}
+        />
+      )}
     </div>
   );
 };

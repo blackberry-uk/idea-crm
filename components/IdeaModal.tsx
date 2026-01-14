@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { useStore } from '../store/useStore';
 import { X, Lightbulb } from 'lucide-react';
-import { IdeaType } from '../types';
+import { IdeaType, IdeaStatus } from '../types';
 
 interface IdeaModalProps {
   isOpen: boolean;
@@ -11,12 +11,12 @@ interface IdeaModalProps {
 }
 
 const IdeaModal: React.FC<IdeaModalProps> = ({ isOpen, onClose, initialContactIds = [] }) => {
-  const { data, addIdea } = useStore();
+  const { data, addIdea, showToast } = useStore();
   const entities = data.currentUser?.personalEntities || [];
-  
-  const [newIdea, setNewIdea] = useState({ 
-    title: '', 
-    type: 'Product' as IdeaType, 
+
+  const [newIdea, setNewIdea] = useState({
+    title: '',
+    type: 'Product' as IdeaType,
     entity: entities[0] || 'Personal',
     tags: [] as string[],
     linkedContactIds: initialContactIds
@@ -27,18 +27,21 @@ const IdeaModal: React.FC<IdeaModalProps> = ({ isOpen, onClose, initialContactId
   const handleCreate = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (!newIdea.title.trim()) {
-      alert("Please provide a title.");
+      showToast("Please provide a title for your idea.", "error");
       return;
     }
+
+    const initialStatus: IdeaStatus = newIdea.type === 'Consulting' ? 'Scoping' : 'Ideation';
+
     addIdea({
       ...newIdea,
       title: newIdea.title.trim(),
-      status: 'Backlog',
+      status: initialStatus,
       priority: 3,
       linkedContactIds: JSON.stringify(newIdea.linkedContactIds ?? []),
     });
     onClose();
-    setNewIdea({ 
+    setNewIdea({
       title: '', type: 'Product', entity: entities[0] || 'Personal', tags: [],
       linkedContactIds: initialContactIds
     });
@@ -54,34 +57,34 @@ const IdeaModal: React.FC<IdeaModalProps> = ({ isOpen, onClose, initialContactId
           </div>
           <button onClick={onClose} className="p-2 text-gray-400 hover:bg-gray-200 rounded-full"><X className="w-5 h-5" /></button>
         </div>
-        
+
         <form onSubmit={handleCreate} className="p-8 space-y-6">
           <div>
             <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">Idea Title</label>
-            <input 
+            <input
               placeholder="e.g. Revolutionizing Coffee Delivery"
-              className="w-full border border-gray-200 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-indigo-500 font-bold bg-gray-50" 
-              value={newIdea.title} 
-              onChange={e => setNewIdea({...newIdea, title: e.target.value})} 
-              autoFocus 
+              className="w-full border border-gray-200 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-indigo-500 font-bold bg-gray-50"
+              value={newIdea.title}
+              onChange={e => setNewIdea({ ...newIdea, title: e.target.value })}
+              autoFocus
             />
           </div>
 
           <div className="grid grid-cols-2 gap-4">
-             <div>
-               <label className="block text-xs font-bold text-gray-400 uppercase mb-2">Category</label>
-               <select className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm bg-gray-50" value={newIdea.type} onChange={e => setNewIdea({...newIdea, type: e.target.value as IdeaType})}>
-                  <option value="Product">Product</option>
-                  <option value="Consulting">Consulting</option>
-                  <option value="New Business">New Business</option>
-               </select>
-             </div>
-             <div>
-               <label className="block text-xs font-bold text-gray-400 uppercase mb-2">Association</label>
-               <select className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm bg-gray-50" value={newIdea.entity} onChange={e => setNewIdea({...newIdea, entity: e.target.value})}>
-                  {entities.map(ent => <option key={ent} value={ent}>{ent}</option>)}
-               </select>
-             </div>
+            <div>
+              <label className="block text-xs font-bold text-gray-400 uppercase mb-2">Category</label>
+              <select className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm bg-gray-50" value={newIdea.type} onChange={e => setNewIdea({ ...newIdea, type: e.target.value as IdeaType })}>
+                <option value="Product">Product</option>
+                <option value="Consulting">Consulting</option>
+                <option value="New Business">New Business</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-gray-400 uppercase mb-2">Association</label>
+              <select className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm bg-gray-50" value={newIdea.entity} onChange={e => setNewIdea({ ...newIdea, entity: e.target.value })}>
+                {entities.map(ent => <option key={ent} value={ent}>{ent}</option>)}
+              </select>
+            </div>
           </div>
 
           <button type="submit" className="w-full py-4 bg-indigo-600 text-white font-bold rounded-2xl shadow-lg shadow-indigo-100 hover:bg-indigo-700 transition-all active:scale-95">

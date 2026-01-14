@@ -16,12 +16,14 @@ export const apiClient = {
 
     try {
       const response = await fetch(`${BASE_URL}${endpoint}`, { ...options, headers });
-      
+
       if (!response.ok) {
         const err = await response.json().catch(() => ({}));
-        throw new Error(err.error || `API Error: ${response.status} ${response.statusText}`);
+        const e = new Error(err.error || `API Error: ${response.status} ${response.statusText}`) as any;
+        e.details = err.details;
+        throw e;
       }
-      
+
       return response.json();
     } catch (error: any) {
       if (error.name === 'TypeError' && error.message.includes('fetch')) {

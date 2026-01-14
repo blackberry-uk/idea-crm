@@ -1,5 +1,9 @@
 
-export type IdeaStatus = 'Backlog' | 'Active' | 'On Hold' | 'Dead' | 'Won';
+export type IdeaStatus =
+  | 'Ideation' | 'Research' | 'Prototype' | 'Testing' | 'Launched'
+  | 'Scoping' | 'Proposal' | 'Approval' | 'Execution'
+  | 'Business Plan' | 'Capital Raise'
+  | 'Backlog' | 'Active' | 'On Hold' | 'Dead';
 export type IdeaType = 'Consulting' | 'Product' | 'New Business';
 
 export interface Todo {
@@ -12,6 +16,9 @@ export interface Todo {
   completedAt?: string;
   dueDate?: string;
   assigneeId?: string;
+  status?: 'Not Started' | 'Working' | 'Done' | 'Archived';
+  originNoteId?: string;
+  comments?: string;
 }
 
 export interface User {
@@ -93,6 +100,7 @@ export interface Note {
   createdAt: string;
   createdBy: string; // User Name
   createdById: string; // User ID
+  imageUrl?: string;
 }
 
 export interface Interaction {
@@ -108,6 +116,23 @@ export interface Interaction {
   createdById: string;
 }
 
+export interface Toast {
+  id: string;
+  message: string;
+  type: 'success' | 'error' | 'info';
+}
+
+export interface Confirmation {
+  id: string;
+  title: string;
+  message: string;
+  confirmLabel?: string;
+  cancelLabel?: string;
+  type: 'danger' | 'warning' | 'info';
+  onConfirm: () => void;
+  onCancel?: () => void;
+}
+
 export interface AppData {
   users: User[];
   ideas: Idea[];
@@ -117,4 +142,6 @@ export interface AppData {
   invitations: Invitation[];
   globalNoteCategories: string[];
   currentUser: User | null;
+  toast: Toast | null;
+  confirmation: Confirmation | null;
 }
