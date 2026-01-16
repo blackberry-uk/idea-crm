@@ -208,7 +208,7 @@ const KanbanModal: React.FC<KanbanModalProps> = ({ isOpen, onClose, idea, users,
                                                             <p className={`text-[13px] leading-tight break-words ${todo.completed
                                                                 ? 'text-gray-400 line-through font-normal'
                                                                 : todo.status === 'Working'
-                                                                    ? 'text-slate-800 font-bold'
+                                                                    ? 'text-slate-800 font-medium'
                                                                     : 'text-slate-600 font-normal'
                                                                 }`}>
                                                                 {todo.text}
@@ -239,7 +239,7 @@ const KanbanModal: React.FC<KanbanModalProps> = ({ isOpen, onClose, idea, users,
                                                                         Internal Comments
                                                                     </label>
                                                                     <textarea
-                                                                        className="w-full text-xs bg-gray-50 border border-gray-100 rounded-xl px-3 py-2 outline-none focus:ring-2 focus:ring-indigo-500 min-h-[80px] font-medium leading-relaxed"
+                                                                        className="w-full text-xs bg-gray-50 border border-gray-100 rounded-xl px-3 py-2 outline-none focus:ring-2 focus:ring-indigo-500 min-h-[80px] font-normal leading-relaxed"
                                                                         placeholder="Add more details, links, or context..."
                                                                         value={editingComments[todo.id] || ''}
                                                                         onChange={(e) => setEditingComments(prev => ({ ...prev, [todo.id]: e.target.value }))}

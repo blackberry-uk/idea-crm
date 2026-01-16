@@ -6,9 +6,12 @@ import cors from 'cors';
 import 'dotenv/config';
 import { sendInvitationEmail, sendTaskAssignmentEmail, sendNoteMentionEmail, sendInvitationAcceptedEmail } from './lib/email.js';
 import prisma from './lib/prisma.js';
+import { OAuth2Client } from 'google-auth-library';
 
 const app = express();
 const JWT_SECRET = process.env.JWT_SECRET || 'ideacrm-dev-secret';
+const GOOGLE_CLIENT_ID = process.env.VITE_GOOGLE_CLIENT_ID;
+const googleClient = new OAuth2Client(GOOGLE_CLIENT_ID);
 
 // @ts-ignore - Argument of type 'NextHandleFunction' mismatch with Express middleware signature in certain type environments
 app.use(cors());
@@ -66,6 +69,56 @@ app.post('/api/login', async (req, res) => {
   }
   const token = jwt.sign({ userId: user.id }, JWT_SECRET);
   res.json({ user: { id: user.id, email: user.email, name: user.name }, token });
+});
+
+app.post('/api/auth/google', async (req, res) => {
+  const { idToken } = req.body;
+  if (!idToken) return res.status(400).json({ error: 'ID Token required' });
+
+  try {
+    const ticket = await googleClient.verifyIdToken({
+      idToken,
+      audience: GOOGLE_CLIENT_ID,
+    });
+    const payload = ticket.getPayload();
+    if (!payload || !payload.email) return res.status(400).json({ error: 'Invalid Google token' });
+
+    const email = payload.email.toLowerCase().trim();
+    const googleId = payload.sub;
+    const name = payload.name;
+
+    // 1. Find user by googleId
+    let user = await prisma.user.findUnique({ where: { googleId } });
+
+    // 2. If not found, find user by email and link googleId
+    if (!user) {
+      user = await prisma.user.findUnique({ where: { email } });
+      if (user) {
+        user = await prisma.user.update({
+          where: { id: user.id },
+          data: { googleId }
+        });
+      }
+    }
+
+    // 3. If still not found, create new user
+    if (!user) {
+      user = await prisma.user.create({
+        data: {
+          email,
+          name,
+          googleId,
+          personalEntities: ['Personal']
+        }
+      });
+    }
+
+    const token = jwt.sign({ userId: user.id }, JWT_SECRET);
+    res.json({ user: { id: user.id, email: user.email, name: user.name }, token });
+  } catch (err) {
+    console.error('Google Auth Error:', err);
+    res.status(401).json({ error: 'Google authentication failed' });
+  }
 });
 
 app.get('/api/me', authenticate, async (req: any, res) => {
@@ -318,7 +371,8 @@ app.post('/api/notes', authenticate, async (req: any, res) => {
         ideaId: ideaId || null,
         contactId: contactId || null,
         taggedContacts: { connect: (taggedContactIds || []).map((id: string) => ({ id })) },
-        taggedUsers: { connect: (taggedUserIds || []).map((id: string) => ({ id })) }
+        taggedUsers: { connect: (taggedUserIds || []).map((id: string) => ({ id })) },
+        intent: req.body.intent || null
       }
     });
 
@@ -373,6 +427,7 @@ app.put('/api/notes/:id', authenticate, async (req: any, res) => {
   if (updates.imageUrl !== undefined) data.imageUrl = updates.imageUrl;
   if (updates.location !== undefined) data.location = updates.location;
   if (updates.isPinned !== undefined) data.isPinned = updates.isPinned;
+  if (updates.intent !== undefined) data.intent = updates.intent;
 
   const oldNote = await prisma.note.findUnique({
     where: { id: req.params.id },

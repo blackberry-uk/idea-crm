@@ -13,9 +13,10 @@ import Invitations from './pages/Invitations';
 import { useStore } from './store/useStore';
 import { apiClient } from './lib/api/client';
 import { Lightbulb, LogIn, UserPlus, ShieldCheck, AlertCircle, Eye, EyeOff } from 'lucide-react';
+import { GoogleLogin } from '@react-oauth/google';
 
 const AuthPage: React.FC = () => {
-  const { login, register, data } = useStore();
+  const { login, register, googleLogin, data } = useStore();
   const navigate = useNavigate();
   const [isRegister, setIsRegister] = useState(false);
   const [email, setEmail] = useState('');
@@ -138,6 +139,37 @@ const AuthPage: React.FC = () => {
             )}
           </button>
         </form>
+
+        <div className="relative py-4">
+          <div className="absolute inset-0 flex items-center">
+            <div className="w-full border-t border-gray-100"></div>
+          </div>
+          <div className="relative flex justify-center text-xs uppercase">
+            <span className="bg-white px-4 text-gray-400 font-bold tracking-widest">or continue with</span>
+          </div>
+        </div>
+
+        <div className="flex justify-center">
+          <GoogleLogin
+            onSuccess={async (credentialResponse) => {
+              if (credentialResponse.credential) {
+                setLoading(true);
+                const success = await googleLogin(credentialResponse.credential);
+                if (!success) {
+                  setError('Google authentication failed.');
+                }
+                setLoading(false);
+              }
+            }}
+            onError={() => {
+              setError('Google login failed. Please try again.');
+            }}
+            useOneTap
+            theme="filled_blue"
+            shape="pill"
+            width="100%"
+          />
+        </div>
 
         <div className="pt-6 border-t border-gray-50 flex flex-col items-center gap-6">
           <button

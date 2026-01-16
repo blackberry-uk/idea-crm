@@ -34,11 +34,23 @@ import {
   Activity,
   StickyNote,
   LogOut,
-  Layout
+  Layout,
+  RotateCcw,
+  CircleDot,
+  Brain,
+  Mountain,
+  SlidersHorizontal
 } from 'lucide-react';
 import NoteComposer from '../components/NoteComposer';
 import { getInitials, getAvatarColor } from '../lib/utils';
 import KanbanModal from '../components/KanbanModal';
+
+const INTENT_CONFIG: Record<string, { icon: any, label: string, color: string }> = {
+  follow_up: { icon: RotateCcw, label: 'Follow up', color: 'text-red-500' },
+  acted_upon: { icon: CircleDot, label: 'Acted upon', color: 'text-gray-400' },
+  reflection: { icon: Brain, label: 'Reflection', color: 'text-gray-400' },
+  memoir: { icon: Mountain, label: 'Memoir', color: 'text-yellow-600' },
+};
 
 const STAGES_MAP: Record<IdeaType, IdeaStatus[]> = {
   'Product': ['Ideation', 'Research', 'Prototype', 'Testing', 'Launched'],
@@ -49,7 +61,7 @@ const STAGES_MAP: Record<IdeaType, IdeaStatus[]> = {
 const IdeaDetail: React.FC = () => {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { data, updateIdea, togglePinNote, shareIdea, resendInvitation, uninviteCollaborator, deleteInvitation, showToast, confirm, deleteNote, deleteIdea, leaveIdea } = useStore();
+  const { data, updateIdea, updateNote, togglePinNote, shareIdea, resendInvitation, uninviteCollaborator, deleteInvitation, showToast, confirm, deleteNote, deleteIdea, leaveIdea } = useStore();
   const idea = data.ideas.find(i => i.id === id);
 
 
@@ -63,6 +75,8 @@ const IdeaDetail: React.FC = () => {
   const [inviteEmail, setInviteEmail] = useState('');
   const [noteSearchQuery, setNoteSearchQuery] = useState('');
   const [activeCategoryFilter, setActiveCategoryFilter] = useState<string | null>(null);
+  const [activeIntentFilter, setActiveIntentFilter] = useState<string | null>(null);
+  const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
   const [editingCallMinute, setEditingCallMinute] = useState<Note | null>(null);
   const [viewingCallMinute, setViewingCallMinute] = useState<Note | null>(null);
@@ -77,6 +91,7 @@ const IdeaDetail: React.FC = () => {
   const [editingTodoAssigneeId, setEditingTodoAssigneeId] = useState('');
   const [draggedTodoIndex, setDraggedTodoIndex] = useState<number | null>(null);
   const [isKanbanOpen, setIsKanbanOpen] = useState(false);
+  const [openIntentMenuId, setOpenIntentMenuId] = useState<string | null>(null);
 
   const handleTodoDragStart = (idx: number) => {
     setDraggedTodoIndex(idx);
@@ -128,8 +143,9 @@ const IdeaDetail: React.FC = () => {
       .filter(n => !n.isPinned)
       .filter(n => n.body.toLowerCase().includes(noteSearchQuery.toLowerCase()))
       .filter(n => !activeCategoryFilter || n.categories?.includes(activeCategoryFilter))
+      .filter(n => !activeIntentFilter || (n.intent || 'memoir') === activeIntentFilter)
       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-  }, [data.notes, id, noteSearchQuery, activeCategoryFilter]);
+  }, [data.notes, id, noteSearchQuery, activeCategoryFilter, activeIntentFilter]);
 
   const pinnedNote = useMemo(() =>
     data.notes.find(n => n.ideaId === id && n.isPinned),
@@ -230,14 +246,61 @@ const IdeaDetail: React.FC = () => {
   };
 
   const renderBodyWithLinks = (text: string, note: Note) => {
+    const isHtml = /<[a-z][\s\S]*>/i.test(text);
+
+    if (isHtml) {
+      // Process HTML content with string replacements for mentions and links
+      let html = text;
+
+      // 1. Process Mentions - Replace with HTML links/spans
+      const taggedContacts = data.contacts.filter(c => note.taggedContactIds?.includes(c.id));
+      taggedContacts.forEach(contact => {
+        const mentionText = `@${contact.fullName}`;
+        const mentionHtml = `<a href="/contacts/${contact.id}" class="bg-violet-50 text-violet-700 px-1.5 py-0.5 rounded-md font-bold hover:bg-violet-100 transition-colors border border-violet-100 inline-flex items-center gap-0.5 no-underline mx-0.5 align-baseline">@${contact.fullName}</a>`;
+        html = html.split(mentionText).join(mentionHtml);
+      });
+
+      const taggedUsers = data.users.filter(u => note.taggedUserIds?.includes(u.id));
+      taggedUsers.forEach(user => {
+        const mentionText = `@${user.name}`;
+        const mentionHtml = `<span class="bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded-md font-bold border border-blue-100 inline-flex items-center gap-0.5 no-underline mx-0.5 align-baseline cursor-default" title="${user.name} (Idea-crm user)">@${user.name}</span>`;
+        html = html.split(mentionText).join(mentionHtml);
+      });
+
+      // 2. Simple URL linkification in HTML (avoiding splitting existing tags)
+      const urlRegex = /(?![^<]*>)(https?:\/\/[^\s]+)/g;
+      html = html.replace(urlRegex, (url) => `<a href="${url}" target="_blank" rel="noopener noreferrer" class="text-indigo-600 hover:underline inline-flex items-center gap-1 font-sans">${url}</a>`);
+
+      // 3. Process dashes to bullets
+      // Match lines starting with a dash (potentially after some HTML tags like <div> or <p>)
+      const dashRegex = /(?:^|<div>|<p>|<br>)\s*-\s+([^<]+)/g;
+      if (dashRegex.test(html)) {
+        // Wrap blocks of dashes in <ul> if they aren't already
+        html = html.replace(/((\s*-\s+[^<]+(?:<br>|<div>|<\/div>|<p>|<\/p>)?)+)/g, (match) => {
+          const items = match.split(/[-]\s+/).filter(i => i.trim()).map(i => `<li>${i.trim()}</li>`).join('');
+          return `<ul>${items}</ul>`;
+        });
+      }
+
+      return <div className="rich-text-content" dangerouslySetInnerHTML={{ __html: html }} />;
+    }
+
+    // Original plain text processing
+    // 1. Process dashes in plain text
+    const processedText = text.split('\n').map(line => {
+      if (line.trim().startsWith('- ')) {
+        return `• ${line.trim().slice(2)}`;
+      }
+      return line;
+    }).join('\n');
+
     const urlRegex = /(https?:\/\/[^\s]+)/g;
     const taggedContacts = data.contacts.filter(c => note.taggedContactIds?.includes(c.id));
     const taggedUsers = data.users.filter(u => note.taggedUserIds?.includes(u.id));
 
-    // Fixed: Replaced JSX.Element with React.ReactElement to resolve "Cannot find namespace 'JSX'" error.
-    let parts: (string | React.ReactElement)[] = [text];
+    let parts: (string | React.ReactElement)[] = [processedText];
 
-    // 1. Process URLs
+    // 1. URLs
     parts = parts.flatMap(part => {
       if (typeof part !== 'string') return part;
       const subParts = part.split(urlRegex);
@@ -253,25 +316,19 @@ const IdeaDetail: React.FC = () => {
       });
     });
 
-    // 2. Process Mentions for contacts specifically tagged in this note
+    // 2. Mentions
     taggedContacts.forEach(contact => {
       const mentionText = `@${contact.fullName}`;
       parts = parts.flatMap(part => {
         if (typeof part !== 'string') return part;
         if (!part.includes(mentionText)) return part;
-
         const regex = new RegExp(`(${mentionText})`, 'g');
         const subParts = part.split(regex);
         return subParts.map((sub, i) => {
           if (sub === mentionText) {
             return (
-              <Link
-                key={`mention-contact-${contact.id}-${i}`}
-                to={`/contacts/${contact.id}`}
-                className="bg-violet-50 text-violet-700 px-1.5 py-0.5 rounded-md font-bold hover:bg-violet-100 transition-colors border border-violet-100 inline-flex items-center gap-0.5 no-underline mx-0.5 align-baseline"
-              >
-                <AtSign className="w-2.5 h-2.5" />
-                {contact.fullName}
+              <Link key={`mc-${contact.id}-${i}`} to={`/contacts/${contact.id}`} className="bg-violet-50 text-violet-700 px-1.5 py-0.5 rounded-md font-bold hover:bg-violet-100 transition-colors border border-violet-100 inline-flex items-center gap-0.5 no-underline mx-0.5 align-baseline">
+                <AtSign className="w-2.5 h-2.5" />{contact.fullName}
               </Link>
             );
           }
@@ -280,25 +337,22 @@ const IdeaDetail: React.FC = () => {
       });
     });
 
-    // 3. Process Mentions for users (Owner/Collaborators) specifically tagged in this note
     taggedUsers.forEach(user => {
       const mentionText = `@${user.name}`;
       parts = parts.flatMap(part => {
         if (typeof part !== 'string') return part;
         if (!part.includes(mentionText)) return part;
-
         const regex = new RegExp(`(${mentionText})`, 'g');
         const subParts = part.split(regex);
         return subParts.map((sub, i) => {
           if (sub === mentionText) {
             return (
               <span
-                key={`mention-user-${user.id}-${i}`}
+                key={`mu-${user.id}-${i}`}
                 className="bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded-md font-bold border border-blue-100 inline-flex items-center gap-0.5 no-underline mx-0.5 align-baseline cursor-default"
                 title={`${user.name} (Idea-crm user)`}
               >
-                <AtSign className="w-2.5 h-2.5" />
-                {user.name}
+                <AtSign className="w-2.5 h-2.5" />{user.name}
               </span>
             );
           }
@@ -401,9 +455,45 @@ const IdeaDetail: React.FC = () => {
       return <p className="text-xs text-red-400 italic">Unsupported Template</p>;
     };
 
+    const currentIntent = note.intent || 'memoir';
+    const IntentIcon = INTENT_CONFIG[currentIntent]?.icon || Mountain;
+
     return (
-      <div key={note.id} className={`group relative pb-8 mb-8 border-b border-gray-400 last:border-0 transition-all ${isPinned ? 'bg-indigo-50/30 -mx-6 px-6 pt-6 rounded-2xl border-none shadow-sm' : ''}`}>
+      <div key={note.id} className={`group relative pb-8 mb-8 border-b border-gray-400 last:border-0 transition-all 
+        ${isPinned ? 'bg-indigo-50/30 -mx-6 px-6 pt-6 rounded-2xl border-none shadow-sm' : ''}
+        ${currentIntent === 'follow_up' ? 'bg-[#FEFADA] -mx-6 px-6 pt-6 rounded-2xl border-none shadow-md ring-1 ring-yellow-200/50' : ''}
+      `}>
         <div className="flex items-center flex-wrap gap-x-4 gap-y-1 mb-3 text-[13px] leading-none">
+          <div className="relative">
+            <button
+              onClick={() => setOpenIntentMenuId(openIntentMenuId === note.id ? null : note.id)}
+              className={`p-1 rounded-md hover:bg-gray-100 transition-colors ${INTENT_CONFIG[currentIntent]?.color}`}
+              title={`Intent: ${INTENT_CONFIG[currentIntent]?.label}`}
+            >
+              <IntentIcon className="w-3.5 h-3.5" />
+            </button>
+            {openIntentMenuId === note.id && (
+              <>
+                <div className="fixed inset-0 z-40" onClick={() => setOpenIntentMenuId(null)} />
+                <div className="absolute top-full left-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-xl z-50 py-1.5 min-w-[140px] animate-in fade-in zoom-in-95 duration-100">
+                  {Object.entries(INTENT_CONFIG).map(([key, config]) => (
+                    <button
+                      key={key}
+                      onClick={() => {
+                        updateNote(note.id, { intent: key as any });
+                        setOpenIntentMenuId(null);
+                      }}
+                      className="flex items-center gap-3 w-full px-4 py-2 text-[11px] font-bold text-gray-500 hover:bg-gray-50 hover:text-gray-900 transition-colors uppercase tracking-tight"
+                    >
+                      <config.icon className={`w-3.5 h-3.5 ${config.color}`} />
+                      <span>{config.label}</span>
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+
           <span className="text-blue-400 hover:underline cursor-default transition-colors" title={note.location || undefined}>
             {format(new Date(note.createdAt), "EEE, MMM d ''yy · h:mm a")}
           </span>
@@ -474,7 +564,7 @@ const IdeaDetail: React.FC = () => {
           </div>
         </div>
 
-        <div className="text-[14px] text-slate-800 font-medium leading-relaxed whitespace-pre-wrap font-sans">
+        <div className={`text-[14.5px] ${currentIntent === 'follow_up' ? 'text-slate-950' : 'text-slate-800'} font-[450] leading-relaxed whitespace-pre-wrap font-sans px-10`}>
           {note.imageUrl && (
             <div className="mb-4 rounded-2xl overflow-hidden border border-gray-100 shadow-lg max-w-xl">
               <img src={note.imageUrl} alt="Attached" className="w-full h-auto" />
@@ -686,7 +776,7 @@ const IdeaDetail: React.FC = () => {
       </div >
 
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_350px] gap-8">
-        <div className="space-y-6">
+        <div className="space-y-6 idea-thread">
 
           <div className="bg-white rounded-[32px] border border-gray-200 shadow-sm overflow-hidden">
             {showComposer && (
@@ -705,24 +795,97 @@ const IdeaDetail: React.FC = () => {
             <div className="p-10">
               <div className="mb-10 flex flex-col sm:flex-row sm:items-center justify-between gap-6">
                 <div className="flex items-center gap-4">
-                  <h2 className="text-sm font-black text-gray-400 uppercase tracking-widest flex items-center gap-2">
-                    <Activity className="w-4 h-4 text-indigo-500" />
-                    Activity
-                  </h2>
-                  {!showComposer && (
-                    <button
-                      onClick={toggleComposer}
-                      className="text-[10px] font-black uppercase tracking-widest text-indigo-600 hover:text-indigo-800 transition-all hover:underline"
-                    >
-                      ( + Add Note )
-                    </button>
-                  )}
+                  <div className="flex items-center gap-4">
+                    <h2 className="text-sm font-black text-gray-400 uppercase tracking-widest flex items-center gap-2">
+                      <Activity className="w-4 h-4 text-indigo-500" />
+                      Activity
+                    </h2>
+                    {!showComposer && (
+                      <button
+                        onClick={toggleComposer}
+                        className="text-[10px] font-black uppercase tracking-widest text-indigo-600 hover:text-indigo-800 transition-all hover:underline"
+                      >
+                        ( + Add Note )
+                      </button>
+                    )}
+                  </div>
                 </div>
-                <div className="relative group">
-                  <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 group-focus-within:text-indigo-500 transition-colors" />
-                  <input className="pl-11 pr-6 py-3 border border-gray-100 rounded-2xl text-sm bg-gray-50/50 focus:ring-4 focus:ring-indigo-500/10 focus:bg-white focus:border-indigo-300 outline-none w-full sm:w-64 transition-all" placeholder="Search project history..." value={noteSearchQuery} onChange={e => setNoteSearchQuery(e.target.value)} />
+
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={() => setIsFilterOpen(!isFilterOpen)}
+                    className={`p-2 rounded-xl transition-all ${isFilterOpen ? 'bg-indigo-600 text-white shadow-lg' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}
+                    title="Filters"
+                  >
+                    <SlidersHorizontal className="w-5 h-5" />
+                  </button>
                 </div>
               </div>
+
+              {isFilterOpen && (
+                <div className="mb-10 p-6 bg-gray-50/50 rounded-[24px] border border-gray-100 animate-in fade-in slide-in-from-top-4 duration-300">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    {/* Search Field */}
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-1">Search Keywords</label>
+                      <div className="relative">
+                        <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                        <input
+                          className="pl-11 pr-4 py-2.5 w-full bg-white border border-gray-200 rounded-xl text-xs outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all"
+                          placeholder="Type to search..."
+                          value={noteSearchQuery}
+                          onChange={e => setNoteSearchQuery(e.target.value)}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Tag Filter */}
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-1">Filter by Tag</label>
+                      <div className="flex flex-wrap gap-1.5">
+                        <button
+                          onClick={() => setActiveCategoryFilter(null)}
+                          className={`px-3 py-1.5 rounded-lg text-[10px] font-bold border transition-all ${!activeCategoryFilter ? 'bg-indigo-600 border-indigo-600 text-white' : 'bg-white border-gray-200 text-gray-500 hover:border-indigo-300'}`}
+                        >
+                          All Tags
+                        </button>
+                        {Array.from(new Set(data.notes.filter(n => n.ideaId === idea.id).flatMap(n => n.categories || []))).map(cat => (
+                          <button
+                            key={cat}
+                            onClick={() => setActiveCategoryFilter(activeCategoryFilter === cat ? null : cat)}
+                            className={`px-3 py-1.5 rounded-lg text-[10px] font-bold border transition-all ${activeCategoryFilter === cat ? 'bg-indigo-600 border-indigo-600 text-white' : 'bg-white border-gray-200 text-gray-500 hover:border-indigo-300'}`}
+                          >
+                            {cat}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Intent Filter */}
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-1">Filter by Intent</label>
+                      <div className="flex flex-wrap gap-1.5">
+                        <button
+                          onClick={() => setActiveIntentFilter(null)}
+                          className={`px-3 py-1.5 rounded-lg text-[10px] font-bold border transition-all ${!activeIntentFilter ? 'bg-indigo-600 border-indigo-600 text-white' : 'bg-white border-gray-200 text-gray-500 hover:border-indigo-300'}`}
+                        >
+                          All Intents
+                        </button>
+                        {Object.entries(INTENT_CONFIG).map(([key, config]) => (
+                          <button
+                            key={key}
+                            onClick={() => setActiveIntentFilter(activeIntentFilter === key ? null : key)}
+                            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-[10px] font-bold border transition-all ${activeIntentFilter === key ? 'bg-indigo-600 border-indigo-600 text-white' : 'bg-white border-gray-200 text-gray-500 hover:border-indigo-300'}`}
+                          >
+                            <config.icon className={`w-3 h-3 ${activeIntentFilter === key ? 'text-white' : config.color}`} />
+                            {config.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               <div className="space-y-4">
                 {pinnedNote && renderNote(pinnedNote)}
@@ -894,7 +1057,7 @@ const IdeaDetail: React.FC = () => {
                             className={`text-[13px] leading-snug break-words flex-1 cursor-pointer transition-colors ${isDone
                               ? 'text-gray-300 line-through font-normal'
                               : todo.status === 'Working'
-                                ? 'text-gray-900 font-bold'
+                                ? 'text-gray-900 font-medium'
                                 : 'text-gray-600 font-normal'
                               }`}
                             onClick={() => startEditingTodo(todo)}

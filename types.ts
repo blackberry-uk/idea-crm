@@ -87,6 +87,8 @@ export interface Contact {
   notes?: string;
 }
 
+export type NoteIntent = 'follow_up' | 'acted_upon' | 'reflection' | 'memoir';
+
 export interface Note {
   id: string;
   ideaId?: string;
@@ -101,6 +103,7 @@ export interface Note {
   createdBy: string; // User Name
   createdById: string; // User ID
   imageUrl?: string;
+  intent?: NoteIntent;
 }
 
 export interface Interaction {
