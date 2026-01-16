@@ -101,6 +101,17 @@ export const useStore = () => {
       }
     },
 
+    googleLogin: async (idToken: string) => {
+      try {
+        const res = await apiClient.post('/auth/google', { idToken });
+        apiClient.setToken(res.token);
+        await hydrate();
+        return !!globalState.currentUser;
+      } catch (e) {
+        return false;
+      }
+    },
+
     logout: () => {
       apiClient.clearToken();
       globalState = { ...EMPTY_DATA };

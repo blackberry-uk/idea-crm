@@ -3,11 +3,18 @@ import React from 'react';
 import { useStore } from '../store/useStore.ts';
 import { format } from 'date-fns';
 import { Link } from 'react-router-dom';
-import { ChevronRight, Calendar, Clock, MessageSquare, TrendingUp, Info, Database, Cloud, MapPin, AtSign, ExternalLink, ShieldCheck } from 'lucide-react';
+import { ChevronRight, Calendar, Clock, MessageSquare, TrendingUp, Info, Database, Cloud, MapPin, AtSign, ExternalLink, ShieldCheck, RotateCcw, CircleDot, Brain, Mountain } from 'lucide-react';
 import { Note } from '../types';
 
 const Dashboard: React.FC = () => {
   const { data } = useStore();
+
+  const INTENT_CONFIG: Record<string, { icon: any, label: string, color: string }> = {
+    follow_up: { icon: RotateCcw, label: 'Follow up', color: 'text-red-500' },
+    acted_upon: { icon: CircleDot, label: 'Acted upon', color: 'text-gray-400' },
+    reflection: { icon: Brain, label: 'Reflection', color: 'text-gray-400' },
+    memoir: { icon: Mountain, label: 'Memoir', color: 'text-yellow-600' },
+  };
 
   const activeIdeas = (data.ideas || [])
     .map(idea => {
@@ -108,8 +115,12 @@ const Dashboard: React.FC = () => {
             <div className="space-y-4">
               {recentNotes.map(note => (
                 <div key={note.id} className="flex gap-4">
-                  <div className="mt-1 w-8 h-8 rounded-lg bg-gray-50 flex items-center justify-center text-indigo-600 shrink-0">
-                    <MessageSquare className="w-4 h-4" />
+                  <div className={`mt-1 w-8 h-8 rounded-lg bg-gray-50 flex items-center justify-center shrink-0 ${INTENT_CONFIG[note.intent || 'memoir']?.color || 'text-indigo-600'}`}>
+                    {note.intent ? (
+                      React.createElement(INTENT_CONFIG[note.intent].icon, { className: "w-4 h-4" })
+                    ) : (
+                      <MessageSquare className="w-4 h-4" />
+                    )}
                   </div>
                   <div className="min-w-0">
                     <p className="text-xs text-gray-700 line-clamp-2 font-medium mb-1">

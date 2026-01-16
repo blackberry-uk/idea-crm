@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useRef } from 'react';
-import { X, ClipboardList, Type, MessageSquare, Info, Users, Plus, Trash2, AtSign, ChevronDown, ChevronUp, Minus, Eye, EyeOff } from 'lucide-react';
+import { X, ClipboardList, Type, MessageSquare, Info, Users, Plus, Trash2, AtSign, ChevronDown, ChevronUp, Minus, Eye, EyeOff, Calendar, Edit2, RotateCcw, CircleDot, Brain, Mountain, SlidersHorizontal, Check } from 'lucide-react';
 import { useStore } from '../store/useStore';
-
+import { format } from 'date-fns';
 import { Idea, Note } from '../types';
 
 interface CallMinuteModalProps {
@@ -15,12 +15,12 @@ interface CallMinuteModalProps {
 }
 
 const INPUT_TYPES = [
-    'Insight',
-    'Agreement',
-    'To do',
-    'Data Point',
-    'Reference',
-    'Decision'
+    { id: 'Insight', label: 'Insight', icon: Brain, color: 'text-indigo-500', bg: 'bg-indigo-50', hover: 'hover:bg-indigo-50' },
+    { id: 'Agreement', label: 'Agreement', icon: Check, color: 'text-emerald-500', bg: 'bg-emerald-50', hover: 'hover:bg-emerald-50' },
+    { id: 'To do', label: 'To do', icon: SlidersHorizontal, color: 'text-orange-500', bg: 'bg-orange-50', hover: 'hover:bg-orange-50' },
+    { id: 'Data Point', label: 'Data Point', icon: Info, color: 'text-blue-500', bg: 'bg-blue-50', hover: 'hover:bg-blue-50' },
+    { id: 'Reference', label: 'Reference', icon: MessageSquare, color: 'text-gray-500', bg: 'bg-gray-50', hover: 'hover:bg-gray-50' },
+    { id: 'Decision', label: 'Decision', icon: CircleDot, color: 'text-purple-500', bg: 'bg-purple-50', hover: 'hover:bg-purple-50' }
 ];
 
 const CallMinuteModal: React.FC<CallMinuteModalProps> = ({ isOpen, onClose, ideaId, contactId, location, idea, editingNote }) => {
@@ -29,6 +29,7 @@ const CallMinuteModal: React.FC<CallMinuteModalProps> = ({ isOpen, onClose, idea
     const [selectedAttendeeIds, setSelectedAttendeeIds] = useState<string[]>([]);
     const [attendeeSearch, setAttendeeSearch] = useState('');
     const [showAttendeeList, setShowAttendeeList] = useState(false);
+    const [meetingDate, setMeetingDate] = useState(format(new Date(), 'yyyy-MM-dd'));
     const [segments, setSegments] = useState<{ type: string; topic: string; comments: string }[]>([]);
     const [currentSegment, setCurrentSegment] = useState({
         type: 'Insight',
@@ -39,6 +40,7 @@ const CallMinuteModal: React.FC<CallMinuteModalProps> = ({ isOpen, onClose, idea
     const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
     const [showComposer, setShowComposer] = useState(true);
     const [typeSelectorOpen, setTypeSelectorOpen] = useState(false);
+    const [editingSegmentIdx, setEditingSegmentIdx] = useState<number | null>(null);
 
     // Mention system state for segments
     const [mentionQuery, setMentionQuery] = useState('');
@@ -56,6 +58,7 @@ const CallMinuteModal: React.FC<CallMinuteModalProps> = ({ isOpen, onClose, idea
                 if (structuredData.template === 'call-minute') {
                     setAttendees(structuredData.attendees || '');
                     setSegments(structuredData.segments || []);
+                    setMeetingDate(structuredData.date || format(new Date(editingNote.createdAt), 'yyyy-MM-dd'));
                     setTaggedContactIdsState(editingNote.taggedContactIds || []);
                     setTaggedUserIdsState(editingNote.taggedUserIds || []);
 
@@ -72,13 +75,14 @@ const CallMinuteModal: React.FC<CallMinuteModalProps> = ({ isOpen, onClose, idea
                 console.error('Failed to parse editing note', e);
             }
         } else if (isOpen) {
-            // Reset state if not editing
             setSegments([]);
             setAttendees('');
+            setMeetingDate(format(new Date(), 'yyyy-MM-dd'));
             setTaggedContactIdsState([]);
             setTaggedUserIdsState([]);
             setSelectedAttendeeIds([]);
             setCurrentSegment({ type: 'Insight', topic: '', comments: '' });
+            setEditingSegmentIdx(null);
         }
     }, [isOpen, editingNote, data.contacts, data.users]);
 
@@ -151,7 +155,6 @@ const CallMinuteModal: React.FC<CallMinuteModalProps> = ({ isOpen, onClose, idea
             setMentionQuery(mentionMatch[1]);
             setShowMentionList(true);
 
-            // Basic positioning logic
             const rect = e.target.getBoundingClientRect();
             const parentRect = e.target.offsetParent?.getBoundingClientRect();
             if (parentRect) {
@@ -192,13 +195,31 @@ const CallMinuteModal: React.FC<CallMinuteModalProps> = ({ isOpen, onClose, idea
             showToast('Please add at least a topic or comments to this item', 'error');
             return;
         }
-        setSegments([...segments, currentSegment]);
+        if (editingSegmentIdx !== null) {
+            const newSegments = [...segments];
+            newSegments[editingSegmentIdx] = currentSegment;
+            setSegments(newSegments);
+            setEditingSegmentIdx(null);
+            showToast('Item updated', 'success');
+        } else {
+            setSegments([...segments, currentSegment]);
+            showToast('Item added to call log', 'success');
+        }
         setCurrentSegment({ type: 'Insight', topic: '', comments: '' });
-        showToast('Item added to call log', 'success');
+    };
+
+    const handleEditSegment = (idx: number) => {
+        setCurrentSegment(segments[idx]);
+        setEditingSegmentIdx(idx);
+        setShowComposer(true);
     };
 
     const removeSegment = (idx: number) => {
         setSegments(segments.filter((_, i) => i !== idx));
+        if (editingSegmentIdx === idx) {
+            setEditingSegmentIdx(null);
+            setCurrentSegment({ type: 'Insight', topic: '', comments: '' });
+        }
     };
 
     const handleDragStart = (idx: number) => {
@@ -225,10 +246,14 @@ const CallMinuteModal: React.FC<CallMinuteModalProps> = ({ isOpen, onClose, idea
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
 
-        // If something is in progress but not added, add it automatically if it's not empty
         let finalSegments = segments;
         if (currentSegment.topic.trim() || currentSegment.comments.trim()) {
-            finalSegments = [...segments, currentSegment];
+            if (editingSegmentIdx !== null) {
+                finalSegments = [...segments];
+                finalSegments[editingSegmentIdx] = currentSegment;
+            } else {
+                finalSegments = [...segments, currentSegment];
+            }
         }
 
         if (finalSegments.length === 0) {
@@ -238,6 +263,7 @@ const CallMinuteModal: React.FC<CallMinuteModalProps> = ({ isOpen, onClose, idea
 
         const structuredBody = JSON.stringify({
             template: 'call-minute',
+            date: meetingDate,
             attendees,
             segments: finalSegments
         });
@@ -249,6 +275,7 @@ const CallMinuteModal: React.FC<CallMinuteModalProps> = ({ isOpen, onClose, idea
                     body: structuredBody,
                     taggedContactIds: Array.from(new Set([...taggedContactIdsState, ...selectedAttendeeIds.filter(id => data.contacts.some(c => c.id === id))])),
                     taggedUserIds: Array.from(new Set([...taggedUserIdsState, ...selectedAttendeeIds.filter(id => data.users.some(u => u.id === id))])),
+                    createdAt: new Date(meetingDate + 'T12:00:00Z').toISOString()
                 });
                 showToast('Call Minute updated', 'success');
             } else {
@@ -260,12 +287,11 @@ const CallMinuteModal: React.FC<CallMinuteModalProps> = ({ isOpen, onClose, idea
                     categories: ['Call Minute'],
                     taggedContactIds: Array.from(new Set([...taggedContactIdsState, ...selectedAttendeeIds.filter(id => data.contacts.some(c => c.id === id))])),
                     taggedUserIds: Array.from(new Set([...taggedUserIdsState, ...selectedAttendeeIds.filter(id => data.users.some(u => u.id === id))])),
-                    createdAt: new Date().toISOString()
+                    createdAt: new Date(meetingDate + 'T12:00:00Z').toISOString()
                 });
                 showToast('Call Minute saved', 'success');
             }
 
-            // Sync TO DOS if they match "To do" type (Both for new and existing notes)
             const resolvedIdeaId = ideaId || editingNote?.ideaId;
             if (resolvedIdeaId && savedNote?.id) {
                 const latestIdea = data.ideas.find(i => i.id === resolvedIdeaId);
@@ -273,7 +299,6 @@ const CallMinuteModal: React.FC<CallMinuteModalProps> = ({ isOpen, onClose, idea
 
                 const newTodos = finalSegments
                     .filter(seg => seg.type === 'To do')
-                    // Only add if not already present in the idea (by text and origin)
                     .filter(seg => !currentTodos.some(t => t.text.includes(seg.topic) && t.originNoteId === savedNote.id))
                     .map(seg => ({
                         id: Math.random().toString(36).substring(7),
@@ -292,17 +317,131 @@ const CallMinuteModal: React.FC<CallMinuteModalProps> = ({ isOpen, onClose, idea
                     showToast(`${newTodos.length} task(s) added to your TO DOS`, 'info');
                 }
             }
-            setSegments([]);
-            setAttendees('');
-            setTaggedContactIdsState([]);
-            setTaggedUserIdsState([]);
-            setSelectedAttendeeIds([]);
-            setCurrentSegment({ type: 'Insight', topic: '', comments: '' });
             onClose();
         } catch (err: any) {
             showToast(err.message || 'Failed to save', 'error');
         }
     };
+
+    const renderComposer = (isInline: boolean = false) => (
+        <div className={`${isInline ? 'bg-indigo-50/50 border-indigo-200' : 'bg-[#FEFADA] border-yellow-200'} border rounded-3xl p-6 shadow-sm space-y-3 relative animate-in fade-in slide-in-from-top-2 duration-200`}>
+            <div className={`flex items-center justify-between border-b ${isInline ? 'border-indigo-200/30' : 'border-yellow-200/30'} pb-4`}>
+                <div className="flex items-center gap-2">
+                    <label className={`text-[10px] font-black ${isInline ? 'text-indigo-700/60' : 'text-yellow-700/60'} uppercase tracking-[0.15em]`}>
+                        {editingSegmentIdx !== null ? 'Editing Item Detail' : 'New Item Detail'}
+                    </label>
+                </div>
+                <div className="relative">
+                    <button
+                        type="button"
+                        onClick={() => setTypeSelectorOpen(!typeSelectorOpen)}
+                        className={`px-3 py-1.5 rounded-lg text-[10px] font-black ${isInline ? 'bg-indigo-600' : 'bg-indigo-600'} text-white shadow-sm flex items-center gap-2 hover:bg-indigo-700 transition-colors`}
+                    >
+                        {currentSegment.type}
+                        <ChevronDown className={`w-3 h-3 transition-transform ${typeSelectorOpen ? 'rotate-180' : ''}`} />
+                    </button>
+
+                    {typeSelectorOpen && (
+                        <>
+                            <div className="fixed inset-0 z-[110]" onClick={() => setTypeSelectorOpen(false)} />
+                            <div className="absolute top-full right-0 mt-3 bg-white border border-gray-100 rounded-[24px] shadow-2xl z-[120] p-2 w-48 overflow-hidden animate-in fade-in slide-in-from-top-2">
+                                <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 px-3 pt-2">Item Type</h4>
+                                {INPUT_TYPES.map(t => (
+                                    <button
+                                        key={t.id}
+                                        type="button"
+                                        onClick={() => {
+                                            setCurrentSegment({ ...currentSegment, type: t.id });
+                                            setTypeSelectorOpen(false);
+                                        }}
+                                        className={`w-full text-left px-3 py-2.5 text-[11px] font-bold rounded-xl transition-all flex items-center gap-3 ${currentSegment.type === t.id ? 'bg-indigo-600 text-white shadow-md' : 'text-gray-600 hover:bg-gray-50 hover:text-indigo-600'}`}
+                                    >
+                                        <div className={`w-6 h-6 rounded-lg flex items-center justify-center ${currentSegment.type === t.id ? 'bg-white/20' : t.bg}`}>
+                                            <t.icon className={`w-3.5 h-3.5 ${currentSegment.type === t.id ? 'text-white' : t.color}`} />
+                                        </div>
+                                        {t.label}
+                                    </button>
+                                ))}
+                            </div>
+                        </>
+                    )}
+                </div>
+            </div>
+
+            <div className="flex gap-4 items-end">
+                <div className="flex-1 space-y-2">
+                    <div className="relative">
+                        <Type className={`absolute left-3 top-3 w-3.5 h-3.5 ${isInline ? 'text-indigo-700/50' : 'text-yellow-700/50'}`} />
+                        <input
+                            className={`w-full border ${isInline ? 'border-indigo-500/30' : 'border-yellow-500/30'} rounded-xl pl-10 pr-4 py-2.5 text-sm outline-none bg-white placeholder:text-gray-400 font-medium text-gray-700 focus:border-indigo-400 transition-all shadow-sm`}
+                            placeholder="Topic of this item..."
+                            value={currentSegment.topic}
+                            onChange={e => setCurrentSegment({ ...currentSegment, topic: e.target.value })}
+                        />
+                    </div>
+
+                    <div className="relative">
+                        <MessageSquare className={`absolute left-3 top-3 w-3.5 h-3.5 ${isInline ? 'text-indigo-700/50' : 'text-yellow-700/50'}`} />
+                        <textarea
+                            ref={segmentTextareaRef}
+                            className={`w-full border ${isInline ? 'border-indigo-500/30' : 'border-yellow-500/30'} rounded-xl pl-10 pr-4 py-2.5 text-sm outline-none bg-white placeholder:text-gray-400 font-normal min-h-[100px] resize-none text-gray-600 focus:border-indigo-400 transition-all shadow-sm`}
+                            placeholder="Add comments, data, or next steps... (Type @ to mention)"
+                            value={currentSegment.comments}
+                            onChange={handleCommentsChange}
+                        />
+
+                        {showMentionList && (
+                            <div
+                                className="absolute z-[120] w-56 bg-white border border-gray-200 rounded-2xl shadow-2xl p-1 animate-in zoom-in-95"
+                                style={{ top: mentionPosition.top, left: mentionPosition.left }}
+                            >
+                                {mentionCandidates.map(c => (
+                                    <button
+                                        key={`${c.type}-${c.id}`}
+                                        type="button"
+                                        onClick={() => insertMention(c.id, c.name, c.type)}
+                                        className="w-full text-left px-4 py-2.5 text-xs font-bold text-gray-700 hover:bg-yellow-50 hover:text-yellow-700 rounded-xl flex items-center gap-3"
+                                    >
+                                        <div className={`w-6 h-6 rounded-lg flex items-center justify-center text-[10px] ${c.type === 'user' ? 'bg-purple-100 text-purple-600' : 'bg-indigo-100 text-indigo-600'}`}>
+                                            {c.type === 'user' ? <AtSign className="w-3.5 h-3.5" /> : c.name[0]}
+                                        </div>
+                                        <div className="flex flex-col">
+                                            <span className="truncate">{c.name}</span>
+                                            <span className="text-[8px] uppercase tracking-tighter opacity-50">{c.type}</span>
+                                        </div>
+                                    </button>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                </div>
+
+                <div className="flex flex-col gap-2">
+                    {isInline && (
+                        <button
+                            type="button"
+                            onClick={() => {
+                                setEditingSegmentIdx(null);
+                                setCurrentSegment({ type: 'Insight', topic: '', comments: '' });
+                            }}
+                            className="w-10 h-10 bg-gray-100 hover:bg-gray-200 text-gray-500 rounded-xl shadow-sm border border-gray-200 transition-all flex items-center justify-center active:scale-95"
+                            title="Cancel edit"
+                        >
+                            <X className="w-4 h-4" />
+                        </button>
+                    )}
+                    <button
+                        type="button"
+                        onClick={handleAddSegment}
+                        className={`w-10 h-10 ${isInline ? 'bg-indigo-600 text-white border-indigo-700' : 'bg-yellow-400 text-yellow-950 border-yellow-500/50'} rounded-xl shadow-md border transition-all flex items-center justify-center active:scale-95 group/add`}
+                        title={isInline ? "Update item" : "Add this item"}
+                    >
+                        {isInline ? <Check className="w-5 h-5" /> : <Plus className="w-5 h-5 group-hover:scale-110 transition-transform" />}
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
 
     return (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-gray-900/60 backdrop-blur-sm overflow-y-auto">
@@ -319,120 +458,34 @@ const CallMinuteModal: React.FC<CallMinuteModalProps> = ({ isOpen, onClose, idea
 
                 <div className="p-0 max-h-[75vh] overflow-y-auto">
                     <div className="grid grid-cols-1 lg:grid-cols-[1fr_300px] divide-x divide-gray-100 min-h-[500px]">
-                        {/* LEFT COLUMN: MINUTE TAKER (75%) */}
                         <div className="p-8 space-y-6">
-                            {/* Header for Workspace Toggle */}
                             <div className="flex items-center justify-between px-2">
-                                <div className="flex items-center gap-2">
-                                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Note Workspace</label>
-                                    <button
-                                        onClick={() => setShowComposer(!showComposer)}
-                                        className="p-1 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-md transition-all"
-                                        title={showComposer ? "Hide Workspace" : "Show Workspace"}
-                                    >
-                                        {showComposer ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-                                    </button>
+                                <div className="flex items-center gap-6">
+                                    <div className="flex items-center gap-2">
+                                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Note Workspace</label>
+                                        <button
+                                            onClick={() => setShowComposer(!showComposer)}
+                                            className="p-1 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-md transition-all"
+                                            title={showComposer ? "Hide Workspace" : "Show Workspace"}
+                                        >
+                                            {showComposer ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                                        </button>
+                                    </div>
+                                    <div className="flex items-center gap-3 bg-gray-50 border border-gray-100 rounded-xl px-3 py-1.5 focus-within:ring-2 focus-within:ring-indigo-100 transition-all">
+                                        <Calendar className="w-3.5 h-3.5 text-gray-400" />
+                                        <input
+                                            type="date"
+                                            value={meetingDate}
+                                            onChange={(e) => setMeetingDate(e.target.value)}
+                                            className="bg-transparent text-[11px] font-bold text-gray-600 outline-none w-32"
+                                        />
+                                    </div>
                                 </div>
                             </div>
 
-                            {/* Current Segment Input Area - Matching Main Idea Yellow */}
-                            {showComposer && (
-                                <div className="bg-[#FEFADA] border border-yellow-200 rounded-3xl p-6 shadow-sm space-y-3 relative animate-in fade-in slide-in-from-top-2 duration-200">
-                                    <div className="flex items-center justify-between border-b border-yellow-200/30 pb-4">
-                                        <div className="flex items-center gap-2">
-                                            <label className="text-[10px] font-black text-yellow-700/60 uppercase tracking-[0.15em]">New Item Detail</label>
-                                        </div>
-                                        <div className="relative">
-                                            <button
-                                                type="button"
-                                                onClick={() => setTypeSelectorOpen(!typeSelectorOpen)}
-                                                className="px-3 py-1.5 rounded-lg text-[10px] font-black bg-slate-500 border border-slate-600 text-white shadow-sm flex items-center gap-2 hover:bg-slate-600 transition-colors"
-                                            >
-                                                {currentSegment.type}
-                                                <ChevronDown className={`w-3 h-3 transition-transform ${typeSelectorOpen ? 'rotate-180' : ''}`} />
-                                            </button>
-
-                                            {typeSelectorOpen && (
-                                                <>
-                                                    <div className="fixed inset-0 z-[110]" onClick={() => setTypeSelectorOpen(false)} />
-                                                    <div className="absolute top-full right-0 mt-1 bg-white border border-yellow-100 rounded-xl shadow-xl z-[120] p-1 w-36 overflow-hidden animate-in zoom-in-95 duration-100">
-                                                        {INPUT_TYPES.map(t => (
-                                                            <button
-                                                                key={t}
-                                                                type="button"
-                                                                onClick={() => {
-                                                                    setCurrentSegment({ ...currentSegment, type: t });
-                                                                    setTypeSelectorOpen(false);
-                                                                }}
-                                                                className={`w-full text-left px-3 py-2 text-[10px] font-bold rounded-lg transition-colors ${currentSegment.type === t ? 'bg-slate-500 text-white' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-800'}`}
-                                                            >
-                                                                {t}
-                                                            </button>
-                                                        ))}
-                                                    </div>
-                                                </>
-                                            )}
-                                        </div>
-                                    </div>
-
-                                    <div className="flex gap-4 items-end">
-                                        <div className="flex-1 space-y-2">
-                                            <div className="relative">
-                                                <Type className="absolute left-3 top-3 w-3.5 h-3.5 text-yellow-700/50" />
-                                                <input
-                                                    className="w-full border border-yellow-500/30 rounded-xl pl-10 pr-4 py-2.5 text-sm outline-none bg-white placeholder:text-gray-400 font-medium text-gray-700 focus:border-indigo-400 transition-all shadow-sm"
-                                                    placeholder="Topic of this item..."
-                                                    value={currentSegment.topic}
-                                                    onChange={e => setCurrentSegment({ ...currentSegment, topic: e.target.value })}
-                                                />
-                                            </div>
-
-                                            <div className="relative">
-                                                <MessageSquare className="absolute left-3 top-3 w-3.5 h-3.5 text-yellow-700/50" />
-                                                <textarea
-                                                    ref={segmentTextareaRef}
-                                                    className="w-full border border-yellow-500/30 rounded-xl pl-10 pr-4 py-2.5 text-sm outline-none bg-white placeholder:text-gray-400 font-normal min-h-[100px] resize-none text-gray-600 focus:border-indigo-400 transition-all shadow-sm"
-                                                    placeholder="Add comments, data, or next steps... (Type @ to mention)"
-                                                    value={currentSegment.comments}
-                                                    onChange={handleCommentsChange}
-                                                />
-
-                                                {showMentionList && (
-                                                    <div
-                                                        className="absolute z-[120] w-56 bg-white border border-gray-200 rounded-2xl shadow-2xl p-1 animate-in zoom-in-95"
-                                                        style={{ top: mentionPosition.top, left: mentionPosition.left }}
-                                                    >
-                                                        {mentionCandidates.map(c => (
-                                                            <button
-                                                                key={`${c.type}-${c.id}`}
-                                                                type="button"
-                                                                onClick={() => insertMention(c.id, c.name, c.type)}
-                                                                className="w-full text-left px-4 py-2.5 text-xs font-bold text-gray-700 hover:bg-yellow-50 hover:text-yellow-700 rounded-xl flex items-center gap-3"
-                                                            >
-                                                                <div className={`w-6 h-6 rounded-lg flex items-center justify-center text-[10px] ${c.type === 'user' ? 'bg-purple-100 text-purple-600' : 'bg-indigo-100 text-indigo-600'}`}>
-                                                                    {c.type === 'user' ? <AtSign className="w-3.5 h-3.5" /> : c.name[0]}
-                                                                </div>
-                                                                <div className="flex flex-col">
-                                                                    <span className="truncate">{c.name}</span>
-                                                                    <span className="text-[8px] uppercase tracking-tighter opacity-50">{c.type}</span>
-                                                                </div>
-                                                            </button>
-                                                        ))}
-                                                    </div>
-                                                )}
-                                            </div>
-                                        </div>
-
-                                        <button
-                                            type="button"
-                                            onClick={handleAddSegment}
-                                            className="w-10 h-10 bg-yellow-400 hover:bg-yellow-500 text-yellow-950 rounded-xl shadow-md border border-yellow-500/50 transition-all flex items-center justify-center active:scale-95 group/add"
-                                            title="Add this item"
-                                        >
-                                            <Plus className="w-5 h-5 group-hover:scale-110 transition-transform" />
-                                        </button>
-                                    </div>
-                                </div>
+                            {/* Main Composer for NEW Items (only shown when not editing) */}
+                            {showComposer && editingSegmentIdx === null && (
+                                renderComposer()
                             )}
 
                             {/* Display Stacked Items - Draggable */}
@@ -449,22 +502,32 @@ const CallMinuteModal: React.FC<CallMinuteModalProps> = ({ isOpen, onClose, idea
                                                 prev.includes(i) ? prev.filter(x => x !== i) : [...prev, i]
                                             );
 
+                                            if (editingSegmentIdx === i) {
+                                                return (
+                                                    <div key={`edit-${i}`} className="animate-in fade-in zoom-in-95 duration-200">
+                                                        {renderComposer(true)}
+                                                    </div>
+                                                );
+                                            }
+
                                             return (
                                                 <div
                                                     key={i}
-                                                    draggable
+                                                    draggable={editingSegmentIdx === null}
                                                     onDragStart={() => handleDragStart(i)}
                                                     onDragOver={(e) => handleDragOver(e, i)}
                                                     onDragEnd={handleDragEnd}
-                                                    className={`bg-white rounded-2xl border border-gray-400 overflow-hidden group transition-all cursor-move ${draggedIndex === i ? 'opacity-30 scale-95' : 'hover:border-indigo-200 hover:shadow-lg shadow-sm'}`}
+                                                    className={`bg-white rounded-2xl border border-gray-400 overflow-hidden group transition-all ${editingSegmentIdx === null ? 'cursor-move' : 'cursor-default'} ${draggedIndex === i ? 'opacity-30 scale-95' : 'hover:border-indigo-200 hover:shadow-lg shadow-sm'}`}
                                                 >
                                                     <div className="flex items-center justify-between p-4 px-5">
                                                         <div className="flex items-center gap-4">
-                                                            <div className="flex flex-col gap-1 opacity-0 group-hover:opacity-40 transition-opacity shrink-0">
-                                                                <div className="w-3 h-0.5 bg-gray-400" />
-                                                                <div className="w-3 h-0.5 bg-gray-400" />
-                                                                <div className="w-3 h-0.5 bg-gray-400" />
-                                                            </div>
+                                                            {editingSegmentIdx === null && (
+                                                                <div className="flex flex-col gap-1 opacity-10 group-hover:opacity-40 transition-opacity shrink-0">
+                                                                    <div className="w-3 h-0.5 bg-gray-400" />
+                                                                    <div className="w-3 h-0.5 bg-gray-400" />
+                                                                    <div className="w-3 h-0.5 bg-gray-400" />
+                                                                </div>
+                                                            )}
                                                             <span className="text-[13px] font-semibold text-gray-600 truncate">{seg.topic || 'Unspecified Topic'}</span>
                                                         </div>
                                                         <div className="flex items-center gap-4">
@@ -476,9 +539,16 @@ const CallMinuteModal: React.FC<CallMinuteModalProps> = ({ isOpen, onClose, idea
                                                                         onClick={toggleCollapse}
                                                                         className="p-2 bg-gray-50 text-indigo-400 hover:text-indigo-600 rounded-lg transition-all border border-transparent hover:border-indigo-100"
                                                                     >
-                                                                        {isCollapsed ? <Plus className="w-3.5 h-3.5" /> : <Minus className="w-3.5 h-3.5" />}
+                                                                        {isCollapsed ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
                                                                     </button>
                                                                 )}
+                                                                <button
+                                                                    onClick={() => handleEditSegment(i)}
+                                                                    className="p-2 text-gray-300 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all"
+                                                                    disabled={editingSegmentIdx !== null}
+                                                                >
+                                                                    <Edit2 className="w-4 h-4" />
+                                                                </button>
                                                                 <button onClick={() => removeSegment(i)} className="p-2 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all">
                                                                     <Trash2 className="w-4 h-4" />
                                                                 </button>
@@ -490,11 +560,6 @@ const CallMinuteModal: React.FC<CallMinuteModalProps> = ({ isOpen, onClose, idea
                                                             {seg.comments}
                                                         </div>
                                                     )}
-                                                    {isCollapsed && seg.comments && (
-                                                        <div className="px-6 pb-4 text-[11px] text-slate-400 truncate opacity-70">
-                                                            {seg.comments}
-                                                        </div>
-                                                    )}
                                                 </div>
                                             );
                                         })}
@@ -503,7 +568,6 @@ const CallMinuteModal: React.FC<CallMinuteModalProps> = ({ isOpen, onClose, idea
                             )}
                         </div>
 
-                        {/* RIGHT COLUMN: ATTENDEES (25%) */}
                         <div className="bg-[#F2F3F4] p-10 space-y-8">
                             <div className="space-y-6">
                                 <label className="block text-sm font-black text-gray-400 uppercase tracking-widest flex items-center gap-2">

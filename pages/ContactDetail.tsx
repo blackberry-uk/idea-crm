@@ -26,7 +26,11 @@ import {
   Plus,
   X,
   Users,
-  AtSign
+  AtSign,
+  RotateCcw,
+  CircleDot,
+  Brain,
+  Mountain
 } from 'lucide-react';
 import NoteComposer from '../components/NoteComposer';
 import IdeaModal from '../components/IdeaModal';
@@ -34,7 +38,7 @@ import IdeaModal from '../components/IdeaModal';
 const ContactDetail: React.FC = () => {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { data, updateContact, deleteNote, togglePinNote, confirm } = useStore();
+  const { data, updateContact, updateNote, deleteNote, togglePinNote, confirm } = useStore();
   const contact = data.contacts.find(c => c.id === id);
 
   if (!contact) {
@@ -45,6 +49,7 @@ const ContactDetail: React.FC = () => {
   const [editedContact, setEditedContact] = useState(contact);
   const [showAddIdeaModal, setShowAddIdeaModal] = useState(false);
   const [showLinkIdeaPicker, setShowLinkIdeaPicker] = useState(false);
+  const [openIntentMenuId, setOpenIntentMenuId] = useState<string | null>(null);
 
   const contactNotes = data.notes
     .filter(n => n.contactId === id)
@@ -66,11 +71,56 @@ const ContactDetail: React.FC = () => {
   };
 
   const renderBodyWithLinks = (text: string, note: any) => {
+    const isHtml = /<[a-z][\s\S]*>/i.test(text);
+
+    if (isHtml) {
+      // Process HTML content with string replacements for mentions and links
+      let html = text;
+
+      // 1. Process Mentions
+      const taggedContacts = data.contacts.filter(c => note.taggedContactIds?.includes(c.id));
+      taggedContacts.forEach(contact => {
+        const mentionText = `@${contact.fullName}`;
+        const mentionHtml = `<a href="/contacts/${contact.id}" class="bg-violet-50 text-violet-700 px-1.5 py-0.5 rounded-md font-bold hover:bg-violet-100 transition-colors border border-violet-100 inline-flex items-center gap-0.5 no-underline mx-0.5 align-baseline">@${contact.fullName}</a>`;
+        html = html.split(mentionText).join(mentionHtml);
+      });
+
+      const taggedUsers = data.users.filter(u => note.taggedUserIds?.includes(u.id));
+      taggedUsers.forEach(user => {
+        const mentionText = `@${user.name}`;
+        const mentionHtml = `<span class="bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded-md font-bold border border-blue-100 inline-flex items-center gap-0.5 no-underline mx-0.5 align-baseline cursor-default" title="${user.name} (Idea-crm user)">@${user.name}</span>`;
+        html = html.split(mentionText).join(mentionHtml);
+      });
+
+      // 2. Simple URL linkification in HTML
+      const urlRegex = /(?![^<]*>)(https?:\/\/[^\s]+)/g;
+      html = html.replace(urlRegex, (url) => `<a href="${url}" target="_blank" rel="noopener noreferrer" class="text-indigo-600 hover:underline inline-flex items-center gap-1 font-sans">${url}</a>`);
+
+      // 3. Process dashes to bullets
+      const dashRegex = /(?:^|<div>|<p>|<br>)\s*-\s+([^<]+)/g;
+      if (dashRegex.test(html)) {
+        html = html.replace(/((\s*-\s+[^<]+(?:<br>|<div>|<\/div>|<p>|<\/p>)?)+)/g, (match) => {
+          const items = match.split(/[-]\s+/).filter(i => i.trim()).map(i => `<li>${i.trim()}</li>`).join('');
+          return `<ul>${items}</ul>`;
+        });
+      }
+
+      return <div className="rich-text-content" dangerouslySetInnerHTML={{ __html: html }} />;
+    }
+
+    // 1. Process dashes in plain text
+    const processedText = text.split('\n').map(line => {
+      if (line.trim().startsWith('- ')) {
+        return `• ${line.trim().slice(2)}`;
+      }
+      return line;
+    }).join('\n');
+
     const urlRegex = /(https?:\/\/[^\s]+)/g;
     const taggedContacts = data.contacts.filter(c => note.taggedContactIds?.includes(c.id));
     const taggedUsers = data.users.filter(u => note.taggedUserIds?.includes(u.id));
 
-    let parts: (string | React.ReactElement)[] = [text];
+    let parts: (string | React.ReactElement)[] = [processedText];
 
     // 1. URLs
     parts = parts.flatMap(part => {
@@ -295,7 +345,7 @@ const ContactDetail: React.FC = () => {
                 <ClipboardList className="w-3.5 h-3.5" />
                 Context Notes
               </div>
-              <p className="text-xs text-gray-600 leading-relaxed font-medium bg-indigo-50/50 p-3 rounded-xl border border-indigo-100">
+              <p className="text-xs text-gray-600 leading-relaxed font-[450] bg-indigo-50/50 p-3 rounded-xl border border-indigo-100 px-6">
                 {contact.notes}
               </p>
             </div>
@@ -304,7 +354,7 @@ const ContactDetail: React.FC = () => {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        <div className="lg:col-span-2 space-y-8">
+        <div className="lg:col-span-2 space-y-8 idea-thread">
           <div className="bg-white rounded-3xl border border-gray-200 p-8 shadow-sm">
             <h2 className="text-xl font-bold mb-6 flex items-center gap-2">
               <MessageSquare className="w-5 h-5 text-indigo-600" />
@@ -397,11 +447,51 @@ const ContactDetail: React.FC = () => {
                   return <p className="text-xs text-red-400 italic">Unsupported Template</p>;
                 };
 
+                const INTENT_CONFIG: Record<string, { icon: any, label: string, color: string }> = {
+                  follow_up: { icon: RotateCcw, label: 'Follow up', color: 'text-red-500' },
+                  acted_upon: { icon: CircleDot, label: 'Acted upon', color: 'text-gray-400' },
+                  reflection: { icon: Brain, label: 'Reflection', color: 'text-gray-400' },
+                  memoir: { icon: Mountain, label: 'Memoir', color: 'text-yellow-600' },
+                };
+
+                const currentIntent = note.intent || 'memoir';
+                const IntentIcon = INTENT_CONFIG[currentIntent]?.icon || Mountain;
+
                 return (
-                  <div key={note.id} className="relative group">
+                  <div key={note.id} className={`relative group mb-8 pb-8 border-b border-gray-100 last:border-0 transition-all
+                    ${currentIntent === 'follow_up' ? 'bg-[#FEFADA] -mx-6 px-6 pt-6 rounded-2xl border-none shadow-md ring-1 ring-yellow-200/50' : ''}
+                  `}>
                     <div className="flex items-center justify-between mb-3">
                       <div className="flex items-center gap-3">
-                        <div className="w-2.5 h-2.5 rounded-full bg-indigo-500 border-2 border-white shadow-sm"></div>
+                        <div className="relative">
+                          <button
+                            onClick={() => setOpenIntentMenuId(openIntentMenuId === note.id ? null : note.id)}
+                            className={`p-1 rounded-md hover:bg-gray-100 transition-colors ${INTENT_CONFIG[currentIntent]?.color}`}
+                            title={`Intent: ${INTENT_CONFIG[currentIntent]?.label}`}
+                          >
+                            <IntentIcon className="w-3.5 h-3.5" />
+                          </button>
+                          {openIntentMenuId === note.id && (
+                            <>
+                              <div className="fixed inset-0 z-40" onClick={() => setOpenIntentMenuId(null)} />
+                              <div className="absolute top-full left-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-xl z-50 py-1.5 min-w-[140px] animate-in fade-in zoom-in-95 duration-100">
+                                {Object.entries(INTENT_CONFIG).map(([key, config]) => (
+                                  <button
+                                    key={key}
+                                    onClick={() => {
+                                      updateNote(note.id, { intent: key as any });
+                                      setOpenIntentMenuId(null);
+                                    }}
+                                    className="flex items-center gap-3 w-full px-4 py-2 text-[11px] font-bold text-gray-500 hover:bg-gray-50 hover:text-gray-900 transition-colors uppercase tracking-tight"
+                                  >
+                                    <config.icon className={`w-3.5 h-3.5 ${config.color}`} />
+                                    <span>{config.label}</span>
+                                  </button>
+                                ))}
+                              </div>
+                            </>
+                          )}
+                        </div>
                         <span className="text-xs font-bold text-gray-900">
                           {format(new Date(note.createdAt), 'MMM d, yyyy')}
                         </span>
@@ -476,7 +566,7 @@ const ContactDetail: React.FC = () => {
                         </div>
                       </div>
                     </div>
-                    <div className="text-sm text-gray-800 leading-relaxed font-medium bg-gray-50/70 p-5 rounded-2xl border border-gray-400 group-hover:bg-white group-hover:shadow-md transition-all">
+                    <div className={`text-[14.5px] ${note.intent === 'follow_up' ? 'text-slate-950' : 'text-gray-800'} leading-relaxed font-[450] bg-gray-50/70 p-5 px-10 rounded-2xl border border-gray-400 group-hover:bg-white group-hover:shadow-md transition-all`}>
                       {note.imageUrl && (
                         <div className="mb-4 rounded-2xl overflow-hidden border border-gray-100 shadow-lg">
                           <img src={note.imageUrl} alt="Attached" className="w-full h-auto" />
@@ -484,7 +574,7 @@ const ContactDetail: React.FC = () => {
                       )}
                       {isStructured && structuredData
                         ? renderStructuredBody(structuredData, note)
-                        : <div className="font-mono whitespace-pre-wrap">{renderBodyWithLinks(note.body, note)}</div>
+                        : <div className="font-sans whitespace-pre-wrap">{renderBodyWithLinks(note.body, note)}</div>
                       }
                     </div>
                     {index !== contactNotes.length - 1 && (

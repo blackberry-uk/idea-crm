@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useStore } from '../store/useStore';
-import { Save, RefreshCw, Calendar, Tag, MapPin, Pin, Plus, AtSign, Search, ClipboardList, Image, X, ChevronDown, Sparkles, MessageSquare, CheckCircle, Zap } from 'lucide-react';
+import { Save, RefreshCw, Calendar, Tag, MapPin, Pin, Plus, AtSign, Search, ClipboardList, Image, X, ChevronDown, Sparkles, MessageSquare, CheckCircle, Zap, SlidersHorizontal, RotateCcw, CircleDot, Brain, Mountain, Bold, Italic, List, Type } from 'lucide-react';
 import CallMinuteModal from './CallMinuteModal';
 import { format } from 'date-fns';
-import { Note, IdeaStatus } from '../types';
+import { Note, IdeaStatus, NoteIntent } from '../types';
 
 interface NoteComposerProps {
   onComplete?: () => void;
@@ -26,7 +26,8 @@ const NoteComposer: React.FC<NoteComposerProps> = ({ onComplete, defaultIdeaId, 
   const [taggedUserIds, setTaggedUserIds] = useState<string[]>(editingNote?.taggedUserIds || []);
   const [newCustomCategory, setNewCustomCategory] = useState('');
   const [showCallMinuteModal, setShowCallMinuteModal] = useState(false);
-  const [activeMenu, setActiveMenu] = useState<'tags' | 'templates' | null>(null);
+  const [selectedIntent, setSelectedIntent] = useState<NoteIntent>(editingNote?.intent || 'memoir');
+  const [activeMenu, setActiveMenu] = useState<'tags' | 'templates' | 'intent' | null>(null);
   const [selectedImage, setSelectedImage] = useState<string | null>(editingNote?.imageUrl || null);
   const [isDragging, setIsDragging] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -84,39 +85,99 @@ const NoteComposer: React.FC<NoteComposerProps> = ({ onComplete, defaultIdeaId, 
     ).slice(0, 5);
   }, [data.contacts, data.users, currentIdea, mentionQuery]);
 
-  const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    const value = e.target.value;
-    const cursorPosition = e.target.selectionStart;
-    const textBeforeCursor = value.slice(0, cursorPosition);
-    const mentionMatch = textBeforeCursor.match(/@(\w*)$/);
+  const editorRef = useRef<HTMLDivElement>(null);
 
-    setBody(value);
+  const applyFormat = (command: string, value: string = '') => {
+    document.execCommand(command, false, value);
+    if (editorRef.current) {
+      setBody(editorRef.current.innerHTML);
+    }
+    editorRef.current?.focus();
+  };
 
-    if (mentionMatch) {
-      setMentionQuery(mentionMatch[1]);
-      setShowMentionList(true);
+  const handleInput = () => {
+    if (!editorRef.current) return;
+    const value = editorRef.current.innerHTML;
+    const selection = window.getSelection();
+    if (!selection || selection.rangeCount === 0) return;
 
-      const rect = e.target.getBoundingClientRect();
-      const lineHeight = 20;
-      const lines = textBeforeCursor.split('\n');
-      const currentLineIndex = lines.length - 1;
-      setMentionPosition({
-        top: Math.min(rect.height - 40, (currentLineIndex + 1) * lineHeight + 20),
-        left: Math.min(rect.width - 150, (lines[currentLineIndex].length * 7) + 20)
-      });
+    const range = selection.getRangeAt(0);
+    const container = range.startContainer;
+
+    // Detect mention trigger (@)
+    if (container.nodeType === Node.TEXT_NODE) {
+      const text = container.textContent || '';
+      const textBeforeCursor = text.slice(0, range.startOffset);
+      const mentionMatch = textBeforeCursor.match(/@(\w*)$/);
+
+      // Dash to Bullet conversion
+      if (textBeforeCursor.endsWith('- ')) {
+        const lineStart = Math.max(0, textBeforeCursor.lastIndexOf('\n') + 1);
+        const potentialDash = textBeforeCursor.slice(lineStart).trim();
+        if (potentialDash === '-') {
+          // It's a dash at the start of a line
+          // Clear the dash first
+          const textAfterCursor = text.slice(range.startOffset);
+          const newTextBefore = textBeforeCursor.slice(0, textBeforeCursor.length - 2);
+          container.textContent = newTextBefore + textAfterCursor;
+
+          // Reset caret
+          const newRange = document.createRange();
+          newRange.setStart(container, newTextBefore.length);
+          newRange.setEnd(container, newTextBefore.length);
+          selection.removeAllRanges();
+          selection.addRange(newRange);
+
+          applyFormat('insertUnorderedList');
+        }
+      }
+
+      if (mentionMatch) {
+        setMentionQuery(mentionMatch[1]);
+        setShowMentionList(true);
+
+        const rect = range.getBoundingClientRect();
+        const editorRect = editorRef.current.getBoundingClientRect();
+        setMentionPosition({
+          top: rect.bottom - editorRect.top + 10,
+          left: rect.left - editorRect.left
+        });
+      } else {
+        setShowMentionList(false);
+      }
     } else {
       setShowMentionList(false);
     }
+
+    setBody(value);
   };
 
   const insertMention = (entityId: string, name: string, type: 'user' | 'contact') => {
-    if (!textareaRef.current) return;
-    const cursorPosition = textareaRef.current.selectionStart;
-    const textBeforeCursor = body.slice(0, cursorPosition);
-    const textAfterCursor = body.slice(cursorPosition);
+    const selection = window.getSelection();
+    if (!selection || selection.rangeCount === 0 || !editorRef.current) return;
 
-    const newTextBefore = textBeforeCursor.replace(/@(\w*)$/, `@${name} `);
-    setBody(newTextBefore + textAfterCursor);
+    const range = selection.getRangeAt(0);
+    const container = range.startContainer;
+
+    if (container.nodeType === Node.TEXT_NODE) {
+      const text = container.textContent || '';
+      const textBeforeCursor = text.slice(0, range.startOffset);
+      const textAfterCursor = text.slice(range.startOffset);
+
+      const mentionMatch = textBeforeCursor.match(/@(\w*)$/);
+      if (mentionMatch) {
+        const startPos = mentionMatch.index!;
+        const newTextBefore = textBeforeCursor.slice(0, startPos) + `@${name} `;
+        container.textContent = newTextBefore + textAfterCursor;
+
+        // Move caret to end of mention
+        const newRange = document.createRange();
+        newRange.setStart(container, newTextBefore.length);
+        newRange.setEnd(container, newTextBefore.length);
+        selection.removeAllRanges();
+        selection.addRange(newRange);
+      }
+    }
 
     if (type === 'contact') {
       setTaggedContacts(prev => Array.from(new Set([...prev, entityId])));
@@ -124,8 +185,9 @@ const NoteComposer: React.FC<NoteComposerProps> = ({ onComplete, defaultIdeaId, 
       setTaggedUserIds(prev => Array.from(new Set([...prev, entityId])));
     }
 
+    setBody(editorRef.current.innerHTML);
     setShowMentionList(false);
-    textareaRef.current.focus();
+    editorRef.current.focus();
   };
 
   const handleToggleCategory = (cat: string) => {
@@ -285,8 +347,16 @@ const NoteComposer: React.FC<NoteComposerProps> = ({ onComplete, defaultIdeaId, 
     fetchLocation();
   }, [editingNote]);
 
+  useEffect(() => {
+    if (editorRef.current && editingNote) {
+      editorRef.current.innerHTML = editingNote.body;
+      setBody(editingNote.body);
+    }
+  }, [editingNote]);
+
   const handleSave = async () => {
-    if (!body.trim() || isSaving) return;
+    const isActuallyEmpty = !body || body.trim() === '' || body === '<br>' || body === '<div><br></div>';
+    if (isActuallyEmpty || isSaving) return;
     setIsSaving(true);
 
     const finalLocation = locationStr === 'Detecting location...' ? 'Unknown Location' : locationStr;
@@ -304,6 +374,7 @@ const NoteComposer: React.FC<NoteComposerProps> = ({ onComplete, defaultIdeaId, 
           taggedContactIds: taggedContacts,
           taggedUserIds: taggedUserIds,
           imageUrl: selectedImage || undefined,
+          intent: selectedIntent,
           createdAt: selectedDateWithCurrentTime.toISOString()
         });
       } else {
@@ -317,6 +388,7 @@ const NoteComposer: React.FC<NoteComposerProps> = ({ onComplete, defaultIdeaId, 
           taggedContactIds: taggedContacts,
           taggedUserIds: taggedUserIds,
           imageUrl: selectedImage || undefined,
+          intent: selectedIntent,
           createdAt: selectedDateWithCurrentTime.toISOString()
         });
       }
@@ -324,6 +396,7 @@ const NoteComposer: React.FC<NoteComposerProps> = ({ onComplete, defaultIdeaId, 
       if (!editingNote) {
         setBody('');
         setSelectedCategories([]);
+        setSelectedIntent('memoir');
         setTaggedContacts([]);
         setTaggedUserIds([]);
         setIsPinned(false);
@@ -369,13 +442,62 @@ const NoteComposer: React.FC<NoteComposerProps> = ({ onComplete, defaultIdeaId, 
           </div>
         )}
         <div className="relative p-6">
-          <textarea
-            ref={textareaRef}
-            className={`w-full min-h-[160px] p-6 text-sm outline-none resize-none transition-all placeholder:text-gray-400 bg-white rounded-[24px] shadow-sm font-normal leading-relaxed font-sans text-slate-700 border border-yellow-100`}
-            placeholder="Capture a thought... (Pro-tip: Type @ to mention someone)"
-            value={body}
-            onChange={handleTextChange}
+          {/* Formatting Toolbar */}
+          <div className="flex items-center gap-1 mb-3 pb-3 border-b border-yellow-100/50">
+            <button
+              onClick={() => applyFormat('bold')}
+              className="p-1.5 rounded-lg hover:bg-yellow-100 text-gray-500 transition-colors"
+              title="Bold"
+            >
+              <Bold className="w-4 h-4" />
+            </button>
+            <button
+              onClick={() => applyFormat('italic')}
+              className="p-1.5 rounded-lg hover:bg-yellow-100 text-gray-500 transition-colors"
+              title="Italic"
+            >
+              <Italic className="w-4 h-4" />
+            </button>
+            <button
+              onClick={() => applyFormat('insertUnorderedList')}
+              className="p-1.5 rounded-lg hover:bg-yellow-100 text-gray-500 transition-colors"
+              title="Bullet Points"
+            >
+              <List className="w-4 h-4" />
+            </button>
+            <div className="w-px h-4 bg-yellow-200/50 mx-1" />
+            <button
+              onClick={() => applyFormat('fontSize', '2')}
+              className="px-2 py-1 rounded-lg hover:bg-yellow-100 text-[10px] font-bold text-gray-500 transition-colors"
+            >
+              Small
+            </button>
+            <button
+              onClick={() => applyFormat('fontSize', '3')}
+              className="px-2 py-1 rounded-lg hover:bg-yellow-100 text-[10px] font-bold text-gray-500 transition-colors"
+            >
+              Normal
+            </button>
+            <button
+              onClick={() => applyFormat('fontSize', '5')}
+              className="px-2 py-1 rounded-lg hover:bg-yellow-100 text-[10px] font-bold text-gray-500 transition-colors"
+            >
+              Large
+            </button>
+          </div>
+
+          <div
+            ref={editorRef}
+            contentEditable
+            onInput={handleInput}
+            className={`w-full min-h-[160px] p-6 text-sm outline-none transition-all placeholder:text-gray-400 bg-white rounded-[24px] shadow-sm font-normal leading-relaxed font-sans text-slate-700 border border-yellow-100 overflow-y-auto rich-text-content`}
+            dangerouslySetInnerHTML={{ __html: editingNote?.body || '' }}
           />
+          {(!body || body === '<br>') && (
+            <div className="absolute top-[88px] left-12 text-sm text-gray-400 pointer-events-none font-sans">
+              Capture a thought... (Pro-tip: Type @ to mention someone)
+            </div>
+          )}
 
           <div className="absolute top-8 right-8 flex items-center gap-2">
             <button
@@ -450,6 +572,37 @@ const NoteComposer: React.FC<NoteComposerProps> = ({ onComplete, defaultIdeaId, 
                   onChange={(e) => setNoteDate(e.target.value)}
                 />
               </div>
+
+              {/* Note Intent selector in Footer */}
+              <div className="relative">
+                <button
+                  onClick={() => setActiveMenu(activeMenu === 'intent' ? null : 'intent')}
+                  className={`h-8 px-3 rounded-xl text-[10px] font-black uppercase transition-all flex items-center gap-2 border bg-white border-gray-200 text-gray-400 hover:bg-gray-50`}
+                >
+                  <Search className="w-3 h-3" />
+                  Intent: {selectedIntent.replace('_', ' ')}
+                </button>
+                {activeMenu === 'intent' && (
+                  <>
+                    <div className="fixed inset-0 z-40" onClick={() => setActiveMenu(null)} />
+                    <div className="absolute bottom-full left-0 mb-3 bg-white border border-gray-100 rounded-[20px] shadow-2xl p-2 z-50 min-w-[140px] animate-in fade-in slide-in-from-bottom-2">
+                      <button onClick={() => { setSelectedIntent('follow_up'); setActiveMenu(null); }} className="w-full flex items-center gap-3 px-3 py-2 text-[10px] font-bold text-gray-600 hover:bg-red-50 hover:text-red-700 rounded-xl transition-colors">
+                        <RotateCcw className="w-3.5 h-3.5 text-red-500" /> Follow up
+                      </button>
+                      <button onClick={() => { setSelectedIntent('acted_upon'); setActiveMenu(null); }} className="w-full flex items-center gap-3 px-3 py-2 text-[10px] font-bold text-gray-600 hover:bg-gray-50 hover:text-gray-900 rounded-xl transition-colors">
+                        <CircleDot className="w-3.5 h-3.5 text-gray-400" /> Acted upon
+                      </button>
+                      <button onClick={() => { setSelectedIntent('reflection'); setActiveMenu(null); }} className="w-full flex items-center gap-3 px-3 py-2 text-[10px] font-bold text-gray-600 hover:bg-gray-50 hover:text-gray-900 rounded-xl transition-colors">
+                        <Brain className="w-3.5 h-3.5 text-gray-400" /> Reflection
+                      </button>
+                      <button onClick={() => { setSelectedIntent('memoir'); setActiveMenu(null); }} className="w-full flex items-center gap-3 px-3 py-2 text-[10px] font-bold text-gray-600 hover:bg-yellow-50 hover:text-yellow-700 rounded-xl transition-colors">
+                        <Mountain className="w-3.5 h-3.5 text-yellow-600" /> Memoir
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
+
               <button
                 onClick={() => setIsPinned(!isPinned)}
                 className={`h-8 px-3 rounded-xl text-[10px] font-black uppercase transition-all flex items-center gap-2 border ${isPinned ? 'bg-yellow-100 border-yellow-200 text-yellow-700' : 'bg-gray-50 border-gray-200 text-gray-400'
@@ -577,6 +730,37 @@ const NoteComposer: React.FC<NoteComposerProps> = ({ onComplete, defaultIdeaId, 
                         <Sparkles className="w-3 h-3 text-pink-400" />
                       </div>
                       Generate AI Summary
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+            <div className="relative">
+              <button
+                onClick={() => setActiveMenu(activeMenu === 'intent' ? null : 'intent')}
+                className={`h-11 px-5 rounded-2xl text-[11px] font-black uppercase tracking-wider transition-all flex items-center gap-2 border ${activeMenu === 'intent' ? 'bg-amber-100 border-amber-200 text-amber-700' : 'bg-gray-100/80 border-transparent text-gray-500 hover:bg-gray-200'
+                  }`}
+              >
+                <SlidersHorizontal className="w-3.5 h-3.5" />
+                +Intent
+                <ChevronDown className={`w-3 h-3 transition-transform ${activeMenu === 'intent' ? 'rotate-180' : ''}`} />
+              </button>
+
+              {activeMenu === 'intent' && (
+                <>
+                  <div className="fixed inset-0 z-40" onClick={() => setActiveMenu(null)} />
+                  <div className="absolute bottom-full left-0 mb-3 bg-white border border-gray-100 rounded-[24px] shadow-2xl p-2 z-50 min-w-[160px] animate-in fade-in slide-in-from-bottom-2">
+                    <button onClick={() => { setSelectedIntent('follow_up'); setActiveMenu(null); }} className="w-full flex items-center gap-4 px-4 py-3 text-[11px] font-bold text-gray-600 hover:bg-red-50 hover:text-red-700 rounded-2xl transition-colors">
+                      <RotateCcw className="w-4 h-4 text-red-500" /> Follow up
+                    </button>
+                    <button onClick={() => { setSelectedIntent('acted_upon'); setActiveMenu(null); }} className="w-full flex items-center gap-4 px-4 py-3 text-[11px] font-bold text-gray-600 hover:bg-gray-50 hover:text-gray-900 rounded-2xl transition-colors">
+                      <CircleDot className="w-4 h-4 text-gray-400" /> Acted upon
+                    </button>
+                    <button onClick={() => { setSelectedIntent('reflection'); setActiveMenu(null); }} className="w-full flex items-center gap-4 px-4 py-3 text-[11px] font-bold text-gray-600 hover:bg-gray-50 hover:text-gray-900 rounded-2xl transition-colors">
+                      <Brain className="w-4 h-4 text-gray-400" /> Reflection
+                    </button>
+                    <button onClick={() => { setSelectedIntent('memoir'); setActiveMenu(null); }} className="w-full flex items-center gap-4 px-4 py-3 text-[11px] font-bold text-gray-600 hover:bg-yellow-50 hover:text-yellow-700 rounded-2xl transition-colors">
+                      <Mountain className="w-4 h-4 text-yellow-600" /> Memoir
                     </button>
                   </div>
                 </>
