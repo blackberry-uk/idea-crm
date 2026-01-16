@@ -1,6 +1,6 @@
 
 import { useState, useEffect, useMemo } from 'react';
-import { AppData, Idea, Contact, Note, User, Invitation, Interaction, Confirmation } from '../types.ts';
+import { AppData, Idea, Contact, Note, User, Invitation, Interaction, Confirmation, IdeaConfig } from '../types.ts';
 import { apiClient } from '../lib/api/client';
 
 export const CURRENT_DATA_MODEL_VERSION = 1;
@@ -166,10 +166,27 @@ export const useStore = () => {
       }
     },
 
-    deleteNote: async (id: string) => {
-      await apiClient.delete(`/notes/${id}`);
-      await hydrate();
+    toggleHideNote: async (id: string) => {
+      const note = globalState.notes.find(n => n.id === id);
+      if (note) {
+        await apiClient.put(`/notes/${id}`, { isHidden: !note.isHidden });
+        await hydrate();
+      }
     },
+
+    deleteNote: async (id: string) => {
+      try {
+        await apiClient.delete(`/notes/${id}`);
+        await hydrate();
+        globalState.toast = { message: 'Note deleted successfully', type: 'success', id: Math.random().toString() };
+        notify();
+      } catch (err: any) {
+        console.error('Delete note store error:', err);
+        globalState.toast = { message: err.message || 'Failed to delete note', type: 'error', id: Math.random().toString() };
+        notify();
+      }
+    },
+
 
     addContact: async (contact: any) => {
       const res = await apiClient.post('/contacts', contact);

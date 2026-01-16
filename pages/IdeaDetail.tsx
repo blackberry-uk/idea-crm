@@ -36,32 +36,30 @@ import {
   LogOut,
   Layout,
   RotateCcw,
-  CircleDot,
+  CheckCheck,
   Brain,
   Mountain,
-  SlidersHorizontal
+  SlidersHorizontal,
+  Eye,
+  EyeOff
 } from 'lucide-react';
 import NoteComposer from '../components/NoteComposer';
 import { getInitials, getAvatarColor } from '../lib/utils';
 import KanbanModal from '../components/KanbanModal';
 
+import { getStagesForType } from '../lib/idea-utils';
+
 const INTENT_CONFIG: Record<string, { icon: any, label: string, color: string }> = {
   follow_up: { icon: RotateCcw, label: 'Follow up', color: 'text-red-500' },
-  acted_upon: { icon: CircleDot, label: 'Acted upon', color: 'text-gray-400' },
+  acted_upon: { icon: CheckCheck, label: 'Acted upon', color: 'text-emerald-500' },
   reflection: { icon: Brain, label: 'Reflection', color: 'text-gray-400' },
   memoir: { icon: Mountain, label: 'Memoir', color: 'text-yellow-600' },
-};
-
-const STAGES_MAP: Record<IdeaType, IdeaStatus[]> = {
-  'Product': ['Ideation', 'Research', 'Prototype', 'Testing', 'Launched'],
-  'Consulting': ['Scoping', 'Research', 'Proposal', 'Approval', 'Execution'],
-  'New Business': ['Ideation', 'Research', 'Business Plan', 'Capital Raise', 'Launched']
 };
 
 const IdeaDetail: React.FC = () => {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { data, updateIdea, updateNote, togglePinNote, shareIdea, resendInvitation, uninviteCollaborator, deleteInvitation, showToast, confirm, deleteNote, deleteIdea, leaveIdea } = useStore();
+  const { data, updateIdea, updateNote, togglePinNote, toggleHideNote, shareIdea, resendInvitation, uninviteCollaborator, deleteInvitation, showToast, confirm, deleteNote, deleteIdea, leaveIdea } = useStore();
   const idea = data.ideas.find(i => i.id === id);
 
 
@@ -92,6 +90,7 @@ const IdeaDetail: React.FC = () => {
   const [draggedTodoIndex, setDraggedTodoIndex] = useState<number | null>(null);
   const [isKanbanOpen, setIsKanbanOpen] = useState(false);
   const [openIntentMenuId, setOpenIntentMenuId] = useState<string | null>(null);
+  const [visibilityFilter, setVisibilityFilter] = useState<'visible' | 'hidden' | 'all'>('visible');
 
   const handleTodoDragStart = (idx: number) => {
     setDraggedTodoIndex(idx);
@@ -141,11 +140,16 @@ const IdeaDetail: React.FC = () => {
     return data.notes
       .filter(n => n.ideaId === id)
       .filter(n => !n.isPinned)
+      .filter(n => {
+        if (visibilityFilter === 'visible') return !n.isHidden;
+        if (visibilityFilter === 'hidden') return n.isHidden;
+        return true; // 'all'
+      })
       .filter(n => n.body.toLowerCase().includes(noteSearchQuery.toLowerCase()))
       .filter(n => !activeCategoryFilter || n.categories?.includes(activeCategoryFilter))
       .filter(n => !activeIntentFilter || (n.intent || 'memoir') === activeIntentFilter)
       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-  }, [data.notes, id, noteSearchQuery, activeCategoryFilter, activeIntentFilter]);
+  }, [data.notes, id, noteSearchQuery, activeCategoryFilter, activeIntentFilter, visibilityFilter]);
 
   const pinnedNote = useMemo(() =>
     data.notes.find(n => n.ideaId === id && n.isPinned),
@@ -459,9 +463,14 @@ const IdeaDetail: React.FC = () => {
     const IntentIcon = INTENT_CONFIG[currentIntent]?.icon || Mountain;
 
     return (
-      <div key={note.id} className={`group relative pb-8 mb-8 border-b border-gray-400 last:border-0 transition-all 
-        ${isPinned ? 'bg-indigo-50/30 -mx-6 px-6 pt-6 rounded-2xl border-none shadow-sm' : ''}
-        ${currentIntent === 'follow_up' ? 'bg-[#FEFADA] -mx-6 px-6 pt-6 rounded-2xl border-none shadow-md ring-1 ring-yellow-200/50' : ''}
+      <div key={note.id} className={`group relative p-8 mb-6 rounded-[2rem] transition-all border
+        ${isPinned
+          ? 'bg-indigo-50/40 border-indigo-100 shadow-sm'
+          : currentIntent === 'follow_up'
+            ? 'bg-[#FEFADA] border-yellow-200 shadow-md ring-1 ring-yellow-200/50'
+            : 'bg-white border-gray-200 border-dotted shadow-sm'
+        }
+        ${note.isHidden ? 'opacity-50 grayscale' : ''}
       `}>
         <div className="flex items-center flex-wrap gap-x-4 gap-y-1 mb-3 text-[13px] leading-none">
           <div className="relative">
@@ -520,18 +529,10 @@ const IdeaDetail: React.FC = () => {
                     onClick={() => {
                       confirm({
                         title: 'Delete Note',
-                        message: 'Are you sure you want to delete this note? This action cannot be undone.',
-                        confirmLabel: 'Delete',
+                        message: 'Are you sure you want to permanently delete this insight? This action cannot be undone.',
+                        confirmLabel: 'Delete Permanently',
                         type: 'danger',
-                        onConfirm: () => {
-                          confirm({
-                            title: 'Final Confirmation',
-                            message: 'Please confirm one last time. This will permanently remove this insight.',
-                            confirmLabel: 'Delete Permanently',
-                            type: 'danger',
-                            onConfirm: () => deleteNote(note.id)
-                          });
-                        }
+                        onConfirm: () => deleteNote(note.id)
                       });
                     }}
                     className="p-1.5 rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-500 transition-all"
@@ -553,13 +554,22 @@ const IdeaDetail: React.FC = () => {
               </div>
             )}
             {note.createdById === data.currentUser?.id && (
-              <button
-                onClick={() => togglePinNote(note.id)}
-                className={`p-1.5 rounded-lg transition-all flex items-center justify-center ${isPinned ? 'bg-amber-50 text-amber-600 border border-amber-200 shadow-sm' : 'text-gray-300 hover:text-gray-500 hover:bg-gray-100'}`}
-                title={isPinned ? 'Unpin' : 'Pin'}
-              >
-                <Pin className={`w-4 h-4 ${isPinned ? 'fill-current' : ''}`} />
-              </button>
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => toggleHideNote(note.id)}
+                  className={`p-1.5 rounded-lg transition-all flex items-center justify-center ${note.isHidden ? 'bg-gray-100 text-gray-700 border border-gray-200 shadow-sm' : 'text-gray-300 hover:text-gray-500 hover:bg-gray-100'}`}
+                  title={note.isHidden ? 'Unhide' : 'Hide from thread'}
+                >
+                  <EyeOff className={`w-4 h-4 ${note.isHidden ? 'text-gray-900' : ''}`} />
+                </button>
+                <button
+                  onClick={() => togglePinNote(note.id)}
+                  className={`p-1.5 rounded-lg transition-all flex items-center justify-center ${isPinned ? 'bg-amber-50 text-amber-600 border border-amber-200 shadow-sm' : 'text-gray-300 hover:text-gray-500 hover:bg-gray-100'}`}
+                  title={isPinned ? 'Unpin' : 'Pin'}
+                >
+                  <Pin className={`w-4 h-4 ${isPinned ? 'fill-current' : ''}`} />
+                </button>
+              </div>
             )}
           </div>
         </div>
@@ -591,11 +601,11 @@ const IdeaDetail: React.FC = () => {
                     <select
                       className="text-[10px] font-bold uppercase bg-white border border-gray-200 rounded px-2 py-1 outline-indigo-500 shadow-sm"
                       value={editedIdea.type}
-                      onChange={e => setEditedIdea({ ...editedIdea, type: e.target.value as IdeaType })}
+                      onChange={e => setEditedIdea({ ...editedIdea, type: e.target.value })}
                     >
-                      <option value="Product">Product</option>
-                      <option value="Consulting">Consulting</option>
-                      <option value="New Business">New Business</option>
+                      {(data.currentUser?.ideaConfigs || []).map(config => (
+                        <option key={config.type} value={config.type}>{config.type}</option>
+                      ))}
                     </select>
                     <select
                       className="text-[10px] font-bold uppercase bg-white border border-gray-200 rounded px-2 py-1 outline-indigo-500 shadow-sm"
@@ -642,8 +652,8 @@ const IdeaDetail: React.FC = () => {
 
             <div className="flex-col flex sm:flex-row items-center gap-4 mb-2">
               <div className="flex-1 flex items-center h-8 font-bold text-[10px] sm:text-[11px] tracking-tight rounded-lg border border-gray-100 shadow-sm w-full bg-slate-50/50 p-[1px]">
-                {(STAGES_MAP[idea.type] || STAGES_MAP['Product']).map((s, idx, arr) => {
-                  const statusOrder = STAGES_MAP[idea.type] || STAGES_MAP['Product'];
+                {getStagesForType(idea.type, data.currentUser?.ideaConfigs || []).map((s, idx, arr) => {
+                  const statusOrder = getStagesForType(idea.type, data.currentUser?.ideaConfigs || []);
                   const currentIdx = statusOrder.indexOf(idea.status as any);
                   const isPassed = currentIdx > idx;
                   const isCurrent = currentIdx === idx;
@@ -813,6 +823,13 @@ const IdeaDetail: React.FC = () => {
 
                 <div className="flex items-center gap-3">
                   <button
+                    onClick={() => setVisibilityFilter(v => v === 'visible' ? 'all' : 'visible')}
+                    className={`p-2 rounded-xl transition-all ${visibilityFilter !== 'visible' ? 'bg-amber-100 text-amber-700 border border-amber-200 shadow-sm' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}
+                    title={visibilityFilter === 'visible' ? "Reveal hidden notes" : "Mask hidden notes"}
+                  >
+                    <Eye className="w-5 h-5" />
+                  </button>
+                  <button
                     onClick={() => setIsFilterOpen(!isFilterOpen)}
                     className={`p-2 rounded-xl transition-all ${isFilterOpen ? 'bg-indigo-600 text-white shadow-lg' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}
                     title="Filters"
@@ -824,7 +841,7 @@ const IdeaDetail: React.FC = () => {
 
               {isFilterOpen && (
                 <div className="mb-10 p-6 bg-gray-50/50 rounded-[24px] border border-gray-100 animate-in fade-in slide-in-from-top-4 duration-300">
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                     {/* Search Field */}
                     <div className="space-y-2">
                       <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-1">Search Keywords</label>
@@ -881,6 +898,32 @@ const IdeaDetail: React.FC = () => {
                             {config.label}
                           </button>
                         ))}
+                      </div>
+                    </div>
+
+                    {/* Visibility Filter */}
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-1">Visibility</label>
+                      <div className="flex flex-wrap gap-1.5">
+                        <button
+                          onClick={() => setVisibilityFilter('all')}
+                          className={`px-3 py-1.5 rounded-lg text-[10px] font-bold border transition-all ${visibilityFilter === 'all' ? 'bg-indigo-600 border-indigo-600 text-white' : 'bg-white border-gray-200 text-gray-500 hover:border-indigo-300'}`}
+                        >
+                          All
+                        </button>
+                        <button
+                          onClick={() => setVisibilityFilter('visible')}
+                          className={`px-3 py-1.5 rounded-lg text-[10px] font-bold border transition-all ${visibilityFilter === 'visible' ? 'bg-indigo-600 border-indigo-600 text-white' : 'bg-white border-gray-200 text-gray-500 hover:border-indigo-300'}`}
+                        >
+                          Visible
+                        </button>
+                        <button
+                          onClick={() => setVisibilityFilter('hidden')}
+                          className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-[10px] font-bold border transition-all ${visibilityFilter === 'hidden' ? 'bg-indigo-600 border-indigo-600 text-white' : 'bg-white border-gray-200 text-gray-500 hover:border-indigo-300'}`}
+                        >
+                          <EyeOff className={`w-3 h-3 ${visibilityFilter === 'hidden' ? 'text-white' : 'text-gray-400'}`} />
+                          Hidden
+                        </button>
                       </div>
                     </div>
                   </div>

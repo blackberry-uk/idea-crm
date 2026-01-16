@@ -6,7 +6,7 @@
     "dev": "vite",
     "build": "prisma generate && vite build",
     "preview": "vite preview",
-    "server": "tsx server.ts",
+    "server": "tsx watch server.ts",
     "postinstall": "prisma generate"
   },
   "dependencies": {

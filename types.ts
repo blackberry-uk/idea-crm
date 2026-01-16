@@ -1,10 +1,11 @@
 
-export type IdeaStatus =
-  | 'Ideation' | 'Research' | 'Prototype' | 'Testing' | 'Launched'
-  | 'Scoping' | 'Proposal' | 'Approval' | 'Execution'
-  | 'Business Plan' | 'Capital Raise'
-  | 'Backlog' | 'Active' | 'On Hold' | 'Dead';
-export type IdeaType = 'Consulting' | 'Product' | 'New Business';
+export type IdeaStatus = string;
+export type IdeaType = string;
+
+export interface IdeaConfig {
+  type: string;
+  stages: string[];
+}
 
 export interface Todo {
   id: string;
@@ -27,6 +28,7 @@ export interface User {
   password?: string;
   name: string;
   personalEntities: string[]; // e.g. ["Interfrontera", "Stackable"]
+  ideaConfigs?: IdeaConfig[];
   avatarColor?: string;
 }
 
@@ -96,6 +98,7 @@ export interface Note {
   body: string;
   categories: string[];
   isPinned: boolean;
+  isHidden: boolean;
   location?: string;
   taggedContactIds: string[];
   taggedUserIds: string[];

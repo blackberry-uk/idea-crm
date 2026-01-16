@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useStore } from '../store/useStore';
-import { Save, RefreshCw, Calendar, Tag, MapPin, Pin, Plus, AtSign, Search, ClipboardList, Image, X, ChevronDown, Sparkles, MessageSquare, CheckCircle, Zap, SlidersHorizontal, RotateCcw, CircleDot, Brain, Mountain, Bold, Italic, List, Type } from 'lucide-react';
+import { Save, RefreshCw, Calendar, Tag, MapPin, Pin, Plus, AtSign, Search, ClipboardList, Image, X, ChevronDown, Sparkles, MessageSquare, CheckCircle, Zap, SlidersHorizontal, RotateCcw, CheckCheck, Brain, Mountain, Bold, Italic, List, Type } from 'lucide-react';
 import CallMinuteModal from './CallMinuteModal';
 import { format } from 'date-fns';
 import { Note, IdeaStatus, NoteIntent } from '../types';
@@ -589,8 +589,8 @@ const NoteComposer: React.FC<NoteComposerProps> = ({ onComplete, defaultIdeaId, 
                       <button onClick={() => { setSelectedIntent('follow_up'); setActiveMenu(null); }} className="w-full flex items-center gap-3 px-3 py-2 text-[10px] font-bold text-gray-600 hover:bg-red-50 hover:text-red-700 rounded-xl transition-colors">
                         <RotateCcw className="w-3.5 h-3.5 text-red-500" /> Follow up
                       </button>
-                      <button onClick={() => { setSelectedIntent('acted_upon'); setActiveMenu(null); }} className="w-full flex items-center gap-3 px-3 py-2 text-[10px] font-bold text-gray-600 hover:bg-gray-50 hover:text-gray-900 rounded-xl transition-colors">
-                        <CircleDot className="w-3.5 h-3.5 text-gray-400" /> Acted upon
+                      <button onClick={() => { setSelectedIntent('acted_upon'); setActiveMenu(null); }} className="w-full flex items-center gap-3 px-3 py-2 text-[10px] font-bold text-gray-600 hover:bg-emerald-50 hover:text-emerald-700 rounded-xl transition-colors">
+                        <CheckCheck className="w-3.5 h-3.5 text-emerald-500" /> Acted upon
                       </button>
                       <button onClick={() => { setSelectedIntent('reflection'); setActiveMenu(null); }} className="w-full flex items-center gap-3 px-3 py-2 text-[10px] font-bold text-gray-600 hover:bg-gray-50 hover:text-gray-900 rounded-xl transition-colors">
                         <Brain className="w-3.5 h-3.5 text-gray-400" /> Reflection
@@ -753,8 +753,8 @@ const NoteComposer: React.FC<NoteComposerProps> = ({ onComplete, defaultIdeaId, 
                     <button onClick={() => { setSelectedIntent('follow_up'); setActiveMenu(null); }} className="w-full flex items-center gap-4 px-4 py-3 text-[11px] font-bold text-gray-600 hover:bg-red-50 hover:text-red-700 rounded-2xl transition-colors">
                       <RotateCcw className="w-4 h-4 text-red-500" /> Follow up
                     </button>
-                    <button onClick={() => { setSelectedIntent('acted_upon'); setActiveMenu(null); }} className="w-full flex items-center gap-4 px-4 py-3 text-[11px] font-bold text-gray-600 hover:bg-gray-50 hover:text-gray-900 rounded-2xl transition-colors">
-                      <CircleDot className="w-4 h-4 text-gray-400" /> Acted upon
+                    <button onClick={() => { setSelectedIntent('acted_upon'); setActiveMenu(null); }} className="w-full flex items-center gap-4 px-4 py-3 text-[11px] font-bold text-gray-600 hover:bg-emerald-50 hover:text-emerald-700 rounded-2xl transition-colors">
+                      <CheckCheck className="w-4 h-4 text-emerald-500" /> Acted upon
                     </button>
                     <button onClick={() => { setSelectedIntent('reflection'); setActiveMenu(null); }} className="w-full flex items-center gap-4 px-4 py-3 text-[11px] font-bold text-gray-600 hover:bg-gray-50 hover:text-gray-900 rounded-2xl transition-colors">
                       <Brain className="w-4 h-4 text-gray-400" /> Reflection

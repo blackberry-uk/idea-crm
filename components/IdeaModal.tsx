@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { useStore } from '../store/useStore';
 import { X, Lightbulb } from 'lucide-react';
-import { IdeaType, IdeaStatus } from '../types';
+import { DEFAULT_IDEA_CONFIGS, getStagesForType } from '../lib/idea-utils';
 
 interface IdeaModalProps {
   isOpen: boolean;
@@ -10,17 +10,43 @@ interface IdeaModalProps {
   initialContactIds?: string[];
 }
 
+const parseJson = (val: any, fallback: any) => {
+  if (!val) return fallback;
+  if (typeof val === 'string') {
+    try {
+      const parsed = JSON.parse(val);
+      return (Array.isArray(parsed) && parsed.length > 0) ? parsed : fallback;
+    } catch { return fallback; }
+  }
+  return (Array.isArray(val) && val.length > 0) ? val : fallback;
+};
+
 const IdeaModal: React.FC<IdeaModalProps> = ({ isOpen, onClose, initialContactIds = [] }) => {
   const { data, addIdea, showToast } = useStore();
-  const entities = data.currentUser?.personalEntities || [];
+
+  const entities = parseJson(data.currentUser?.personalEntities, ['Personal']);
+  const ideaConfigs = parseJson(data.currentUser?.ideaConfigs, DEFAULT_IDEA_CONFIGS);
 
   const [newIdea, setNewIdea] = useState({
     title: '',
-    type: 'Product' as IdeaType,
-    entity: entities[0] || 'Personal',
+    type: '',
+    entity: '',
     tags: [] as string[],
     linkedContactIds: initialContactIds
   });
+
+  // Initialize form only when the modal opens
+  React.useEffect(() => {
+    if (isOpen) {
+      setNewIdea({
+        title: '',
+        type: ideaConfigs[0]?.type || 'Product',
+        entity: entities[0] || 'Personal',
+        tags: [],
+        linkedContactIds: initialContactIds
+      });
+    }
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -31,7 +57,8 @@ const IdeaModal: React.FC<IdeaModalProps> = ({ isOpen, onClose, initialContactId
       return;
     }
 
-    const initialStatus: IdeaStatus = newIdea.type === 'Consulting' ? 'Scoping' : 'Ideation';
+    const stages = getStagesForType(newIdea.type, ideaConfigs);
+    const initialStatus = stages[0] || 'Backlog';
 
     addIdea({
       ...newIdea,
@@ -42,7 +69,10 @@ const IdeaModal: React.FC<IdeaModalProps> = ({ isOpen, onClose, initialContactId
     });
     onClose();
     setNewIdea({
-      title: '', type: 'Product', entity: entities[0] || 'Personal', tags: [],
+      title: '',
+      type: ideaConfigs[0]?.type || 'Product',
+      entity: entities[0] || 'Personal',
+      tags: [],
       linkedContactIds: initialContactIds
     });
   };
@@ -73,10 +103,10 @@ const IdeaModal: React.FC<IdeaModalProps> = ({ isOpen, onClose, initialContactId
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-bold text-gray-400 uppercase mb-2">Category</label>
-              <select className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm bg-gray-50" value={newIdea.type} onChange={e => setNewIdea({ ...newIdea, type: e.target.value as IdeaType })}>
-                <option value="Product">Product</option>
-                <option value="Consulting">Consulting</option>
-                <option value="New Business">New Business</option>
+              <select className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm bg-gray-50" value={newIdea.type} onChange={e => setNewIdea({ ...newIdea, type: e.target.value })}>
+                {ideaConfigs.map(config => (
+                  <option key={config.type} value={config.type}>{config.type}</option>
+                ))}
               </select>
             </div>
             <div>
