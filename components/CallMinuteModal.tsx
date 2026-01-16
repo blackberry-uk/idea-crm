@@ -528,10 +528,10 @@ const CallMinuteModal: React.FC<CallMinuteModalProps> = ({ isOpen, onClose, idea
                                                                     <div className="w-3 h-0.5 bg-gray-400" />
                                                                 </div>
                                                             )}
-                                                            <span className="text-[13px] font-semibold text-gray-600 truncate">{seg.topic || 'Unspecified Topic'}</span>
+                                                            <span className="text-sm font-bold text-gray-700 truncate">{seg.topic || 'Unspecified Topic'}</span>
                                                         </div>
                                                         <div className="flex items-center gap-4">
-                                                            <span className="px-1.5 py-0.5 bg-indigo-50 text-indigo-700 text-[8px] font-black uppercase rounded border border-indigo-200">{seg.type}</span>
+                                                            <span className="px-2 py-0.5 bg-indigo-50 text-indigo-700 text-[10px] font-black uppercase rounded border border-indigo-200">{seg.type}</span>
                                                             <div className="h-4 w-[1px] bg-gray-100" />
                                                             <div className="flex items-center gap-2">
                                                                 {seg.comments && (
@@ -556,7 +556,7 @@ const CallMinuteModal: React.FC<CallMinuteModalProps> = ({ isOpen, onClose, idea
                                                         </div>
                                                     </div>
                                                     {!isCollapsed && seg.comments && (
-                                                        <div className="p-6 pt-0 border-t border-gray-200 mt-4 text-[13px] text-slate-700 leading-relaxed whitespace-pre-wrap animate-in slide-in-from-top-2">
+                                                        <div className="p-6 pt-0 border-t border-gray-200 mt-4 text-sm text-slate-700 leading-relaxed whitespace-pre-wrap animate-in slide-in-from-top-2">
                                                             {seg.comments}
                                                         </div>
                                                     )}

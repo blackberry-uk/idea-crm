@@ -28,9 +28,11 @@ import {
   Users,
   AtSign,
   RotateCcw,
-  CircleDot,
+  CheckCheck,
   Brain,
-  Mountain
+  Mountain,
+  Eye,
+  EyeOff
 } from 'lucide-react';
 import NoteComposer from '../components/NoteComposer';
 import IdeaModal from '../components/IdeaModal';
@@ -38,7 +40,7 @@ import IdeaModal from '../components/IdeaModal';
 const ContactDetail: React.FC = () => {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { data, updateContact, updateNote, deleteNote, togglePinNote, confirm } = useStore();
+  const { data, updateContact, updateNote, deleteNote, togglePinNote, toggleHideNote, confirm } = useStore();
   const contact = data.contacts.find(c => c.id === id);
 
   if (!contact) {
@@ -50,9 +52,11 @@ const ContactDetail: React.FC = () => {
   const [showAddIdeaModal, setShowAddIdeaModal] = useState(false);
   const [showLinkIdeaPicker, setShowLinkIdeaPicker] = useState(false);
   const [openIntentMenuId, setOpenIntentMenuId] = useState<string | null>(null);
+  const [showHiddenNotes, setShowHiddenNotes] = useState(false);
 
   const contactNotes = data.notes
     .filter(n => n.contactId === id)
+    .filter(n => showHiddenNotes || !n.isHidden)
     .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
   const interactions = data.interactions
@@ -356,10 +360,19 @@ const ContactDetail: React.FC = () => {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2 space-y-8 idea-thread">
           <div className="bg-white rounded-3xl border border-gray-200 p-8 shadow-sm">
-            <h2 className="text-xl font-bold mb-6 flex items-center gap-2">
-              <MessageSquare className="w-5 h-5 text-indigo-600" />
-              Activity Journal
-            </h2>
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-xl font-bold flex items-center gap-2">
+                <MessageSquare className="w-5 h-5 text-indigo-600" />
+                Activity Journal
+              </h2>
+              <button
+                onClick={() => setShowHiddenNotes(!showHiddenNotes)}
+                className={`p-2 rounded-xl transition-all ${showHiddenNotes ? 'bg-amber-100 text-amber-700 border border-amber-200 shadow-sm' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}
+                title={showHiddenNotes ? "Mask hidden notes" : "Reveal hidden notes"}
+              >
+                <Eye className="w-5 h-5" />
+              </button>
+            </div>
 
             <div className="mb-10 pb-10 border-b border-gray-100">
               <NoteComposer defaultContactId={contact.id} />
@@ -449,7 +462,7 @@ const ContactDetail: React.FC = () => {
 
                 const INTENT_CONFIG: Record<string, { icon: any, label: string, color: string }> = {
                   follow_up: { icon: RotateCcw, label: 'Follow up', color: 'text-red-500' },
-                  acted_upon: { icon: CircleDot, label: 'Acted upon', color: 'text-gray-400' },
+                  acted_upon: { icon: CheckCheck, label: 'Acted upon', color: 'text-emerald-500' },
                   reflection: { icon: Brain, label: 'Reflection', color: 'text-gray-400' },
                   memoir: { icon: Mountain, label: 'Memoir', color: 'text-yellow-600' },
                 };
@@ -458,8 +471,12 @@ const ContactDetail: React.FC = () => {
                 const IntentIcon = INTENT_CONFIG[currentIntent]?.icon || Mountain;
 
                 return (
-                  <div key={note.id} className={`relative group mb-8 pb-8 border-b border-gray-100 last:border-0 transition-all
-                    ${currentIntent === 'follow_up' ? 'bg-[#FEFADA] -mx-6 px-6 pt-6 rounded-2xl border-none shadow-md ring-1 ring-yellow-200/50' : ''}
+                  <div key={note.id} className={`group relative p-8 mb-6 rounded-[2rem] transition-all border
+                    ${currentIntent === 'follow_up'
+                      ? 'bg-[#FEFADA] border-yellow-200 shadow-md ring-1 ring-yellow-200/50'
+                      : 'bg-white border-gray-200 border-dotted shadow-sm'
+                    }
+                    ${note.isHidden ? 'opacity-50 grayscale' : ''}
                   `}>
                     <div className="flex items-center justify-between mb-3">
                       <div className="flex items-center gap-3">
@@ -524,10 +541,17 @@ const ContactDetail: React.FC = () => {
                           {note.createdById === data.currentUser?.id && (
                             <div className="flex items-center gap-1">
                               <button
-                                onClick={() => {/* Handle Edit - need to add state for this in ContactDetail */ }}
+                                onClick={() => toggleHideNote(note.id)}
+                                className={`p-1 rounded hover:bg-gray-100 transition-all ${note.isHidden ? 'text-gray-900 bg-gray-100' : 'text-gray-300 hover:text-gray-600'}`}
+                                title={note.isHidden ? 'Unhide' : 'Hide from thread'}
+                              >
+                                <EyeOff className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                onClick={() => {/* Handle Edit */ }}
                                 className="p-1 rounded hover:bg-gray-100 text-gray-400 hover:text-indigo-600"
                                 title="Edit Note"
-                                disabled // For now as ContactDetail doesn't have editingCallMinute yet
+                                disabled
                               >
                                 <Edit3 className="w-3.5 h-3.5" />
                               </button>
@@ -535,18 +559,10 @@ const ContactDetail: React.FC = () => {
                                 onClick={() => {
                                   confirm({
                                     title: 'Delete Note',
-                                    message: 'Are you sure you want to delete this note? This action cannot be undone.',
-                                    confirmLabel: 'Delete',
+                                    message: 'Are you sure you want to permanently delete this insight? This action cannot be undone.',
+                                    confirmLabel: 'Delete Permanently',
                                     type: 'danger',
-                                    onConfirm: () => {
-                                      confirm({
-                                        title: 'Final Confirmation',
-                                        message: 'Please confirm one last time. This will permanently remove this insight.',
-                                        confirmLabel: 'Delete Permanently',
-                                        type: 'danger',
-                                        onConfirm: () => deleteNote(note.id)
-                                      });
-                                    }
+                                    onConfirm: () => deleteNote(note.id)
                                   });
                                 }}
                                 className="p-1 rounded hover:bg-red-50 text-gray-400 hover:text-red-500"
@@ -566,7 +582,7 @@ const ContactDetail: React.FC = () => {
                         </div>
                       </div>
                     </div>
-                    <div className={`text-[14.5px] ${note.intent === 'follow_up' ? 'text-slate-950' : 'text-gray-800'} leading-relaxed font-[450] bg-gray-50/70 p-5 px-10 rounded-2xl border border-gray-400 group-hover:bg-white group-hover:shadow-md transition-all`}>
+                    <div className={`text-[14.5px] ${note.intent === 'follow_up' ? 'text-slate-950' : 'text-gray-800'} leading-relaxed font-[450] bg-gray-50/70 p-5 rounded-2xl border border-gray-400 group-hover:bg-white group-hover:shadow-md transition-all`}>
                       {note.imageUrl && (
                         <div className="mb-4 rounded-2xl overflow-hidden border border-gray-100 shadow-lg">
                           <img src={note.imageUrl} alt="Attached" className="w-full h-auto" />
@@ -577,9 +593,6 @@ const ContactDetail: React.FC = () => {
                         : <div className="font-sans whitespace-pre-wrap">{renderBodyWithLinks(note.body, note)}</div>
                       }
                     </div>
-                    {index !== contactNotes.length - 1 && (
-                      <div className="absolute left-[5px] top-10 bottom-[-40px] w-0.5 bg-gray-400"></div>
-                    )}
                   </div>
                 );
               })}

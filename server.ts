@@ -88,7 +88,7 @@ app.post('/api/auth/google', async (req, res) => {
     const name = payload.name;
 
     // 1. Find user by googleId
-    let user = await prisma.user.findUnique({ where: { googleId } });
+    let user = await prisma.user.findUnique({ where: { googleId } as any });
 
     // 2. If not found, find user by email and link googleId
     if (!user) {
@@ -96,7 +96,7 @@ app.post('/api/auth/google', async (req, res) => {
       if (user) {
         user = await prisma.user.update({
           where: { id: user.id },
-          data: { googleId }
+          data: { googleId } as any
         });
       }
     }
@@ -109,7 +109,7 @@ app.post('/api/auth/google', async (req, res) => {
           name,
           googleId,
           personalEntities: ['Personal']
-        }
+        } as any
       });
     }
 
@@ -140,7 +140,11 @@ app.get('/api/data', authenticate, async (req: any, res) => {
         where: { OR: [{ ownerId: userId }, { collaborators: { some: { id: userId } } }] },
         include: { owner: true, collaborators: true }
       }),
-      prisma.contact.findMany(),
+      prisma.contact.findMany({
+        where: {
+          ownerId: userId
+        } as any
+      }),
       prisma.note.findMany({
         where: {
           OR: [
@@ -310,12 +314,21 @@ app.post('/api/ideas/:id/leave', authenticate, async (req: any, res) => {
 // --- CONTACTS ---
 app.post('/api/contacts', authenticate, async (req: any, res) => {
   try {
+    if (!req.userId) {
+      console.error('Missing userId in request for contact creation');
+      return res.status(401).json({ error: 'User context missing' });
+    }
+
     const { id, createdAt, updatedAt, notesAssociated, taggedInNotes, associatedNotes, linkedIdeaIds, ...contactData } = req.body;
+
+    console.log(`Creating contact for user ${req.userId}`);
+
     const contact = await prisma.contact.create({
       data: {
         ...contactData,
-        notes: req.body.notes, // Explicitly include notes if it exists in body
-        linkedIdeaIds: linkedIdeaIds ? (Array.isArray(linkedIdeaIds) ? JSON.stringify(linkedIdeaIds) : linkedIdeaIds) : '[]'
+        notes: req.body.notes,
+        linkedIdeaIds: linkedIdeaIds ? (Array.isArray(linkedIdeaIds) ? JSON.stringify(linkedIdeaIds) : linkedIdeaIds) : '[]',
+        ownerId: req.userId
       }
     });
     res.json(contact);
@@ -328,6 +341,13 @@ app.post('/api/contacts', authenticate, async (req: any, res) => {
 app.put('/api/contacts/:id', authenticate, async (req: any, res) => {
   try {
     const { id, createdAt, updatedAt, notesAssociated, taggedInNotes, associatedNotes, linkedIdeaIds, ...updates } = req.body;
+
+    // Ownership check
+    const existing = await prisma.contact.findUnique({ where: { id: req.params.id } }) as any;
+    if (existing && existing.ownerId && existing.ownerId !== req.userId) {
+      return res.status(403).json({ error: 'You do not have permission to update this contact' });
+    }
+
     const data: any = { ...updates };
     if (req.body.notes !== undefined) data.notes = req.body.notes;
     if (linkedIdeaIds !== undefined) data.linkedIdeaIds = Array.isArray(linkedIdeaIds) ? JSON.stringify(linkedIdeaIds) : linkedIdeaIds;
@@ -471,6 +491,42 @@ app.put('/api/notes/:id', authenticate, async (req: any, res) => {
   res.json(note);
 });
 
+app.delete('/api/notes/:id', authenticate, async (req: any, res) => {
+  try {
+    const note = await prisma.note.findUnique({ where: { id: req.params.id } });
+    if (!note) return res.status(404).json({ error: 'Note not found' });
+
+    console.log(`Attempting to delete note ${req.params.id} by user ${req.userId}`);
+
+    // Ownership check: author, idea owner, OR contact owner
+    const isAuthor = note.createdById === req.userId;
+    let isIdeaOwner = false;
+    let isContactOwner = false;
+
+    if (!isAuthor) {
+      if (note.ideaId) {
+        const idea = await prisma.idea.findUnique({ where: { id: note.ideaId } });
+        isIdeaOwner = idea?.ownerId === req.userId;
+      }
+      if (note.contactId) {
+        const contact = await prisma.contact.findUnique({ where: { id: note.contactId } });
+        isContactOwner = (contact as any)?.ownerId === req.userId;
+      }
+    }
+
+    if (!isAuthor && !isIdeaOwner && !isContactOwner) {
+      console.warn(`Unauthorized delete attempt on note ${note.id} by user ${req.userId}`);
+      return res.status(403).json({ error: 'Unauthorized to delete this note' });
+    }
+
+    await prisma.note.delete({ where: { id: req.params.id } });
+    res.json({ success: true });
+  } catch (err: any) {
+    console.error('Delete note error:', err);
+    res.status(500).json({ error: 'Failed to delete note', details: err.message });
+  }
+});
+
 // --- INTERACTIONS ---
 app.post('/api/interactions', authenticate, async (req: any, res) => {
   const interaction = await prisma.interaction.create({
@@ -611,9 +667,17 @@ app.delete('/api/ideas/:ideaId/collaborators/:userId', authenticate, async (req:
 // --- USER SETTINGS ---
 app.put('/api/users/:id', authenticate, async (req: any, res) => {
   if (req.params.id !== req.userId) return res.status(403).json({ error: 'Forbidden' });
+
+  const { personalEntities, ideaConfigs, name } = req.body;
+
+  const updateData: any = {};
+  if (personalEntities) updateData.personalEntities = personalEntities;
+  if (ideaConfigs) updateData.ideaConfigs = ideaConfigs;
+  if (name) updateData.name = name;
+
   const user = await prisma.user.update({
     where: { id: req.userId },
-    data: req.body
+    data: updateData
   });
   res.json(user);
 });

@@ -114,20 +114,19 @@ const CallMinuteViewer: React.FC<CallMinuteViewerProps> = ({ isOpen, onClose, no
                                 <div key={idx} className="group relative pl-6 border-l-2 border-gray-100 py-1">
                                     <div className="absolute -left-[5px] top-2.5 w-2 h-2 rounded-full bg-white border border-gray-200"></div>
 
-                                    <div className="space-y-2">
-                                        <div className="flex items-center gap-3">
-                                            <span className="w-[60px] text-center px-1.5 py-0.5 text-[7px] font-black uppercase rounded border bg-gray-50 text-gray-400 border-gray-100 shrink-0 tracking-tighter shadow-sm">
+                                    <div className="space-y-3">
+                                        <div className="flex items-center gap-4">
+                                            <span className="w-[85px] text-center px-2 py-1 text-[9px] font-black uppercase rounded border bg-gray-50 text-gray-500 border-gray-100 shrink-0 tracking-[0.1em] shadow-sm">
                                                 {seg.type}
                                             </span>
                                             {seg.topic && (
-                                                <h3 className="text-sm font-bold text-gray-900 tracking-tight">
+                                                <h3 className="text-lg font-black text-gray-900 tracking-tight">
                                                     {seg.topic}
                                                 </h3>
                                             )}
                                         </div>
-
                                         {seg.comments && (
-                                            <div className="text-xs text-gray-600 leading-relaxed pl-[72px] font-medium whitespace-pre-wrap">
+                                            <div className="text-[15px] text-gray-700 leading-relaxed pl-[101px] font-medium whitespace-pre-wrap">
                                                 {seg.comments}
                                             </div>
                                         )}

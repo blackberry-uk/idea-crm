@@ -10,8 +10,12 @@ const ConfirmDialog: React.FC = () => {
     if (!conf) return null;
 
     const handleConfirm = () => {
+        const currentId = conf.id;
         conf.onConfirm();
-        closeConfirmation();
+        // Only close if onConfirm didn't open a NEW confirmation (nested check)
+        if (data.confirmation?.id === currentId) {
+            closeConfirmation();
+        }
     };
 
     const handleCancel = () => {
