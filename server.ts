@@ -216,43 +216,58 @@ app.get('/api/me', authenticate, async (req: any, res) => {
 app.get('/api/data', authenticate, async (req: any, res) => {
   const userId = req.userId;
   try {
+    console.log('[API /data] Fetching data for user:', userId);
+
     const user = await prisma.user.findUnique({ where: { id: userId } });
     const userEmail = user?.email || '';
+    console.log('[API /data] User found:', userEmail);
 
-    const [rawIdeas, contacts, rawNotes, interactions, invitations] = await Promise.all([
-      prisma.idea.findMany({
-        where: { OR: [{ ownerId: userId }, { collaborators: { some: { id: userId } } }] },
-        include: { owner: true, collaborators: true }
-      }),
-      prisma.contact.findMany({
-        where: {
-          ownerId: userId
-        } as any
-      }),
-      prisma.note.findMany({
-        where: {
-          OR: [
-            { createdById: userId },
-            { idea: { OR: [{ ownerId: userId }, { collaborators: { some: { id: userId } } }] } },
-            { taggedUsers: { some: { id: userId } } }
-          ]
-        } as any,
-        include: {
-          taggedContacts: true,
-          taggedUsers: true,
-          comments: { include: { author: true } }
-        } as any
-      }),
-      prisma.interaction.findMany({ where: { createdById: userId } }),
-      prisma.invitation.findMany({
-        where: {
-          OR: [
-            { email: userEmail },
-            { senderId: userId }
-          ]
-        }
-      })
-    ]);
+    console.log('[API /data] Fetching ideas...');
+    const rawIdeas = await prisma.idea.findMany({
+      where: { OR: [{ ownerId: userId }, { collaborators: { some: { id: userId } } }] },
+      include: { owner: true, collaborators: true }
+    });
+    console.log('[API /data] Ideas fetched:', rawIdeas.length);
+
+    console.log('[API /data] Fetching contacts...');
+    const contacts = await prisma.contact.findMany({
+      where: {
+        ownerId: userId
+      } as any
+    });
+    console.log('[API /data] Contacts fetched:', contacts.length);
+
+    console.log('[API /data] Fetching notes...');
+    const rawNotes = await prisma.note.findMany({
+      where: {
+        OR: [
+          { createdById: userId },
+          { idea: { OR: [{ ownerId: userId }, { collaborators: { some: { id: userId } } }] } },
+          { taggedUsers: { some: { id: userId } } }
+        ]
+      } as any,
+      include: {
+        taggedContacts: true,
+        taggedUsers: true,
+        comments: { include: { author: true } }
+      } as any
+    });
+    console.log('[API /data] Notes fetched:', rawNotes.length);
+
+    console.log('[API /data] Fetching interactions...');
+    const interactions = await prisma.interaction.findMany({ where: { createdById: userId } });
+    console.log('[API /data] Interactions fetched:', interactions.length);
+
+    console.log('[API /data] Fetching invitations...');
+    const invitations = await prisma.invitation.findMany({
+      where: {
+        OR: [
+          { email: userEmail },
+          { senderId: userId }
+        ]
+      }
+    });
+    console.log('[API /data] Invitations fetched:', invitations.length);
 
     // Transform ideas to match frontend types
     const ideas = rawIdeas.map(idea => ({
