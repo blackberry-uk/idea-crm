@@ -4,7 +4,8 @@ import express from 'express';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 import cors from 'cors';
-import 'dotenv/config';
+// Note: dotenv not needed in production (Vercel injects env vars)
+// In local dev, use: node --env-file=.env or load dotenv manually
 import { sendInvitationEmail, sendTaskAssignmentEmail, sendNoteMentionEmail, sendInvitationAcceptedEmail } from './lib/email.js';
 import prisma from './lib/prisma.js';
 import { OAuth2Client } from 'google-auth-library';
