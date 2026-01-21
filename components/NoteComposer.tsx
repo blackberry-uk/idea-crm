@@ -1,9 +1,16 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useStore } from '../store/useStore';
-import { Save, RefreshCw, Calendar, Tag, MapPin, Pin, Plus, AtSign, Search, ClipboardList, Image, X, ChevronDown, Sparkles, MessageSquare, CheckCircle, Zap, SlidersHorizontal, RotateCcw, CheckCheck, Brain, Mountain, Bold, Italic, List, Type } from 'lucide-react';
+import { Save, RefreshCw, Calendar, Tag, MapPin, Pin, Plus, AtSign, Search, ClipboardList, Image, X, ChevronDown, Sparkles, MessageSquare, CheckCircle, Zap, SlidersHorizontal, RotateCcw, CheckCheck, Microscope, Mountain, Bold, Italic, List, Type, Layers, Brain } from 'lucide-react';
 import CallMinuteModal from './CallMinuteModal';
 import { format } from 'date-fns';
 import { Note, IdeaStatus, NoteIntent } from '../types';
+
+const INTENT_CONFIG: Record<NoteIntent, { icon: any, label: string, color: string, bgColor: string, borderColor: string, textColor: string }> = {
+  follow_up: { icon: RotateCcw, label: 'Follow up', color: 'text-green-600', bgColor: 'bg-[var(--follow-up)]', borderColor: 'border-green-200', textColor: 'text-green-700' },
+  acted_upon: { icon: CheckCheck, label: 'Acted upon', color: 'text-emerald-500', bgColor: 'bg-emerald-50', borderColor: 'border-emerald-200', textColor: 'text-emerald-700' },
+  reflection: { icon: Microscope, label: 'Reflection', color: 'text-gray-400', bgColor: 'bg-gray-50', borderColor: 'border-gray-200', textColor: 'text-gray-700' },
+  memoir: { icon: Mountain, label: 'Memoir', color: 'text-amber-600', bgColor: 'bg-amber-50', borderColor: 'border-amber-200', textColor: 'text-amber-700' },
+};
 
 interface NoteComposerProps {
   onComplete?: () => void;
@@ -17,7 +24,7 @@ interface NoteComposerProps {
 }
 
 const NoteComposer: React.FC<NoteComposerProps> = ({ onComplete, defaultIdeaId, defaultContactId, editingNote, title, titleIcon, onCancel, flat }) => {
-  const { data, addNote, updateNote, updateIdea, showToast } = useStore();
+  const { data, addNote, updateNote, updateIdea, addComment, showToast } = useStore();
   const [body, setBody] = useState(editingNote?.body || '');
   const [noteDate, setNoteDate] = useState(format(editingNote ? new Date(editingNote.createdAt) : new Date(), 'yyyy-MM-dd'));
   const [selectedCategories, setSelectedCategories] = useState<string[]>(editingNote?.categories || []);
@@ -362,8 +369,15 @@ const NoteComposer: React.FC<NoteComposerProps> = ({ onComplete, defaultIdeaId, 
     const finalLocation = locationStr === 'Detecting location...' ? 'Unknown Location' : locationStr;
 
     const now = new Date();
+    const originalDate = editingNote ? new Date(editingNote.createdAt) : null;
     const [year, month, day] = noteDate.split('-').map(Number);
-    const selectedDateWithCurrentTime = new Date(year, month - 1, day, now.getHours(), now.getMinutes(), now.getSeconds());
+
+    // Preserve original time if editing, otherwise use current time for new notes
+    const hours = originalDate ? originalDate.getHours() : now.getHours();
+    const minutes = originalDate ? originalDate.getMinutes() : now.getMinutes();
+    const seconds = originalDate ? originalDate.getSeconds() : now.getSeconds();
+
+    const selectedDateWithCurrentTime = new Date(year, month - 1, day, hours, minutes, seconds);
 
     try {
       if (editingNote) {
@@ -377,6 +391,10 @@ const NoteComposer: React.FC<NoteComposerProps> = ({ onComplete, defaultIdeaId, 
           intent: selectedIntent,
           createdAt: selectedDateWithCurrentTime.toISOString()
         });
+
+        // Add automated edit comment
+        const editComment = `edited ${format(new Date(), 'dd/MM/yyyy HH:mm')}`;
+        await addComment(editingNote.id, editComment);
       } else {
         await addNote({
           body,
@@ -424,10 +442,10 @@ const NoteComposer: React.FC<NoteComposerProps> = ({ onComplete, defaultIdeaId, 
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
     >
-      <div className={`transition-all relative ${flat ? '' : `rounded-[32px] border border-yellow-300 shadow-sm bg-[#FEFADA] ${isDragging ? 'ring-4 ring-yellow-400 ring-opacity-50' : ''} ${editingNote ? 'border-indigo-100' : ''}`}`}>
+      <div className={`transition-all relative ${flat ? '' : `rounded-[32px] border shadow-sm bg-[var(--secondary)] ${isDragging ? 'ring-4 ring-amber-400 ring-opacity-50' : ''} ${editingNote ? 'border-[var(--primary)]/30' : ''}`}`} style={{ borderColor: 'var(--border)' }}>
         {title && (
-          <div className="pt-10 px-10 flex items-center justify-between">
-            <h3 className="text-sm font-black text-gray-400 uppercase tracking-widest flex items-center gap-2">
+          <div className="pt-5 px-8 flex items-center justify-between">
+            <h3 className="text-sm font-black text-amber-950 uppercase tracking-widest flex items-center gap-2">
               {titleIcon}
               {title}
             </h3>
@@ -441,19 +459,19 @@ const NoteComposer: React.FC<NoteComposerProps> = ({ onComplete, defaultIdeaId, 
             )}
           </div>
         )}
-        <div className="relative p-6">
+        <div className="relative px-8 py-5">
           {/* Formatting Toolbar */}
-          <div className="flex items-center gap-1 mb-3 pb-3 border-b border-yellow-100/50">
+          <div className="flex items-center gap-1 mb-3 pb-3 border-b border-amber-200/50">
             <button
               onClick={() => applyFormat('bold')}
-              className="p-1.5 rounded-lg hover:bg-yellow-100 text-gray-500 transition-colors"
+              className="p-1.5 rounded-lg hover:bg-amber-100/50 text-gray-500 transition-colors"
               title="Bold"
             >
               <Bold className="w-4 h-4" />
             </button>
             <button
               onClick={() => applyFormat('italic')}
-              className="p-1.5 rounded-lg hover:bg-yellow-100 text-gray-500 transition-colors"
+              className="p-1.5 rounded-lg hover:bg-amber-100/50 text-gray-500 transition-colors"
               title="Italic"
             >
               <Italic className="w-4 h-4" />
@@ -465,10 +483,10 @@ const NoteComposer: React.FC<NoteComposerProps> = ({ onComplete, defaultIdeaId, 
             >
               <List className="w-4 h-4" />
             </button>
-            <div className="w-px h-4 bg-yellow-200/50 mx-1" />
+            <div className="w-px h-4 bg-amber-200/50 mx-1" />
             <button
               onClick={() => applyFormat('fontSize', '2')}
-              className="px-2 py-1 rounded-lg hover:bg-yellow-100 text-[10px] font-bold text-gray-500 transition-colors"
+              className="px-2 py-1 rounded-lg hover:bg-amber-100/50 text-[10px] font-bold text-gray-500 transition-colors"
             >
               Small
             </button>
@@ -486,23 +504,48 @@ const NoteComposer: React.FC<NoteComposerProps> = ({ onComplete, defaultIdeaId, 
             </button>
           </div>
 
-          <div
-            ref={editorRef}
-            contentEditable
-            onInput={handleInput}
-            className={`w-full min-h-[160px] p-6 text-sm outline-none transition-all placeholder:text-gray-400 bg-white rounded-[24px] shadow-sm font-normal leading-relaxed font-sans text-slate-700 border border-yellow-100 overflow-y-auto rich-text-content`}
-            dangerouslySetInnerHTML={{ __html: editingNote?.body || '' }}
-          />
-          {(!body || body === '<br>') && (
-            <div className="absolute top-[88px] left-12 text-sm text-gray-400 pointer-events-none font-sans">
-              Capture a thought... (Pro-tip: Type @ to mention someone)
+          <div className="relative">
+            <div
+              ref={editorRef}
+              contentEditable
+              onInput={handleInput}
+              className={`w-full min-h-[160px] p-4 text-sm outline-none transition-all placeholder:text-gray-400 bg-white rounded-[24px] shadow-sm font-normal leading-relaxed font-sans text-slate-700 border border-amber-200/50 overflow-y-auto rich-text-content resize-y`}
+              dangerouslySetInnerHTML={{ __html: editingNote?.body || '' }}
+            />
+            {(!body || body === '<br>') && (
+              <div className="absolute top-[17px] left-[17px] text-sm text-gray-400 pointer-events-none font-sans leading-relaxed">
+                Capture a thought... (Type @ to mention someone)
+              </div>
+            )}
+          </div>
+
+          {/* Selected Tags Display */}
+          {selectedCategories.length > 0 && (
+            <div className="mt-4 flex flex-wrap gap-2 animate-in fade-in slide-in-from-top-1 duration-300">
+              {selectedCategories.map(cat => (
+                <div
+                  key={cat}
+                  className="flex items-center gap-1.5 px-3 py-1 text-[12px] font-medium tracking-tight shadow-sm font-sans rounded-full border"
+                  style={{ backgroundColor: 'var(--primary-shadow)', color: 'var(--primary)', borderColor: 'var(--primary)' }}
+                >
+                  <Tag className="w-2.5 h-2.5" />
+                  {cat}
+                  <button
+                    onClick={() => setSelectedCategories(prev => prev.filter(c => c !== cat))}
+                    className="transition-colors ml-1 hover:opacity-70"
+                  >
+                    <X className="w-2.5 h-2.5" />
+                  </button>
+                </div>
+              ))}
             </div>
           )}
 
           <div className="absolute top-8 right-8 flex items-center gap-2">
             <button
               onClick={() => fileInputRef.current?.click()}
-              className="p-2 rounded-xl text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 transition-all shadow-sm bg-white/80 backdrop-blur-sm border border-gray-100"
+              className="p-2 rounded-xl text-gray-400 border border-gray-100 transition-all shadow-sm bg-white/80 backdrop-blur-sm"
+              style={{ '--hover-color': 'var(--primary)' } as any}
               title="Add Image"
             >
               <Image className="w-4 h-4" />
@@ -537,7 +580,10 @@ const NoteComposer: React.FC<NoteComposerProps> = ({ onComplete, defaultIdeaId, 
                   onClick={() => insertMention(candidate.id, candidate.name, candidate.type)}
                   className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 transition-colors border-b border-gray-50 last:border-0"
                 >
-                  <div className={`w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-bold ${candidate.type === 'user' ? 'bg-indigo-50 text-indigo-600' : 'bg-emerald-50 text-emerald-600'}`}>
+                  <div
+                    className={`w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-bold`}
+                    style={candidate.type === 'user' ? { backgroundColor: 'var(--primary-shadow)', color: 'var(--primary)' } : { backgroundColor: '#ecfdf5', color: '#059669' }}
+                  >
                     {candidate.name.charAt(0)}
                   </div>
                   <span className="text-[11px] font-bold text-gray-700">{candidate.name}</span>
@@ -560,14 +606,15 @@ const NoteComposer: React.FC<NoteComposerProps> = ({ onComplete, defaultIdeaId, 
         </div>
 
         {editingNote && (
-          <div className="px-6 py-4 bg-white/50 border-t border-yellow-100/50 flex items-center justify-between">
+          <div className="px-6 py-4 bg-white/50 border-t border-amber-200/50 flex items-center justify-between">
             <div className="flex items-center gap-4">
               <div className="relative">
                 <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" />
                 <input
                   type="date"
                   max={today}
-                  className="pl-9 pr-3 py-1.5 text-xs font-bold text-gray-600 bg-white border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer shadow-sm"
+                  className="pl-9 pr-3 py-1.5 text-xs font-bold text-gray-600 bg-white border border-gray-200 rounded-xl outline-none focus:ring-2 cursor-pointer shadow-sm"
+                  style={{ ringColor: 'var(--primary)' }}
                   value={noteDate}
                   onChange={(e) => setNoteDate(e.target.value)}
                 />
@@ -595,8 +642,8 @@ const NoteComposer: React.FC<NoteComposerProps> = ({ onComplete, defaultIdeaId, 
                       <button onClick={() => { setSelectedIntent('reflection'); setActiveMenu(null); }} className="w-full flex items-center gap-3 px-3 py-2 text-[10px] font-bold text-gray-600 hover:bg-gray-50 hover:text-gray-900 rounded-xl transition-colors">
                         <Brain className="w-3.5 h-3.5 text-gray-400" /> Reflection
                       </button>
-                      <button onClick={() => { setSelectedIntent('memoir'); setActiveMenu(null); }} className="w-full flex items-center gap-3 px-3 py-2 text-[10px] font-bold text-gray-600 hover:bg-yellow-50 hover:text-yellow-700 rounded-xl transition-colors">
-                        <Mountain className="w-3.5 h-3.5 text-yellow-600" /> Memoir
+                      <button onClick={() => { setSelectedIntent('memoir'); setActiveMenu(null); }} className="w-full flex items-center gap-3 px-3 py-2 text-[10px] font-bold text-gray-600 hover:bg-amber-50 hover:text-amber-700 rounded-xl transition-colors">
+                        <Mountain className="w-3.5 h-3.5 text-amber-600" /> Memoir
                       </button>
                     </div>
                   </>
@@ -605,7 +652,7 @@ const NoteComposer: React.FC<NoteComposerProps> = ({ onComplete, defaultIdeaId, 
 
               <button
                 onClick={() => setIsPinned(!isPinned)}
-                className={`h-8 px-3 rounded-xl text-[10px] font-black uppercase transition-all flex items-center gap-2 border ${isPinned ? 'bg-yellow-100 border-yellow-200 text-yellow-700' : 'bg-gray-50 border-gray-200 text-gray-400'
+                className={`h-8 px-3 rounded-xl text-[10px] font-black uppercase transition-all flex items-center gap-2 border ${isPinned ? 'bg-amber-100 border-amber-200 text-amber-700' : 'bg-gray-50 border-gray-200 text-gray-400'
                   }`}
               >
                 <Pin className={`w-3 h-3 ${isPinned ? 'fill-current' : ''}`} />
@@ -627,7 +674,7 @@ const NoteComposer: React.FC<NoteComposerProps> = ({ onComplete, defaultIdeaId, 
             <div className="relative">
               <button
                 onClick={() => setActiveMenu(activeMenu === 'tags' ? null : 'tags')}
-                className={`h-11 px-5 rounded-2xl text-[11px] font-black uppercase tracking-wider transition-all flex items-center gap-2 border ${activeMenu === 'tags' ? 'bg-indigo-600 border-indigo-600 text-white shadow-lg' : 'bg-gray-100/80 border-transparent text-gray-500 hover:bg-gray-200'
+                className={`h-11 px-5 rounded-2xl text-[11px] font-black uppercase tracking-wider transition-all flex items-center gap-2 border ${activeMenu === 'tags' ? 'bg-[var(--primary)] border-[var(--primary)] text-white shadow-lg' : 'bg-white border-amber-200 text-gray-500 hover:bg-amber-50 shadow-sm'
                   }`}
               >
                 <Tag className="w-3.5 h-3.5" />
@@ -648,8 +695,8 @@ const NoteComposer: React.FC<NoteComposerProps> = ({ onComplete, defaultIdeaId, 
                             <button
                               onClick={() => handleToggleCategory(cat)}
                               className={`px-3 py-1.5 rounded-xl text-[10px] font-bold border transition-all ${selectedCategories.includes(cat)
-                                ? 'bg-indigo-600 border-indigo-600 text-white shadow-md'
-                                : 'bg-white border-gray-300 text-gray-700 hover:border-indigo-400 hover:text-indigo-600 shadow-sm'
+                                ? 'bg-[var(--primary)] border-[var(--primary)] text-white shadow-md'
+                                : 'bg-white border-gray-300 text-gray-700 hover:border-[var(--primary)]/40 hover:text-[var(--primary)] shadow-sm'
                                 }`}
                             >
                               {cat}
@@ -686,7 +733,7 @@ const NoteComposer: React.FC<NoteComposerProps> = ({ onComplete, defaultIdeaId, 
             <div className="relative">
               <button
                 onClick={() => setActiveMenu(activeMenu === 'templates' ? null : 'templates')}
-                className={`h-11 px-5 rounded-2xl text-[11px] font-black uppercase tracking-wider transition-all flex items-center gap-2 border ${activeMenu === 'templates' ? 'bg-pink-100 border-pink-200 text-pink-700' : 'bg-gray-100/80 border-transparent text-gray-500 hover:bg-gray-200'
+                className={`h-11 px-5 rounded-2xl text-[11px] font-black uppercase tracking-wider transition-all flex items-center gap-2 border ${activeMenu === 'templates' ? 'bg-pink-100 border-pink-200 text-pink-700' : 'bg-white border-amber-200 text-gray-500 hover:bg-amber-50 shadow-sm'
                   }`}
               >
                 <ClipboardList className="w-3.5 h-3.5" />
@@ -700,32 +747,32 @@ const NoteComposer: React.FC<NoteComposerProps> = ({ onComplete, defaultIdeaId, 
                   <div className="absolute bottom-full left-0 mb-3 w-56 bg-white border border-gray-100 rounded-3xl shadow-2xl p-2 animate-in fade-in slide-in-from-bottom-2 z-50 overflow-hidden">
                     <button
                       onClick={() => { setShowCallMinuteModal(true); setActiveMenu(null); }}
-                      className="w-full flex items-center gap-3 px-4 py-3 text-[11px] font-bold text-gray-700 hover:bg-indigo-50 hover:text-indigo-600 rounded-2xl transition-all group"
+                      className="w-full flex items-center gap-3 px-4 py-3 text-[11px] font-bold text-gray-700 hover:bg-[var(--primary)]/10 hover:text-[var(--primary)] rounded-2xl transition-all group"
                     >
-                      <div className="w-8 h-8 rounded-xl bg-indigo-50 group-hover:bg-indigo-100 flex items-center justify-center transition-colors">
-                        <Zap className="w-4 h-4 text-indigo-500" />
+                      <div className="w-8 h-8 rounded-xl bg-gray-50 flex items-center justify-center transition-colors">
+                        <Zap className="w-4 h-4" style={{ color: 'var(--primary)' }} />
                       </div>
                       Meeting (Minutes)
                     </button>
-                    <button className="w-full flex items-center gap-3 px-4 py-3 text-[11px] font-bold text-gray-700 hover:bg-indigo-50 hover:text-indigo-600 rounded-2xl transition-all group opacity-50 cursor-not-allowed">
+                    <button className="w-full flex items-center gap-3 px-4 py-3 text-[11px] font-bold text-gray-700 hover:bg-[var(--primary)]/10 hover:text-[var(--primary)] rounded-2xl transition-all group opacity-50 cursor-not-allowed">
                       <div className="w-8 h-8 rounded-xl bg-orange-50 flex items-center justify-center">
                         <Sparkles className="w-4 h-4 text-orange-500" />
                       </div>
                       Insight
                     </button>
-                    <button className="w-full flex items-center gap-3 px-4 py-3 text-[11px] font-bold text-gray-700 hover:bg-indigo-50 hover:text-indigo-600 rounded-2xl transition-all group opacity-50 cursor-not-allowed">
+                    <button className="w-full flex items-center gap-3 px-4 py-3 text-[11px] font-bold text-gray-700 hover:bg-[var(--primary)]/10 hover:text-[var(--primary)] rounded-2xl transition-all group opacity-50 cursor-not-allowed">
                       <div className="w-8 h-8 rounded-xl bg-blue-50 flex items-center justify-center">
                         <MessageSquare className="w-4 h-4 text-blue-500" />
                       </div>
                       Follow up
                     </button>
-                    <button className="w-full flex items-center gap-3 px-4 py-3 text-[11px] font-bold text-gray-700 hover:bg-indigo-50 hover:text-indigo-600 rounded-2xl transition-all group opacity-50 cursor-not-allowed">
+                    <button className="w-full flex items-center gap-3 px-4 py-3 text-[11px] font-bold text-gray-700 hover:bg-[var(--primary)]/10 hover:text-[var(--primary)] rounded-2xl transition-all group opacity-50 cursor-not-allowed">
                       <div className="w-8 h-8 rounded-xl bg-purple-50 flex items-center justify-center">
                         <CheckCircle className="w-4 h-4 text-purple-500" />
                       </div>
                       Decision
                     </button>
-                    <button className="w-full flex items-center gap-3 px-4 py-3 text-[11px] font-bold text-gray-700 hover:bg-indigo-50 hover:text-indigo-600 rounded-2xl transition-all group opacity-50 cursor-not-allowed">
+                    <button className="w-full flex items-center gap-3 px-4 py-3 text-[11px] font-bold text-gray-700 hover:bg-[var(--primary)]/10 hover:text-[var(--primary)] rounded-2xl transition-all group opacity-50 cursor-not-allowed">
                       <div className="w-8 h-8 rounded-xl bg-pink-50 flex items-center justify-center">
                         <Sparkles className="w-3 h-3 text-pink-400" />
                       </div>
@@ -738,30 +785,45 @@ const NoteComposer: React.FC<NoteComposerProps> = ({ onComplete, defaultIdeaId, 
             <div className="relative">
               <button
                 onClick={() => setActiveMenu(activeMenu === 'intent' ? null : 'intent')}
-                className={`h-11 px-5 rounded-2xl text-[11px] font-black uppercase tracking-wider transition-all flex items-center gap-2 border ${activeMenu === 'intent' ? 'bg-amber-100 border-amber-200 text-amber-700' : 'bg-gray-100/80 border-transparent text-gray-500 hover:bg-gray-200'
+                className={`h-11 px-5 rounded-2xl text-[11px] font-black uppercase tracking-wider transition-all flex items-center gap-2 border ${activeMenu === 'intent'
+                  ? 'bg-amber-600 border-amber-600 text-white shadow-lg'
+                  : selectedIntent
+                    ? `${INTENT_CONFIG[selectedIntent].bgColor} ${INTENT_CONFIG[selectedIntent].borderColor} ${INTENT_CONFIG[selectedIntent].textColor} shadow-sm`
+                    : 'bg-white border-amber-200 text-gray-500 hover:bg-amber-50 shadow-sm'
                   }`}
               >
-                <SlidersHorizontal className="w-3.5 h-3.5" />
-                +Intent
+                {selectedIntent ? (
+                  <>
+                    {React.createElement(INTENT_CONFIG[selectedIntent].icon, { className: "w-3.5 h-3.5" })}
+                    {INTENT_CONFIG[selectedIntent].label}
+                  </>
+                ) : (
+                  <>
+                    <SlidersHorizontal className="w-3.5 h-3.5" />
+                    +Intent
+                  </>
+                )}
                 <ChevronDown className={`w-3 h-3 transition-transform ${activeMenu === 'intent' ? 'rotate-180' : ''}`} />
               </button>
 
               {activeMenu === 'intent' && (
                 <>
                   <div className="fixed inset-0 z-40" onClick={() => setActiveMenu(null)} />
-                  <div className="absolute bottom-full left-0 mb-3 bg-white border border-gray-100 rounded-[24px] shadow-2xl p-2 z-50 min-w-[160px] animate-in fade-in slide-in-from-bottom-2">
-                    <button onClick={() => { setSelectedIntent('follow_up'); setActiveMenu(null); }} className="w-full flex items-center gap-4 px-4 py-3 text-[11px] font-bold text-gray-600 hover:bg-red-50 hover:text-red-700 rounded-2xl transition-colors">
-                      <RotateCcw className="w-4 h-4 text-red-500" /> Follow up
-                    </button>
-                    <button onClick={() => { setSelectedIntent('acted_upon'); setActiveMenu(null); }} className="w-full flex items-center gap-4 px-4 py-3 text-[11px] font-bold text-gray-600 hover:bg-emerald-50 hover:text-emerald-700 rounded-2xl transition-colors">
-                      <CheckCheck className="w-4 h-4 text-emerald-500" /> Acted upon
-                    </button>
-                    <button onClick={() => { setSelectedIntent('reflection'); setActiveMenu(null); }} className="w-full flex items-center gap-4 px-4 py-3 text-[11px] font-bold text-gray-600 hover:bg-gray-50 hover:text-gray-900 rounded-2xl transition-colors">
-                      <Brain className="w-4 h-4 text-gray-400" /> Reflection
-                    </button>
-                    <button onClick={() => { setSelectedIntent('memoir'); setActiveMenu(null); }} className="w-full flex items-center gap-4 px-4 py-3 text-[11px] font-bold text-gray-600 hover:bg-yellow-50 hover:text-yellow-700 rounded-2xl transition-colors">
-                      <Mountain className="w-4 h-4 text-yellow-600" /> Memoir
-                    </button>
+                  <div className="absolute bottom-full left-0 mb-3 bg-white border border-gray-200 rounded-[24px] shadow-2xl p-2 z-50 min-w-[200px] animate-in fade-in slide-in-from-bottom-2">
+                    <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 px-3 pt-2">Identify Intent</h4>
+                    {Object.entries(INTENT_CONFIG).map(([key, config]) => (
+                      <button
+                        key={key}
+                        onClick={() => { setSelectedIntent(key as NoteIntent); setActiveMenu(null); }}
+                        className={`w-full flex items-center gap-4 px-4 py-3 text-[11px] font-bold rounded-2xl transition-all ${selectedIntent === key
+                          ? 'bg-[var(--primary)] text-white shadow-md'
+                          : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900 border border-transparent hover:border-gray-100'
+                          }`}
+                      >
+                        {React.createElement(config.icon, { className: `w-4 h-4 ${selectedIntent === key ? 'text-white' : config.color}` })}
+                        {config.label}
+                      </button>
+                    ))}
                   </div>
                 </>
               )}
@@ -771,14 +833,14 @@ const NoteComposer: React.FC<NoteComposerProps> = ({ onComplete, defaultIdeaId, 
           <button
             disabled={!body.trim() || isSaving}
             onClick={handleSave}
-            className="h-11 px-8 bg-indigo-600 text-white rounded-2xl text-[11px] font-black uppercase tracking-widest hover:bg-indigo-700 disabled:opacity-30 disabled:cursor-not-allowed transition-all active:scale-95 shadow-lg shadow-indigo-100/50 flex items-center gap-2"
+            className="h-11 px-8 bg-[var(--primary)] text-white rounded-2xl text-[11px] font-black uppercase tracking-widest hover:brightness-110 disabled:bg-gray-200 disabled:text-gray-400 disabled:shadow-none transition-all active:scale-95 shadow-lg shadow-[var(--primary)]/20 flex items-center gap-2"
           >
             {isSaving ? (
               <RefreshCw className="w-4 h-4 animate-spin" />
             ) : (
-              <Save className="w-4 h-4" />
+              <Layers className="w-4 h-4" />
             )}
-            {editingNote ? (isSaving ? 'Updating...' : 'Update') : (isSaving ? 'Saving...' : 'Add Text Note')}
+            {editingNote ? (isSaving ? 'Updating...' : 'Update') : (isSaving ? 'Saving...' : 'Stack Note')}
           </button>
         </div>
       </div>

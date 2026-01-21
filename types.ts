@@ -22,6 +22,8 @@ export interface Todo {
   comments?: string;
 }
 
+export type ThemePalette = 'default' | 'shire' | 'cata' | 'sabas';
+
 export interface User {
   id: string;
   email: string;
@@ -30,6 +32,9 @@ export interface User {
   personalEntities: string[]; // e.g. ["Interfrontera", "Stackable"]
   ideaConfigs?: IdeaConfig[];
   avatarColor?: string;
+  theme?: ThemePalette;
+  customTheme?: any;
+  themeAdjustments?: Record<string, { base?: string, h: number, l: number, s: number }>;
 }
 
 export interface Idea {
@@ -64,12 +69,15 @@ export interface Invitation {
   senderId: string;
   ideaId?: string; // Optional: share a specific idea
   status: 'Pending' | 'Accepted' | 'Declined';
-  type: 'IdeaAccess' | 'JoinSystem';
+  type: 'IdeaAccess' | 'SystemJoin';
+  message?: string;
   createdAt: string;
 }
 
 export interface Contact {
   id: string;
+  firstName: string;
+  lastName: string;
   fullName: string;
   org: string;
   role: string;
@@ -107,6 +115,15 @@ export interface Note {
   createdById: string; // User ID
   imageUrl?: string;
   intent?: NoteIntent;
+  comments: Comment[];
+}
+
+export interface Comment {
+  id: string;
+  body: string;
+  createdAt: string;
+  authorId: string;
+  authorName?: string;
 }
 
 export interface Interaction {

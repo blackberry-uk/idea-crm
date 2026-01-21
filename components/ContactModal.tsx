@@ -1,6 +1,7 @@
 
 import React, { useState } from 'react';
 import { useStore } from '../store/useStore';
+import { Contact } from '../types';
 import {
   X,
   Linkedin,
@@ -11,21 +12,22 @@ import {
   Tag as TagIcon,
   Lightbulb,
   Plus,
-  UserPlus,
-  Star
+  UserPlus
 } from 'lucide-react';
 
 interface ContactModalProps {
   isOpen: boolean;
   onClose: () => void;
   initialIdeaIds?: string[];
+  contactToEdit?: Contact | null;
 }
 
-const ContactModal: React.FC<ContactModalProps> = ({ isOpen, onClose, initialIdeaIds = [] }) => {
-  const { data, addContact, showToast } = useStore();
+const ContactModal: React.FC<ContactModalProps> = ({ isOpen, onClose, initialIdeaIds = [], contactToEdit = null }) => {
+  const { data, addContact, updateContact, showToast } = useStore();
 
   const [newContact, setNewContact] = useState({
-    fullName: '',
+    firstName: '',
+    lastName: '',
     org: '',
     role: '',
     email: '',
@@ -38,25 +40,76 @@ const ContactModal: React.FC<ContactModalProps> = ({ isOpen, onClose, initialIde
     isWhatsApp: false,
     notes: '',
     relationshipStrength: 3,
-    linkedIdeaIds: initialIdeaIds
+    linkedIdeaIds: [] as string[]
   });
+
+  const parseIds = (ids: any): string[] => {
+    if (!ids) return [];
+    if (Array.isArray(ids)) return ids;
+    if (typeof ids === 'string') {
+      try {
+        const parsed = JSON.parse(ids);
+        return Array.isArray(parsed) ? parsed : [];
+      } catch { return []; }
+    }
+    return [];
+  };
+
+  // Initialize form only when the modal opens or the target contact changes
+  React.useEffect(() => {
+    if (!isOpen) return;
+
+    if (contactToEdit) {
+      setNewContact({
+        firstName: contactToEdit.firstName || '',
+        lastName: contactToEdit.lastName || '',
+        org: contactToEdit.org || '',
+        role: contactToEdit.role || '',
+        email: contactToEdit.email || '',
+        phone: contactToEdit.phone || '',
+        country: contactToEdit.country || '',
+        linkedinUrl: contactToEdit.linkedinUrl || '',
+        instagramUrl: contactToEdit.instagramUrl || '',
+        twitterUrl: contactToEdit.twitterUrl || '',
+        substackUrl: contactToEdit.substackUrl || '',
+        isWhatsApp: !!contactToEdit.isWhatsApp,
+        notes: contactToEdit.notes || '',
+        relationshipStrength: contactToEdit.relationshipStrength || 3,
+        linkedIdeaIds: parseIds(contactToEdit.linkedIdeaIds)
+      });
+    } else {
+      setNewContact({
+        firstName: '', lastName: '', org: '', role: '', email: '', phone: '', country: '',
+        linkedinUrl: '', instagramUrl: '', twitterUrl: '', substackUrl: '',
+        isWhatsApp: false, notes: '', relationshipStrength: 3,
+        linkedIdeaIds: parseIds(initialIdeaIds)
+      });
+    }
+  }, [isOpen, contactToEdit]);
 
   if (!isOpen) return null;
 
-  const handleCreateContact = () => {
-    if (!newContact.fullName || !newContact.org) {
-      showToast("Name and Organization are required.", "error");
+  const handleSaveContact = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newContact.firstName.trim()) {
+      showToast("First name is required.", "error");
       return;
     }
-    addContact(newContact);
+
+    const payload = {
+      ...newContact,
+      fullName: `${newContact.firstName} ${newContact.lastName}`.trim(),
+      linkedIdeaIds: JSON.stringify(newContact.linkedIdeaIds)
+    };
+
+    if (contactToEdit) {
+      updateContact(contactToEdit.id, payload);
+      showToast("Contact updated successfully", "success");
+    } else {
+      addContact(payload);
+      showToast("Contact added successfully", "success");
+    }
     onClose();
-    // Reset state for next time
-    setNewContact({
-      fullName: '', org: '', role: '', email: '', phone: '', country: '',
-      linkedinUrl: '', instagramUrl: '', twitterUrl: '', substackUrl: '',
-      isWhatsApp: false, notes: '', relationshipStrength: 3,
-      linkedIdeaIds: initialIdeaIds
-    });
   };
 
   const toggleIdeaLink = (ideaId: string) => {
@@ -76,7 +129,7 @@ const ContactModal: React.FC<ContactModalProps> = ({ isOpen, onClose, initialIde
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-gray-100 bg-gray-50/50">
           <div className="flex items-center gap-3">
-            <div className="p-2 bg-indigo-600 rounded-lg text-white">
+            <div className="p-2 rounded-lg text-white" style={{ backgroundColor: 'var(--primary)' }}>
               <UserPlus className="w-5 h-5" />
             </div>
             <div>
@@ -92,22 +145,34 @@ const ContactModal: React.FC<ContactModalProps> = ({ isOpen, onClose, initialIde
         <div className="overflow-y-auto p-8 space-y-8">
           {/* Section: Basic Info */}
           <div className="grid grid-cols-2 gap-6">
-            <div className="col-span-2">
-              <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Full Name *</label>
+            <div>
+              <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">First Name *</label>
               <input
                 type="text"
-                autoFocus
-                className="w-full border border-gray-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-indigo-500 outline-none bg-gray-50"
-                value={newContact.fullName}
-                onChange={e => setNewContact({ ...newContact, fullName: e.target.value })}
-                placeholder="e.g. Jane Doe"
+                className="w-full border border-gray-200 rounded-xl px-4 py-3 focus:ring-2 outline-none bg-gray-50"
+                style={{ ringColor: 'var(--primary)' }}
+                value={newContact.firstName}
+                onChange={e => setNewContact({ ...newContact, firstName: e.target.value })}
+                placeholder="e.g. Jane"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Last Name</label>
+              <input
+                type="text"
+                className="w-full border border-gray-200 rounded-xl px-4 py-3 focus:ring-2 outline-none bg-gray-50"
+                style={{ ringColor: 'var(--primary)' }}
+                value={newContact.lastName}
+                onChange={e => setNewContact({ ...newContact, lastName: e.target.value })}
+                placeholder="e.g. Doe"
               />
             </div>
             <div>
               <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Organization *</label>
               <input
                 type="text"
-                className="w-full border border-gray-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-indigo-500 outline-none bg-gray-50"
+                className="w-full border border-gray-200 rounded-xl px-4 py-3 focus:ring-2 outline-none bg-gray-50"
+                style={{ ringColor: 'var(--primary)' }}
                 value={newContact.org}
                 onChange={e => setNewContact({ ...newContact, org: e.target.value })}
                 placeholder="Company Name"
@@ -117,7 +182,8 @@ const ContactModal: React.FC<ContactModalProps> = ({ isOpen, onClose, initialIde
               <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Role</label>
               <input
                 type="text"
-                className="w-full border border-gray-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-indigo-500 outline-none bg-gray-50"
+                className="w-full border border-gray-200 rounded-xl px-4 py-3 focus:ring-2 outline-none bg-gray-50"
+                style={{ ringColor: 'var(--primary)' }}
                 value={newContact.role}
                 onChange={e => setNewContact({ ...newContact, role: e.target.value })}
                 placeholder="Job Title"
@@ -127,7 +193,8 @@ const ContactModal: React.FC<ContactModalProps> = ({ isOpen, onClose, initialIde
               <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Email Address</label>
               <input
                 type="email"
-                className="w-full border border-gray-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-indigo-500 outline-none bg-gray-50"
+                className="w-full border border-gray-200 rounded-xl px-4 py-3 focus:ring-2 outline-none bg-gray-50"
+                style={{ ringColor: 'var(--primary)' }}
                 value={newContact.email}
                 onChange={e => setNewContact({ ...newContact, email: e.target.value })}
                 placeholder="jane@company.com"
@@ -143,6 +210,70 @@ const ContactModal: React.FC<ContactModalProps> = ({ isOpen, onClose, initialIde
                 placeholder="+1 234 567 890"
               />
             </div>
+            <div className="relative">
+              <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Country</label>
+              <input
+                type="text"
+                list="countries"
+                className="w-full border border-gray-200 rounded-xl px-4 py-3 focus:ring-2 outline-none bg-gray-50 search-none"
+                style={{ ringColor: 'var(--primary)' }}
+                value={newContact.country}
+                onChange={e => setNewContact({ ...newContact, country: e.target.value })}
+                placeholder="Search or type country..."
+              />
+              <datalist id="countries">
+                <option value="United States" />
+                <option value="United Kingdom" />
+                <option value="Germany" />
+                <option value="France" />
+                <option value="Spain" />
+                <option value="Italy" />
+                <option value="Canada" />
+                <option value="Australia" />
+                <option value="Netherlands" />
+                <option value="Switzerland" />
+                <option value="Sweden" />
+                <option value="Norway" />
+                <option value="Denmark" />
+                <option value="Finland" />
+                <option value="Ireland" />
+                <option value="Austria" />
+                <option value="Belgium" />
+                <option value="Portugal" />
+                <option value="Greece" />
+                <option value="Luxembourg" />
+                <option value="Singapore" />
+                <option value="Japan" />
+                <option value="South Korea" />
+                <option value="China" />
+                <option value="India" />
+                <option value="Brazil" />
+                <option value="Mexico" />
+                <option value="Argentina" />
+                <option value="Chile" />
+                <option value="Colombia" />
+                <option value="Peru" />
+                <option value="Israel" />
+                <option value="United Arab Emirates" />
+                <option value="Saudi Arabia" />
+                <option value="South Africa" />
+                <option value="New Zealand" />
+                <option value="Turkey" />
+                <option value="Poland" />
+                <option value="Czech Republic" />
+                <option value="Hungary" />
+                <option value="Romania" />
+                <option value="Thailand" />
+                <option value="Vietnam" />
+                <option value="Indonesia" />
+                <option value="Malaysia" />
+                <option value="Philippines" />
+                <option value="Ukraine" />
+                <option value="Estonia" />
+                <option value="Latvia" />
+                <option value="Lithuania" />
+              </datalist>
+            </div>
           </div>
 
           {/* Section: Social Media Profiles */}
@@ -155,7 +286,8 @@ const ContactModal: React.FC<ContactModalProps> = ({ isOpen, onClose, initialIde
                 <Linkedin className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-blue-600" />
                 <input
                   type="url"
-                  className="w-full pl-10 pr-4 py-3 text-xs border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="w-full pl-10 pr-4 py-3 text-xs border border-gray-200 rounded-xl outline-none focus:ring-2"
+                  style={{ ringColor: 'var(--primary)' }}
                   value={newContact.linkedinUrl}
                   onChange={e => setNewContact({ ...newContact, linkedinUrl: e.target.value })}
                   placeholder="LinkedIn URL"
@@ -165,7 +297,8 @@ const ContactModal: React.FC<ContactModalProps> = ({ isOpen, onClose, initialIde
                 <Twitter className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-900" />
                 <input
                   type="url"
-                  className="w-full pl-10 pr-4 py-3 text-xs border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="w-full pl-10 pr-4 py-3 text-xs border border-gray-200 rounded-xl outline-none focus:ring-2"
+                  style={{ ringColor: 'var(--primary)' }}
                   value={newContact.twitterUrl}
                   onChange={e => setNewContact({ ...newContact, twitterUrl: e.target.value })}
                   placeholder="X (Twitter) URL"
@@ -175,7 +308,8 @@ const ContactModal: React.FC<ContactModalProps> = ({ isOpen, onClose, initialIde
                 <Instagram className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-pink-600" />
                 <input
                   type="url"
-                  className="w-full pl-10 pr-4 py-3 text-xs border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="w-full pl-10 pr-4 py-3 text-xs border border-gray-200 rounded-xl outline-none focus:ring-2"
+                  style={{ ringColor: 'var(--primary)' }}
                   value={newContact.instagramUrl}
                   onChange={e => setNewContact({ ...newContact, instagramUrl: e.target.value })}
                   placeholder="Instagram URL"
@@ -213,28 +347,14 @@ const ContactModal: React.FC<ContactModalProps> = ({ isOpen, onClose, initialIde
                   onChange={e => setNewContact({ ...newContact, isWhatsApp: e.target.checked })}
                 />
               </label>
-
-              <div>
-                <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Relationship Strength</label>
-                <div className="flex gap-2">
-                  {[1, 2, 3, 4, 5].map(s => (
-                    <button
-                      key={s}
-                      onClick={() => setNewContact({ ...newContact, relationshipStrength: s })}
-                      className={`p-2 rounded-lg border transition-all ${s <= newContact.relationshipStrength ? 'bg-yellow-50 border-yellow-200 text-yellow-500' : 'bg-white border-gray-100 text-gray-300'}`}
-                    >
-                      <Star className={`w-5 h-5 ${s <= newContact.relationshipStrength ? 'fill-yellow-500' : ''}`} />
-                    </button>
-                  ))}
-                </div>
-              </div>
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Notes / Comments</label>
+              <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Contact Description</label>
               <textarea
-                className="w-full border border-gray-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-indigo-500 outline-none bg-gray-50 min-h-[140px] resize-none text-sm"
-                placeholder="Background, mutual connections, or context..."
+                className="w-full border border-gray-200 rounded-xl px-4 py-3 focus:ring-2 outline-none bg-gray-50 min-h-[140px] resize-none text-sm"
+                style={{ ringColor: 'var(--primary)' }}
+                placeholder="Background, professional bio, mutual connections, or context..."
                 value={newContact.notes}
                 onChange={e => setNewContact({ ...newContact, notes: e.target.value })}
               />
@@ -252,10 +372,10 @@ const ContactModal: React.FC<ContactModalProps> = ({ isOpen, onClose, initialIde
               {newContact.linkedIdeaIds.map(lid => {
                 const linkedIdea = data.ideas.find(i => i.id === lid);
                 return (
-                  <div key={lid} className="flex items-center gap-2 bg-indigo-50 text-indigo-700 px-3 py-1.5 rounded-lg border border-indigo-100 text-xs font-bold animate-in fade-in zoom-in-90">
+                  <div key={lid} className="flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-bold animate-in fade-in zoom-in-90" style={{ backgroundColor: 'var(--primary-shadow)', color: 'var(--primary)', borderColor: 'var(--primary)' }}>
                     <Lightbulb className="w-3 h-3" />
                     {linkedIdea?.title || lid}
-                    <button onClick={() => toggleIdeaLink(lid)} className="hover:bg-indigo-200 rounded-full p-0.5">
+                    <button onClick={() => toggleIdeaLink(lid)} className="hover:bg-[var(--primary)]/20 rounded-full p-0.5">
                       <X className="w-3 h-3" />
                     </button>
                   </div>
@@ -271,13 +391,13 @@ const ContactModal: React.FC<ContactModalProps> = ({ isOpen, onClose, initialIde
                 <button
                   key={otherIdea.id}
                   onClick={() => toggleIdeaLink(otherIdea.id)}
-                  className="w-full text-left p-3 hover:bg-indigo-50/50 rounded-xl border border-transparent hover:border-indigo-100 flex items-center justify-between group transition-all"
+                  className="w-full text-left p-3 hover:bg-[var(--primary)]/10 rounded-xl border border-transparent hover:border-[var(--primary)]/30 flex items-center justify-between group transition-all"
                 >
                   <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center text-gray-400 group-hover:bg-white group-hover:text-indigo-600 group-hover:shadow-sm transition-all">
+                    <div className="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center text-gray-400 group-hover:bg-white group-hover:text-[var(--primary)] group-hover:shadow-sm transition-all">
                       <Plus className="w-4 h-4" />
                     </div>
-                    <span className="text-sm font-semibold text-gray-600 group-hover:text-indigo-900">{otherIdea.title}</span>
+                    <span className="text-sm font-semibold text-gray-600 group-hover:text-black">{otherIdea.title}</span>
                   </div>
                   <span className="text-[10px] uppercase font-bold text-gray-300">{otherIdea.status}</span>
                 </button>
@@ -295,8 +415,9 @@ const ContactModal: React.FC<ContactModalProps> = ({ isOpen, onClose, initialIde
             Cancel
           </button>
           <button
-            onClick={handleCreateContact}
-            className="flex-2 py-4 bg-indigo-600 text-white font-bold rounded-xl shadow-lg shadow-indigo-100 hover:bg-indigo-700 transition-all active:scale-95 px-10"
+            onClick={handleSaveContact}
+            className="flex-2 py-4 text-white font-bold rounded-xl shadow-lg transition-all active:scale-95 px-10"
+            style={{ backgroundColor: 'var(--primary)', boxShadow: '0 10px 15px -3px var(--primary-shadow)' }}
           >
             Create Contact
           </button>

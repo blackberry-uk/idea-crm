@@ -82,7 +82,7 @@ const IdeaModal: React.FC<IdeaModalProps> = ({ isOpen, onClose, initialContactId
       <div className="bg-white rounded-3xl shadow-2xl w-full max-w-xl overflow-hidden animate-in zoom-in-95 duration-200">
         <div className="flex items-center justify-between p-6 border-b bg-gray-50/50">
           <div className="flex items-center gap-2">
-            <Lightbulb className="w-5 h-5 text-indigo-600" />
+            <Lightbulb className="w-5 h-5" style={{ color: 'var(--primary)' }} />
             <h2 className="text-xl font-bold tracking-tight">New Idea</h2>
           </div>
           <button onClick={onClose} className="p-2 text-gray-400 hover:bg-gray-200 rounded-full"><X className="w-5 h-5" /></button>
@@ -93,7 +93,8 @@ const IdeaModal: React.FC<IdeaModalProps> = ({ isOpen, onClose, initialContactId
             <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">Idea Title</label>
             <input
               placeholder="e.g. Revolutionizing Coffee Delivery"
-              className="w-full border border-gray-200 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-indigo-500 font-bold bg-gray-50"
+              className="w-full border border-gray-200 rounded-xl px-4 py-3 outline-none focus:ring-2 font-bold bg-gray-50"
+              style={{ ringColor: 'var(--primary)' }}
               value={newIdea.title}
               onChange={e => setNewIdea({ ...newIdea, title: e.target.value })}
               autoFocus
@@ -117,7 +118,7 @@ const IdeaModal: React.FC<IdeaModalProps> = ({ isOpen, onClose, initialContactId
             </div>
           </div>
 
-          <button type="submit" className="w-full py-4 bg-indigo-600 text-white font-bold rounded-2xl shadow-lg shadow-indigo-100 hover:bg-indigo-700 transition-all active:scale-95">
+          <button type="submit" className="w-full py-4 text-white font-bold rounded-2xl shadow-lg transition-all active:scale-95" style={{ backgroundColor: 'var(--primary)', boxShadow: '0 10px 15px -3px var(--primary-shadow)' }}>
             Create Idea
           </button>
         </form>

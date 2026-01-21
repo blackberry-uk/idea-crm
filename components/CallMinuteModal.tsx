@@ -15,12 +15,12 @@ interface CallMinuteModalProps {
 }
 
 const INPUT_TYPES = [
-    { id: 'Insight', label: 'Insight', icon: Brain, color: 'text-indigo-500', bg: 'bg-indigo-50', hover: 'hover:bg-indigo-50' },
-    { id: 'Agreement', label: 'Agreement', icon: Check, color: 'text-emerald-500', bg: 'bg-emerald-50', hover: 'hover:bg-emerald-50' },
-    { id: 'To do', label: 'To do', icon: SlidersHorizontal, color: 'text-orange-500', bg: 'bg-orange-50', hover: 'hover:bg-orange-50' },
-    { id: 'Data Point', label: 'Data Point', icon: Info, color: 'text-blue-500', bg: 'bg-blue-50', hover: 'hover:bg-blue-50' },
-    { id: 'Reference', label: 'Reference', icon: MessageSquare, color: 'text-gray-500', bg: 'bg-gray-50', hover: 'hover:bg-gray-50' },
-    { id: 'Decision', label: 'Decision', icon: CircleDot, color: 'text-purple-500', bg: 'bg-purple-50', hover: 'hover:bg-purple-50' }
+    { id: 'Insight', label: 'Insight', icon: Brain, iconColor: 'var(--primary)', iconBg: 'var(--primary-shadow)' },
+    { id: 'Agreement', label: 'Agreement', icon: Check, iconColor: 'var(--accent)', iconBg: 'var(--primary-shadow)' }, // Use primary shadow for consistency or accent shadow if we had it
+    { id: 'To do', label: 'To do', icon: SlidersHorizontal, iconColor: '#f59e0b', iconBg: '#fffbeb' },
+    { id: 'Data Point', label: 'Data Point', icon: Info, iconColor: '#3b82f6', iconBg: '#eff6ff' },
+    { id: 'Reference', label: 'Reference', icon: MessageSquare, iconColor: '#6b7280', iconBg: '#f9fafb' },
+    { id: 'Decision', label: 'Decision', icon: CircleDot, iconColor: '#8b5cf6', iconBg: '#f5f3ff' }
 ];
 
 const CallMinuteModal: React.FC<CallMinuteModalProps> = ({ isOpen, onClose, ideaId, contactId, location, idea, editingNote }) => {
@@ -324,10 +324,19 @@ const CallMinuteModal: React.FC<CallMinuteModalProps> = ({ isOpen, onClose, idea
     };
 
     const renderComposer = (isInline: boolean = false) => (
-        <div className={`${isInline ? 'bg-indigo-50/50 border-indigo-200' : 'bg-[#FEFADA] border-yellow-200'} border rounded-3xl p-6 shadow-sm space-y-3 relative animate-in fade-in slide-in-from-top-2 duration-200`}>
-            <div className={`flex items-center justify-between border-b ${isInline ? 'border-indigo-200/30' : 'border-yellow-200/30'} pb-4`}>
+        <div
+            className="border rounded-3xl p-6 shadow-sm space-y-3 relative animate-in fade-in slide-in-from-top-2 duration-200"
+            style={{
+                backgroundColor: isInline ? 'var(--primary-shadow)' : 'var(--secondary)',
+                borderColor: isInline ? 'var(--primary)' : 'var(--border)'
+            }}
+        >
+            <div className="flex items-center justify-between border-b border-black/5 pb-4">
                 <div className="flex items-center gap-2">
-                    <label className={`text-[10px] font-black ${isInline ? 'text-indigo-700/60' : 'text-yellow-700/60'} uppercase tracking-[0.15em]`}>
+                    <label
+                        className="text-[10px] font-black uppercase tracking-[0.15em]"
+                        style={{ color: 'var(--text-body)', opacity: 0.6 }}
+                    >
                         {editingSegmentIdx !== null ? 'Editing Item Detail' : 'New Item Detail'}
                     </label>
                 </div>
@@ -335,7 +344,8 @@ const CallMinuteModal: React.FC<CallMinuteModalProps> = ({ isOpen, onClose, idea
                     <button
                         type="button"
                         onClick={() => setTypeSelectorOpen(!typeSelectorOpen)}
-                        className={`px-3 py-1.5 rounded-lg text-[10px] font-black ${isInline ? 'bg-indigo-600' : 'bg-indigo-600'} text-white shadow-sm flex items-center gap-2 hover:bg-indigo-700 transition-colors`}
+                        className="px-3 py-1.5 rounded-lg text-[10px] font-black text-white shadow-sm flex items-center gap-2 hover:brightness-110 transition-colors"
+                        style={{ backgroundColor: 'var(--primary)' }}
                     >
                         {currentSegment.type}
                         <ChevronDown className={`w-3 h-3 transition-transform ${typeSelectorOpen ? 'rotate-180' : ''}`} />
@@ -354,10 +364,17 @@ const CallMinuteModal: React.FC<CallMinuteModalProps> = ({ isOpen, onClose, idea
                                             setCurrentSegment({ ...currentSegment, type: t.id });
                                             setTypeSelectorOpen(false);
                                         }}
-                                        className={`w-full text-left px-3 py-2.5 text-[11px] font-bold rounded-xl transition-all flex items-center gap-3 ${currentSegment.type === t.id ? 'bg-indigo-600 text-white shadow-md' : 'text-gray-600 hover:bg-gray-50 hover:text-indigo-600'}`}
+                                        className={`w-full text-left px-3 py-2.5 text-[11px] font-bold rounded-xl transition-all flex items-center gap-3 ${currentSegment.type === t.id ? 'text-white shadow-md' : 'text-gray-600 hover:bg-gray-50'}`}
+                                        style={{ backgroundColor: currentSegment.type === t.id ? 'var(--primary)' : 'transparent' }}
                                     >
-                                        <div className={`w-6 h-6 rounded-lg flex items-center justify-center ${currentSegment.type === t.id ? 'bg-white/20' : t.bg}`}>
-                                            <t.icon className={`w-3.5 h-3.5 ${currentSegment.type === t.id ? 'text-white' : t.color}`} />
+                                        <div
+                                            className="w-6 h-6 rounded-lg flex items-center justify-center transition-colors"
+                                            style={{ backgroundColor: currentSegment.type === t.id ? 'rgba(255,255,255,0.2)' : t.iconBg }}
+                                        >
+                                            <t.icon
+                                                className="w-3.5 h-3.5 transition-colors"
+                                                style={{ color: currentSegment.type === t.id ? 'white' : t.iconColor }}
+                                            />
                                         </div>
                                         {t.label}
                                     </button>
@@ -371,9 +388,13 @@ const CallMinuteModal: React.FC<CallMinuteModalProps> = ({ isOpen, onClose, idea
             <div className="flex gap-4 items-end">
                 <div className="flex-1 space-y-2">
                     <div className="relative">
-                        <Type className={`absolute left-3 top-3 w-3.5 h-3.5 ${isInline ? 'text-indigo-700/50' : 'text-yellow-700/50'}`} />
+                        <Type className="absolute left-3 top-3 w-3.5 h-3.5" style={{ color: 'var(--text-body)', opacity: 0.4 }} />
                         <input
-                            className={`w-full border ${isInline ? 'border-indigo-500/30' : 'border-yellow-500/30'} rounded-xl pl-10 pr-4 py-2.5 text-sm outline-none bg-white placeholder:text-gray-400 font-medium text-gray-700 focus:border-indigo-400 transition-all shadow-sm`}
+                            className="w-full border rounded-xl pl-10 pr-4 py-2.5 text-sm outline-none bg-white placeholder:text-gray-400 font-medium transition-all shadow-sm"
+                            style={{
+                                borderColor: isInline ? 'var(--primary)' : 'var(--border)',
+                                color: 'var(--text-body)'
+                            }}
                             placeholder="Topic of this item..."
                             value={currentSegment.topic}
                             onChange={e => setCurrentSegment({ ...currentSegment, topic: e.target.value })}
@@ -381,10 +402,14 @@ const CallMinuteModal: React.FC<CallMinuteModalProps> = ({ isOpen, onClose, idea
                     </div>
 
                     <div className="relative">
-                        <MessageSquare className={`absolute left-3 top-3 w-3.5 h-3.5 ${isInline ? 'text-indigo-700/50' : 'text-yellow-700/50'}`} />
+                        <MessageSquare className="absolute left-3 top-3 w-3.5 h-3.5" style={{ color: 'var(--text-body)', opacity: 0.4 }} />
                         <textarea
                             ref={segmentTextareaRef}
-                            className={`w-full border ${isInline ? 'border-indigo-500/30' : 'border-yellow-500/30'} rounded-xl pl-10 pr-4 py-2.5 text-sm outline-none bg-white placeholder:text-gray-400 font-normal min-h-[100px] resize-none text-gray-600 focus:border-indigo-400 transition-all shadow-sm`}
+                            className="w-full border rounded-xl pl-10 pr-4 py-2.5 text-sm outline-none bg-white placeholder:text-gray-400 font-normal min-h-[100px] resize-none transition-all shadow-sm"
+                            style={{
+                                borderColor: isInline ? 'var(--primary)' : 'var(--border)',
+                                color: 'var(--text-body)'
+                            }}
                             placeholder="Add comments, data, or next steps... (Type @ to mention)"
                             value={currentSegment.comments}
                             onChange={handleCommentsChange}
@@ -433,7 +458,12 @@ const CallMinuteModal: React.FC<CallMinuteModalProps> = ({ isOpen, onClose, idea
                     <button
                         type="button"
                         onClick={handleAddSegment}
-                        className={`w-10 h-10 ${isInline ? 'bg-indigo-600 text-white border-indigo-700' : 'bg-yellow-400 text-yellow-950 border-yellow-500/50'} rounded-xl shadow-md border transition-all flex items-center justify-center active:scale-95 group/add`}
+                        className="w-10 h-10 rounded-xl shadow-md border transition-all flex items-center justify-center active:scale-95 group/add"
+                        style={{
+                            backgroundColor: isInline ? 'var(--primary)' : 'var(--accent)',
+                            color: 'white',
+                            borderColor: isInline ? 'var(--primary)' : 'var(--accent)'
+                        }}
                         title={isInline ? "Update item" : "Add this item"}
                     >
                         {isInline ? <Check className="w-5 h-5" /> : <Plus className="w-5 h-5 group-hover:scale-110 transition-transform" />}
@@ -446,10 +476,10 @@ const CallMinuteModal: React.FC<CallMinuteModalProps> = ({ isOpen, onClose, idea
     return (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-gray-900/60 backdrop-blur-sm overflow-y-auto">
             <div className="bg-white rounded-[32px] shadow-2xl w-full max-w-5xl overflow-hidden animate-in zoom-in-95 duration-200 border border-gray-100 my-8">
-                <div className="flex items-center justify-between p-4 border-b bg-gray-50/50">
+                <div className="flex items-center justify-between p-4 border-b" style={{ backgroundColor: 'var(--ui-bg)', opacity: 0.8 }}>
                     <div className="flex items-center gap-2">
-                        <ClipboardList className="w-5 h-5 text-indigo-600" />
-                        <h2 className="text-lg font-bold tracking-tight text-gray-900">Call Minute Template</h2>
+                        <ClipboardList className="w-5 h-5" style={{ color: 'var(--primary)' }} />
+                        <h2 className="text-lg font-bold tracking-tight" style={{ color: 'var(--text-title)' }}>Call Minute Template</h2>
                     </div>
                     <button onClick={onClose} className="p-2 text-gray-400 hover:bg-gray-200 rounded-full transition-colors">
                         <X className="w-5 h-5" />
@@ -457,21 +487,22 @@ const CallMinuteModal: React.FC<CallMinuteModalProps> = ({ isOpen, onClose, idea
                 </div>
 
                 <div className="p-0 max-h-[75vh] overflow-y-auto">
-                    <div className="grid grid-cols-1 lg:grid-cols-[1fr_300px] divide-x divide-gray-100 min-h-[500px]">
+                    <div className="grid grid-cols-1 lg:grid-cols-[1fr_300px] divide-x min-h-[500px]" style={{ borderColor: 'var(--border)' }}>
                         <div className="p-8 space-y-6">
                             <div className="flex items-center justify-between px-2">
                                 <div className="flex items-center gap-6">
                                     <div className="flex items-center gap-2">
-                                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Note Workspace</label>
+                                        <label className="text-[10px] font-black uppercase tracking-[0.2em]" style={{ color: 'var(--text-body)', opacity: 0.5 }}>Note Workspace</label>
                                         <button
                                             onClick={() => setShowComposer(!showComposer)}
-                                            className="p-1 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-md transition-all"
+                                            className="p-1 rounded-md transition-all hover:brightness-95"
+                                            style={{ color: 'var(--primary)', backgroundColor: 'var(--primary-shadow)' }}
                                             title={showComposer ? "Hide Workspace" : "Show Workspace"}
                                         >
                                             {showComposer ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
                                         </button>
                                     </div>
-                                    <div className="flex items-center gap-3 bg-gray-50 border border-gray-100 rounded-xl px-3 py-1.5 focus-within:ring-2 focus-within:ring-indigo-100 transition-all">
+                                    <div className="flex items-center gap-3 bg-white border rounded-xl px-3 py-1.5 focus-within:ring-2 transition-all" style={{ borderColor: 'var(--border)', ringColor: 'var(--primary)' }}>
                                         <Calendar className="w-3.5 h-3.5 text-gray-400" />
                                         <input
                                             type="date"
@@ -517,7 +548,8 @@ const CallMinuteModal: React.FC<CallMinuteModalProps> = ({ isOpen, onClose, idea
                                                     onDragStart={() => handleDragStart(i)}
                                                     onDragOver={(e) => handleDragOver(e, i)}
                                                     onDragEnd={handleDragEnd}
-                                                    className={`bg-white rounded-2xl border border-gray-400 overflow-hidden group transition-all ${editingSegmentIdx === null ? 'cursor-move' : 'cursor-default'} ${draggedIndex === i ? 'opacity-30 scale-95' : 'hover:border-indigo-200 hover:shadow-lg shadow-sm'}`}
+                                                    className={`bg-white rounded-2xl border overflow-hidden group transition-all ${editingSegmentIdx === null ? 'cursor-move' : 'cursor-default'} ${draggedIndex === i ? 'opacity-30 scale-95' : 'hover:shadow-lg shadow-sm'}`}
+                                                    style={{ borderColor: 'var(--border)' }}
                                                 >
                                                     <div className="flex items-center justify-between p-4 px-5">
                                                         <div className="flex items-center gap-4">
@@ -531,7 +563,14 @@ const CallMinuteModal: React.FC<CallMinuteModalProps> = ({ isOpen, onClose, idea
                                                             <span className="text-sm font-bold text-gray-700 truncate">{seg.topic || 'Unspecified Topic'}</span>
                                                         </div>
                                                         <div className="flex items-center gap-4">
-                                                            <span className="px-2 py-0.5 bg-indigo-50 text-indigo-700 text-[10px] font-black uppercase rounded border border-indigo-200">{seg.type}</span>
+                                                            <span
+                                                                className="px-2 py-0.5 text-[10px] font-black uppercase rounded border"
+                                                                style={{
+                                                                    backgroundColor: 'var(--primary-shadow)',
+                                                                    color: 'var(--primary)',
+                                                                    borderColor: 'var(--primary)'
+                                                                }}
+                                                            >{seg.type}</span>
                                                             <div className="h-4 w-[1px] bg-gray-100" />
                                                             <div className="flex items-center gap-2">
                                                                 {seg.comments && (
@@ -568,16 +607,17 @@ const CallMinuteModal: React.FC<CallMinuteModalProps> = ({ isOpen, onClose, idea
                             )}
                         </div>
 
-                        <div className="bg-[#F2F3F4] p-10 space-y-8">
+                        <div className="p-10 space-y-8" style={{ backgroundColor: 'var(--ui-bg)' }}>
                             <div className="space-y-6">
-                                <label className="block text-sm font-black text-gray-400 uppercase tracking-widest flex items-center gap-2">
-                                    <Users className="w-4 h-4 text-indigo-500" />
+                                <label className="block text-sm font-black uppercase tracking-widest flex items-center gap-2" style={{ color: 'var(--text-body)', opacity: 0.5 }}>
+                                    <Users className="w-4 h-4" style={{ color: 'var(--primary)' }} />
                                     Meeting Attendees
                                 </label>
 
                                 <div className="relative">
                                     <input
-                                        className="w-full bg-white border border-gray-200 rounded-2xl px-5 py-4 text-sm outline-none focus:ring-2 focus:ring-indigo-500 shadow-sm font-medium transition-all"
+                                        className="w-full bg-white border rounded-2xl px-5 py-4 text-sm outline-none focus:ring-2 focus:ring-black/5 shadow-sm font-medium transition-all"
+                                        style={{ borderColor: 'var(--border)' }}
                                         placeholder="Add attendee..."
                                         value={attendeeSearch}
                                         onChange={e => {
@@ -653,13 +693,14 @@ const CallMinuteModal: React.FC<CallMinuteModalProps> = ({ isOpen, onClose, idea
                     <button
                         type="button"
                         onClick={handleSubmit}
-                        className="w-full md:w-auto px-8 py-2.5 bg-indigo-600 text-white text-sm font-bold rounded-2xl shadow-xl shadow-indigo-100 hover:bg-indigo-700 transition-all active:scale-[0.98] flex items-center justify-center gap-2"
+                        className="w-full md:w-auto px-8 py-2.5 text-white text-sm font-bold rounded-2xl shadow-xl transition-all active:scale-[0.98] flex items-center justify-center gap-2"
+                        style={{ backgroundColor: 'var(--primary)', boxShadow: '0 10px 15px -3px var(--primary-shadow)' }}
                     >
                         Save
                     </button>
                 </div>
             </div>
-        </div >
+        </div>
     );
 };
 

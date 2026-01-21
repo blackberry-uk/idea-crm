@@ -26,13 +26,13 @@ const ConfirmDialog: React.FC = () => {
     const styles = {
         danger: 'text-red-600 bg-red-50 border-red-100',
         warning: 'text-amber-600 bg-amber-50 border-amber-100',
-        info: 'text-indigo-600 bg-indigo-50 border-indigo-100',
+        info: 'text-[var(--primary)] bg-[var(--primary-shadow)] border-[var(--primary)]',
     };
 
     const buttonStyles = {
-        danger: 'bg-red-600 hover:bg-red-700 shadow-red-100 text-white',
-        warning: 'bg-amber-600 hover:bg-amber-700 shadow-amber-100 text-white',
-        info: 'bg-indigo-600 hover:bg-indigo-700 shadow-indigo-100 text-white',
+        danger: { backgroundColor: '#dc2626', color: 'white' },
+        warning: { backgroundColor: '#d97706', color: 'white' },
+        info: { backgroundColor: 'var(--primary)', boxShadow: '0 10px 15px -3px var(--primary-shadow)', color: 'white' },
     };
 
     const icons = {
@@ -70,7 +70,8 @@ const ConfirmDialog: React.FC = () => {
                     <div className="mt-8 flex flex-col gap-3">
                         <button
                             onClick={handleConfirm}
-                            className={`w-full py-4 rounded-2xl font-black text-sm shadow-xl transition-all active:scale-[0.98] ${buttonStyles[conf.type]}`}
+                            className={`w-full py-4 rounded-2xl font-black text-sm shadow-xl transition-all active:scale-[0.98] ${conf.type !== 'info' ? '' : ''}`}
+                            style={buttonStyles[conf.type] as any}
                         >
                             {conf.confirmLabel || 'Confirm'}
                         </button>

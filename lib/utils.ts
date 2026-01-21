@@ -28,3 +28,33 @@ export const getAvatarColor = (id: string) => {
     const index = Math.abs(hash) % AVATAR_COLORS.length;
     return AVATAR_COLORS[index];
 };
+
+export const stripHtml = (html: string) => {
+    if (!html) return '';
+    let text = html.replace(/<[^>]*>?/gm, ' '); // Strip tags
+    text = text.replace(/&nbsp;/g, ' ');
+    text = text.replace(/&gt;/g, '>');
+    text = text.replace(/&lt;/g, '<');
+    text = text.replace(/&quot;/g, '"');
+    text = text.replace(/&amp;/g, '&');
+    return text.replace(/\s+/g, ' ').trim(); // Collapse whitespace
+};
+
+export const getNoteExcerpt = (content: string, maxLength = 150) => {
+    if (!content) return '';
+
+    // Handle Call Minute JSON
+    if (content.startsWith('{') && content.includes('"template"')) {
+        try {
+            const data = JSON.parse(content);
+            if (data.template === 'call-minute' && data.segments) {
+                const topics = data.segments.map((s: any) => s.topic).filter(Boolean).join(', ');
+                return `[Call Minute] ${topics}`;
+            }
+        } catch (e) { }
+    }
+
+    const clean = stripHtml(content);
+    if (clean.length <= maxLength) return clean;
+    return clean.substring(0, maxLength - 3) + '...';
+};
