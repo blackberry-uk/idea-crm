@@ -276,8 +276,17 @@ app.get('/api/data', authenticate, async (req: any, res) => {
 
     res.json({ ideas, contacts, notes, interactions: formattedInteractions, invitations, users });
   } catch (err) {
-    console.error('Data fetch error:', err);
-    res.status(500).json({ error: 'Failed to fetch workspace data' });
+    console.error('[API /data] Error fetching workspace data:', {
+      message: err.message,
+      name: err.name,
+      code: err.code,
+      userId: req.userId,
+      stack: err.stack?.split('\n').slice(0, 5).join('\n')
+    });
+    res.status(500).json({
+      error: 'Failed to fetch workspace data',
+      details: process.env.NODE_ENV === 'development' ? err.message : undefined
+    });
   }
 });
 
