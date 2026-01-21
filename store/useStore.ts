@@ -41,7 +41,9 @@ const hydrate = async () => {
     globalState = {
       ...allData,
       currentUser: user,
-      globalNoteCategories: globalState.globalNoteCategories,
+      globalNoteCategories: (user.noteCategories && Array.isArray(user.noteCategories) && user.noteCategories.length > 0)
+        ? user.noteCategories
+        : globalState.globalNoteCategories,
       toast: globalState.toast,
       confirmation: globalState.confirmation
     };
@@ -103,11 +105,14 @@ export const useStore = () => {
 
     googleLogin: async (idToken: string) => {
       try {
+        console.log('[Frontend] Sending Google token to backend...');
         const res = await apiClient.post('/auth/google', { idToken });
+        console.log('[Frontend] Google login successful, setting token');
         apiClient.setToken(res.token);
         await hydrate();
         return !!globalState.currentUser;
       } catch (e) {
+        console.error('[Frontend] Google login failed:', e);
         return false;
       }
     },
@@ -140,8 +145,13 @@ export const useStore = () => {
       await hydrate();
     },
 
-    shareIdea: async (ideaId: string, email: string) => {
-      const res = await apiClient.post('/invitations', { email, ideaId, type: 'IdeaAccess' });
+    shareIdea: async (ideaId: string | null, email: string, message?: string) => {
+      const res = await apiClient.post('/invitations', {
+        email,
+        ideaId: ideaId || null,
+        type: ideaId ? 'IdeaAccess' : 'SystemJoin',
+        message
+      });
       await hydrate();
       return res;
     },
@@ -187,6 +197,28 @@ export const useStore = () => {
       }
     },
 
+    addComment: async (noteId: string, body: string) => {
+      try {
+        await apiClient.post(`/notes/${noteId}/comments`, { body });
+        await hydrate();
+      } catch (err: any) {
+        console.error('Add comment store error:', err);
+        globalState.toast = { message: err.message || 'Failed to add comment', type: 'error', id: Math.random().toString() };
+        notify();
+      }
+    },
+
+    deleteComment: async (commentId: string) => {
+      try {
+        await apiClient.delete(`/comments/${commentId}`);
+        await hydrate();
+      } catch (err: any) {
+        console.error('Delete comment store error:', err);
+        globalState.toast = { message: err.message || 'Failed to delete comment', type: 'error', id: Math.random().toString() };
+        notify();
+      }
+    },
+
 
     addContact: async (contact: any) => {
       const res = await apiClient.post('/contacts', contact);
@@ -198,6 +230,11 @@ export const useStore = () => {
       const res = await apiClient.put(`/contacts/${id}`, updates);
       await hydrate();
       return res;
+    },
+
+    deleteContact: async (id: string) => {
+      await apiClient.delete(`/contacts/${id}`);
+      await hydrate();
     },
 
     addInteraction: async (interaction: any) => {
