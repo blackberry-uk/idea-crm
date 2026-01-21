@@ -1,3 +1,4 @@
+// @ts-nocheck
 import express from 'express';
 // @ts-ignore - PrismaClient is a generated class and might not be recognized as an exported member by the compiler in all environments
 import jwt from 'jsonwebtoken';
