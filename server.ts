@@ -255,7 +255,8 @@ app.get('/api/data', authenticate, async (req: any, res) => {
     console.log('[API /data] Notes fetched:', rawNotes.length);
 
     console.log('[API /data] Fetching interactions...');
-    const interactions = await prisma.interaction.findMany({ where: { createdById: userId } });
+    // Temporarily disabled - Interaction table issue in production
+    const interactions = []; // await prisma.interaction.findMany({ where: { createdById: userId } });
     console.log('[API /data] Interactions fetched:', interactions.length);
 
     console.log('[API /data] Fetching invitations...');
