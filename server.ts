@@ -57,6 +57,17 @@ app.get("/health", (_req, res) => {
   res.json({ ok: true });
 });
 
+// Debug endpoint to check environment configuration
+app.get("/api/debug/config", (_req, res) => {
+  res.json({
+    hasGoogleClientId: !!GOOGLE_CLIENT_ID,
+    googleClientIdPrefix: GOOGLE_CLIENT_ID ? GOOGLE_CLIENT_ID.substring(0, 20) + '...' : 'NOT SET',
+    hasJwtSecret: !!JWT_SECRET,
+    nodeEnv: process.env.NODE_ENV
+  });
+});
+
+
 
 // Auth Middleware
 const authenticate = (req: any, res: any, next: any) => {
@@ -110,6 +121,14 @@ app.post('/api/auth/google', async (req, res) => {
   if (!idToken) return res.status(400).json({ error: 'ID Token required' });
 
   try {
+    // Log for debugging (remove in production after fixing)
+    console.log('[Google Auth] Starting verification with client ID:', GOOGLE_CLIENT_ID ? 'SET' : 'NOT SET');
+
+    if (!GOOGLE_CLIENT_ID) {
+      console.error('[Google Auth] GOOGLE_CLIENT_ID is not configured!');
+      return res.status(500).json({ error: 'Server configuration error: Google Client ID not set' });
+    }
+
     const ticket = await googleClient.verifyIdToken({
       idToken,
       audience: GOOGLE_CLIENT_ID,
@@ -120,6 +139,8 @@ app.post('/api/auth/google', async (req, res) => {
     const email = payload.email.toLowerCase().trim();
     const googleId = payload.sub;
     const name = payload.name;
+
+    console.log('[Google Auth] Token verified for email:', email);
 
     // 1. Find user by googleId
     let user = await prisma.user.findUnique({ where: { googleId } as any });
@@ -145,13 +166,21 @@ app.post('/api/auth/google', async (req, res) => {
           personalEntities: ['Personal']
         } as any
       });
+      console.log('[Google Auth] Created new user:', user.id);
     }
 
     const token = jwt.sign({ userId: user.id }, JWT_SECRET);
     res.json({ user: { id: user.id, email: user.email, name: user.name }, token });
   } catch (err) {
-    console.error('Google Auth Error:', err);
-    res.status(401).json({ error: 'Google authentication failed' });
+    console.error('[Google Auth] Error details:', {
+      message: err.message,
+      name: err.name,
+      stack: err.stack?.split('\n').slice(0, 3).join('\n')
+    });
+    res.status(401).json({
+      error: 'Google authentication failed',
+      details: process.env.NODE_ENV === 'development' ? err.message : undefined
+    });
   }
 });
 
