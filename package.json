@@ -7,7 +7,8 @@
     "build": "prisma generate && vite build",
     "preview": "vite preview",
     "server": "dotenv -e .env -- tsx watch server.ts",
-    "postinstall": "prisma generate"
+    "postinstall": "prisma generate",
+    "vercel-build": "prisma generate && prisma db push --accept-data-loss && vite build"
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
