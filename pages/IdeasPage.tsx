@@ -16,8 +16,13 @@ const IdeasPage: React.FC = () => {
     activeEntity === 'All' || idea.entity === activeEntity
   );
 
+  React.useEffect(() => {
+    document.title = 'Idea Pipeline | Idea-CRM';
+    return () => { document.title = 'IdeaCRM Tracker'; };
+  }, []);
+
   return (
-    <div className="space-y-6 px-6 py-8">
+    <div className="max-w-6xl mx-auto space-y-6 px-8 py-8">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold text-gray-900 tracking-tight">Idea Pipeline</h1>
@@ -25,7 +30,8 @@ const IdeasPage: React.FC = () => {
         </div>
         <button
           onClick={() => setShowAddForm(true)}
-          className="flex items-center justify-center gap-2 bg-indigo-600 text-white px-6 py-2.5 rounded-xl font-semibold shadow-indigo-200 shadow-lg hover:bg-indigo-700 transition-all active:scale-95"
+          className="flex items-center justify-center gap-2 text-white px-6 py-2.5 rounded-xl font-semibold shadow-lg transition-all active:scale-95"
+          style={{ backgroundColor: 'var(--primary)', boxShadow: '0 10px 15px -3px var(--primary-shadow)' }}
         >
           <Plus className="w-5 h-5" />
           Create New Idea
@@ -39,9 +45,10 @@ const IdeasPage: React.FC = () => {
             key={entity}
             onClick={() => setActiveEntity(entity)}
             className={`px-5 py-2 rounded-2xl text-[11px] font-black uppercase tracking-wider whitespace-nowrap transition-all border shadow-sm ${activeEntity === entity
-              ? 'bg-indigo-600 border-indigo-600 text-white shadow-indigo-100/50'
-              : 'bg-white border-gray-100 text-gray-400 hover:border-indigo-200 hover:text-indigo-600'
+              ? 'text-white'
+              : 'bg-white border-gray-100 text-gray-400 hover:border-[var(--primary)]'
               }`}
+            style={activeEntity === entity ? { backgroundColor: 'var(--primary)', borderColor: 'var(--primary)', boxShadow: '0 4px 6px -1px var(--primary-shadow)' } : {}}
           >
             {entity}
           </button>
@@ -96,12 +103,12 @@ const IdeasPage: React.FC = () => {
               </button>
 
               <Link to={`/ideas/${idea.id}`} className="block h-full">
-                <div className="bg-white rounded-[2.5rem] border border-gray-100 p-8 shadow-sm hover:shadow-xl hover:border-indigo-100 group-hover:-translate-y-1 transition-all h-full flex flex-col">
+                <div className="bg-white rounded-[2.5rem] border border-gray-100 p-8 shadow-sm hover:shadow-xl hover:border-[var(--primary)] group-hover:-translate-y-1 transition-all h-full flex flex-col">
                   <div className="flex items-center justify-between mb-6">
                     <div className="flex flex-wrap gap-2">
                       <span className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider border ${['Ideation', 'Scoping', 'Backlog'].includes(idea.status) ? 'bg-amber-50 text-amber-600 border-amber-100' :
                         ['Research'].includes(idea.status) ? 'bg-blue-50 text-blue-600 border-blue-100' :
-                          ['Prototype', 'Proposal', 'Business Plan'].includes(idea.status) ? 'bg-indigo-50 text-indigo-600 border-indigo-100' :
+                          ['Prototype', 'Proposal', 'Business Plan'].includes(idea.status) ? 'bg-[var(--primary)]/10 text-[var(--primary)] border-[var(--primary)]/20' :
                             ['Testing', 'Approval', 'Capital Raise'].includes(idea.status) ? 'bg-purple-50 text-purple-600 border-purple-100' :
                               ['Launched', 'Execution', 'Active', 'Done'].includes(idea.status) ? 'bg-emerald-50 text-emerald-600 border-emerald-100' :
                                 idea.status === 'Dead' ? 'bg-red-50 text-red-600 border-red-100' :
@@ -113,7 +120,7 @@ const IdeasPage: React.FC = () => {
                         {idea.entity}
                       </span>
                     </div>
-                    {(idea.collaboratorIds?.length ?? 0) > 0 && <Users className="w-4 h-4 text-indigo-300" />}
+                    {(idea.collaboratorIds?.length ?? 0) > 0 && <Users className="w-4 h-4" style={{ color: 'var(--primary)' }} />}
                   </div>
 
                   <h3 className="text-xl font-black text-gray-900 mb-2 leading-tight tracking-tight">
@@ -123,7 +130,10 @@ const IdeasPage: React.FC = () => {
 
                   <div className="flex items-center gap-3 mt-auto pt-6 border-t border-gray-50">
                     <div className="flex items-center gap-2">
-                      <div className={`w-8 h-8 rounded-xl ${owner?.avatarColor || 'bg-indigo-600'} flex items-center justify-center text-white text-[10px] font-black shadow-md`}>
+                      <div
+                        className="w-8 h-8 rounded-xl flex items-center justify-center text-white text-[10px] font-black shadow-md"
+                        style={{ backgroundColor: owner?.avatarColor || 'var(--primary)' }}
+                      >
                         {getInitials(owner?.name || 'U')}
                       </div>
                       <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">

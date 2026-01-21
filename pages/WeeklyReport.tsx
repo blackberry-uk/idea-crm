@@ -3,41 +3,41 @@ import React from 'react';
 import { useStore } from '../store/useStore';
 import { format, startOfWeek, endOfWeek, isWithinInterval, subDays } from 'date-fns';
 import { Printer, TrendingUp, MessageSquare, ListTodo, Download } from 'lucide-react';
-import { 
-  BarChart, 
-  Bar, 
-  XAxis, 
-  YAxis, 
-  CartesianGrid, 
-  Tooltip, 
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
   ResponsiveContainer,
   Cell
 } from 'recharts';
 
 const WeeklyReport: React.FC = () => {
   const { data } = useStore();
-  
+
   const today = new Date();
   const start = startOfWeek(today);
   const end = endOfWeek(today);
 
   // Ideas moved status this week
-  const updatedThisWeek = data.ideas.filter(i => 
+  const updatedThisWeek = data.ideas.filter(i =>
     isWithinInterval(new Date(i.updatedAt), { start, end })
   );
 
   // Notes added this week
-  const notesThisWeek = data.notes.filter(n => 
+  const notesThisWeek = data.notes.filter(n =>
     isWithinInterval(new Date(n.createdAt), { start, end })
   );
 
   // Interactions completed this week
-  const interactionsThisWeek = data.interactions.filter(int => 
+  const interactionsThisWeek = data.interactions.filter(int =>
     isWithinInterval(new Date(int.date), { start, end })
   );
 
   // Upcoming actions
-  const upcomingActions = data.interactions.filter(int => 
+  const upcomingActions = data.interactions.filter(int =>
     int.nextActionDate && isWithinInterval(new Date(int.nextActionDate), { start, end: subDays(end, -7) })
   );
 
@@ -60,9 +60,10 @@ const WeeklyReport: React.FC = () => {
             {format(start, 'MMMM d')} — {format(end, 'MMMM d, yyyy')}
           </p>
         </div>
-        <button 
+        <button
           onClick={handlePrint}
-          className="flex items-center gap-2 px-5 py-2.5 bg-gray-900 text-white rounded-xl font-bold hover:bg-gray-800 transition-all shadow-lg shadow-gray-200 print:hidden"
+          className="flex items-center gap-2 px-5 py-2.5 text-white rounded-xl font-bold transition-all shadow-lg print:hidden"
+          style={{ backgroundColor: 'var(--primary)', boxShadow: '0 10px 15px -3px var(--primary-shadow)' }}
         >
           <Printer className="w-5 h-5" />
           Print / Export PDF
@@ -72,7 +73,7 @@ const WeeklyReport: React.FC = () => {
       {/* Metrics Grid */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm flex items-center gap-5">
-          <div className="p-4 bg-indigo-50 rounded-2xl text-indigo-600">
+          <div className="p-4 rounded-2xl" style={{ backgroundColor: 'var(--primary-shadow)', color: 'var(--primary)' }}>
             <TrendingUp className="w-6 h-6" />
           </div>
           <div>
@@ -110,13 +111,13 @@ const WeeklyReport: React.FC = () => {
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f3f4f6" />
                 <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#9ca3af' }} dy={10} />
                 <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#9ca3af' }} />
-                <Tooltip 
+                <Tooltip
                   cursor={{ fill: '#f9fafb' }}
                   contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
                 />
                 <Bar dataKey="count" radius={[4, 4, 0, 0]} barSize={40}>
                   {chartData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={['#6366f1', '#818cf8', '#a5b4fc', '#c7d2fe'][index % 4]} />
+                    <Cell key={`cell-${index}`} fill={['var(--primary)', 'var(--accent)', 'var(--primary)', 'var(--accent)'][index % 4]} fillOpacity={0.8 - (index % 3) * 0.1} />
                   ))}
                 </Bar>
               </BarChart>
@@ -129,7 +130,7 @@ const WeeklyReport: React.FC = () => {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
         <section>
           <h2 className="text-lg font-bold mb-4 flex items-center gap-2">
-            <TrendingUp className="w-5 h-5 text-indigo-600" />
+            <TrendingUp className="w-5 h-5" style={{ color: 'var(--primary)' }} />
             Ideas Updated
           </h2>
           <div className="space-y-3">
@@ -137,8 +138,8 @@ const WeeklyReport: React.FC = () => {
               <div key={idea.id} className="p-4 bg-white rounded-xl border border-gray-100 shadow-sm">
                 <p className="font-bold text-gray-900">{idea.title}</p>
                 <div className="flex items-center gap-2 mt-1">
-                   <span className="text-[10px] font-bold uppercase text-gray-400">Current Status:</span>
-                   <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-gray-100">{idea.status}</span>
+                  <span className="text-[10px] font-bold uppercase text-gray-400">Current Status:</span>
+                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-gray-100">{idea.status}</span>
                 </div>
               </div>
             )) : <p className="text-sm text-gray-400 italic">No status changes this week.</p>}

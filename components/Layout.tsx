@@ -46,11 +46,11 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   if (!data.currentUser) return <>{children}</>;
 
   return (
-    <div className="flex h-screen bg-[#F2F3F4] text-gray-900 overflow-hidden">
+    <div className="flex h-screen bg-[var(--ui-bg)] text-gray-900 overflow-hidden transition-colors duration-500">
       {/* Sidebar */}
       <aside className="w-64 border-r border-gray-200 bg-white flex flex-col hidden md:flex shrink-0">
         <div className="p-6 flex items-center gap-2">
-          <div className="bg-indigo-600 p-1.5 rounded-lg shadow-sm">
+          <div className="p-1.5 rounded-lg shadow-sm" style={{ backgroundColor: 'var(--primary)' }}>
             <Lightbulb className="w-6 h-6 text-white" />
           </div>
           <span className="font-bold text-xl tracking-tight">IdeaCRM</span>
@@ -64,9 +64,10 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                 key={item.name}
                 to={item.path}
                 className={`flex items-center gap-3 px-3 py-2 rounded-md transition-colors relative ${isActive
-                  ? 'bg-indigo-50 text-indigo-700 font-medium'
+                  ? 'text-white font-medium shadow-md shadow-[var(--primary)]/20'
                   : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
                   }`}
+                style={isActive ? { backgroundColor: 'var(--primary)' } : {}}
               >
                 <item.icon className="w-5 h-5" />
                 {item.name}

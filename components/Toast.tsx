@@ -12,7 +12,7 @@ const Toast: React.FC = () => {
     const styles = {
         success: 'bg-emerald-50 border-emerald-100 text-emerald-700',
         error: 'bg-red-50 border-red-100 text-red-700',
-        info: 'bg-indigo-50 border-indigo-100 text-indigo-700'
+        info: 'bg-[var(--primary-shadow)] border-[var(--primary)] text-[var(--primary)]'
     };
 
     const icons = {

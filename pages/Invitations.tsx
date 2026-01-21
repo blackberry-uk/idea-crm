@@ -13,7 +13,10 @@ const Invitations: React.FC = () => {
   return (
     <div className="max-w-4xl mx-auto py-12 px-6 animate-in fade-in duration-500">
       <div className="flex items-center gap-4 mb-10">
-        <div className="p-3 bg-indigo-600 rounded-2xl text-white shadow-lg shadow-indigo-100">
+        <div
+          className="p-3 rounded-2xl text-white shadow-lg"
+          style={{ backgroundColor: 'var(--primary)', boxShadow: '0 10px 15px -3px var(--primary-shadow)' }}
+        >
           <Mail className="w-6 h-6" />
         </div>
         <div>
@@ -35,17 +38,24 @@ const Invitations: React.FC = () => {
             const sender = data.users.find(u => u.id === inv.senderId);
             const idea = data.ideas.find(i => i.id === inv.ideaId);
             return (
-              <div key={inv.id} className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm flex flex-col md:flex-row items-center justify-between gap-6 hover:border-indigo-200 transition-all">
+              <div key={inv.id} className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm flex flex-col md:flex-row items-center justify-between gap-6 hover:bg-[var(--primary)]/5 transition-all" style={{ borderColor: 'var(--primary-shadow)' }}>
                 <div className="flex items-center gap-5">
-                  <div className="w-12 h-12 rounded-xl bg-indigo-50 flex items-center justify-center text-indigo-600">
+                  <div
+                    className="w-12 h-12 rounded-xl flex items-center justify-center"
+                    style={{ backgroundColor: 'var(--primary-shadow)', color: 'var(--primary)' }}
+                  >
                     {inv.type === 'IdeaAccess' ? <Lightbulb className="w-6 h-6" /> : <Users className="w-6 h-6" />}
                   </div>
                   <div>
                     <h3 className="font-bold text-gray-900">
-                      {sender?.name || 'Someone'} invited you to collaborate
+                      {sender?.name || 'Someone'} invited you to {inv.ideaId ? 'collaborate' : 'join Idea-CRM'}
                     </h3>
                     <p className="text-sm text-gray-500">
-                      Project: <span className="font-bold text-indigo-600">{idea?.title || 'Unknown Idea'}</span>
+                      {inv.ideaId ? (
+                        <>Project: <span className="font-bold" style={{ color: 'var(--primary)' }}>{idea?.title || 'Loading...'}</span></>
+                      ) : (
+                        <span className="italic">General CRM Access</span>
+                      )}
                     </p>
                     <span className="text-[10px] text-gray-400 uppercase font-bold tracking-widest">
                       Sent {format(new Date(inv.createdAt), 'MMM d, yyyy')}
@@ -63,7 +73,8 @@ const Invitations: React.FC = () => {
                   </button>
                   <button
                     onClick={() => handleInvitation(inv.id, true)}
-                    className="flex-1 md:flex-none px-6 py-2.5 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-100 flex items-center justify-center gap-2"
+                    className="flex-1 md:flex-none px-6 py-2.5 text-white rounded-xl font-bold transition-all shadow-lg flex items-center justify-center gap-2"
+                    style={{ backgroundColor: 'var(--primary)', boxShadow: '0 10px 15px -3px var(--primary-shadow)' }}
                   >
                     <Check className="w-4 h-4" />
                     Accept Access
@@ -86,7 +97,7 @@ const Invitations: React.FC = () => {
               {data.invitations.filter(i => i.senderId === data.currentUser?.id && i.status === 'Pending').map(inv => (
                 <div key={inv.id} className="flex items-center justify-between text-sm bg-white p-3 rounded-lg border border-gray-100">
                   <span className="font-medium text-gray-700">{inv.email}</span>
-                  <span className="text-[10px] font-bold text-indigo-500 bg-indigo-50 px-2 py-0.5 rounded">Sent {format(new Date(inv.createdAt), 'MMM d')}</span>
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded" style={{ color: 'var(--primary)', backgroundColor: 'var(--primary-shadow)' }}>Sent {format(new Date(inv.createdAt), 'MMM d')}</span>
                 </div>
               ))}
             </div>

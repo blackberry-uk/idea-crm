@@ -195,6 +195,35 @@ const AuthPage: React.FC = () => {
 import Toast from './components/Toast';
 import ConfirmDialog from './components/ConfirmDialog';
 
+import { getTheme } from './lib/themes';
+
+const ThemeWrapper: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { data } = useStore();
+  const theme = getTheme(data.currentUser?.theme, data.currentUser?.customTheme);
+
+  const style = {
+    '--primary': theme.primary,
+    '--primary-shadow': theme.primary + '33', // ~20% opacity hex
+    '--secondary': theme.secondary,
+    '--follow-up': theme.followUp,
+    '--follow-up-border': theme.followUpBorder,
+    '--note-bg': theme.noteBg,
+    '--note-border': theme.noteBorder,
+    '--accent': theme.accent,
+    '--text-title': theme.textTitle,
+    '--text-body': theme.textBody,
+    '--text-main': theme.textMain,
+    '--border': theme.border,
+    '--ui-bg': theme.uiBg,
+  } as React.CSSProperties;
+
+  return (
+    <div style={style} className="min-h-screen bg-[var(--ui-bg)] transition-colors duration-500">
+      {children}
+    </div>
+  );
+};
+
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { data, isHydrated } = useStore();
   const token = apiClient.getToken();
@@ -213,11 +242,13 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
   }
 
   return (
-    <Layout>
-      {children}
-      <Toast />
-      <ConfirmDialog />
-    </Layout>
+    <ThemeWrapper>
+      <Layout>
+        {children}
+        <Toast />
+        <ConfirmDialog />
+      </Layout>
+    </ThemeWrapper>
   );
 };
 

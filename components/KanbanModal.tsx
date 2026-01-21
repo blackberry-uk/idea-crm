@@ -136,8 +136,11 @@ const KanbanModal: React.FC<KanbanModalProps> = ({ isOpen, onClose, idea, users,
                 {/* Header */}
                 <div className="flex items-center justify-between px-8 py-6 bg-white border-b border-gray-100 shadow-sm z-10">
                     <div className="flex items-center gap-4">
-                        <div className="w-12 h-12 bg-indigo-50 rounded-2xl flex items-center justify-center">
-                            <Layout className="w-6 h-6 text-indigo-600" />
+                        <div
+                            className="w-12 h-12 rounded-2xl flex items-center justify-center"
+                            style={{ backgroundColor: 'var(--primary-shadow)', color: 'var(--primary)' }}
+                        >
+                            <Layout className="w-6 h-6" />
                         </div>
                         <div>
                             <h2 className="text-xl font-black text-gray-900 tracking-tight flex items-center gap-3">
@@ -172,7 +175,10 @@ const KanbanModal: React.FC<KanbanModalProps> = ({ isOpen, onClose, idea, users,
                                         {getTodosByStatus(status).length}
                                     </span>
                                 </div>
-                                <button className="p-1 px-2 text-[10px] font-bold text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors">
+                                <button
+                                    className="p-1 px-2 text-[10px] font-bold hover:bg-[var(--primary)]/10 rounded-lg transition-colors"
+                                    style={{ color: 'var(--primary)' }}
+                                >
                                     <Plus className="w-3.5 h-3.5" />
                                 </button>
                             </div>
@@ -188,7 +194,7 @@ const KanbanModal: React.FC<KanbanModalProps> = ({ isOpen, onClose, idea, users,
                                             key={todo.id}
                                             draggable
                                             onDragStart={(e) => handleDragStart(e, todo.id)}
-                                            className={`group bg-white rounded-2xl border border-white shadow-sm hover:shadow-md hover:border-indigo-100 cursor-grab active:cursor-grabbing transition-all ${draggedTodoId === todo.id ? 'opacity-30 scale-95' : 'animate-in fade-in slide-in-from-bottom-2'} ${isExpanded ? 'ring-2 ring-indigo-500' : ''}`}
+                                            className={`group bg-white rounded-2xl border border-white shadow-sm hover:shadow-md hover:border-[var(--primary)]/40 cursor-grab active:cursor-grabbing transition-all ${draggedTodoId === todo.id ? 'opacity-30 scale-95' : 'animate-in fade-in slide-in-from-bottom-2'} ${isExpanded ? 'ring-2 ring-[var(--primary)]' : ''}`}
                                         >
                                             <div className="p-5" onClick={() => {
                                                 if (!isExpanded) {
@@ -199,7 +205,7 @@ const KanbanModal: React.FC<KanbanModalProps> = ({ isOpen, onClose, idea, users,
                                                 <div className="flex items-start gap-4">
                                                     <button
                                                         onClick={(e) => { e.stopPropagation(); toggleTodoDone(todo.id); }}
-                                                        className={`mt-0.5 shrink-0 transition-colors ${todo.completed ? 'text-green-500' : todo.isUrgent ? 'text-red-500' : 'text-gray-200 hover:text-indigo-400'}`}
+                                                        className={`mt-0.5 shrink-0 transition-colors ${todo.completed ? 'text-green-500' : todo.isUrgent ? 'text-red-500' : 'text-gray-200 hover:text-[var(--primary)]'}`}
                                                     >
                                                         {todo.completed ? <CheckCircle2 className="w-5 h-5" /> : todo.isUrgent ? <AlertCircle className="w-5 h-5" /> : <Circle className="w-5 h-5" />}
                                                     </button>
@@ -228,7 +234,8 @@ const KanbanModal: React.FC<KanbanModalProps> = ({ isOpen, onClose, idea, users,
                                                                     <label className="text-[9px] font-black uppercase tracking-widest text-gray-400">Due Date</label>
                                                                     <input
                                                                         type="date"
-                                                                        className="w-full text-xs bg-gray-50 border border-gray-100 rounded-lg px-2 py-1.5 outline-none focus:ring-2 focus:ring-indigo-500"
+                                                                        className="w-full text-xs bg-gray-50 border border-gray-100 rounded-lg px-2 py-1.5 outline-none focus:ring-2"
+                                                                        style={{ ringColor: 'var(--primary)' }}
                                                                         value={todo.dueDate || ''}
                                                                         onChange={(e) => updateDueDate(todo.id, e.target.value)}
                                                                     />
@@ -239,7 +246,8 @@ const KanbanModal: React.FC<KanbanModalProps> = ({ isOpen, onClose, idea, users,
                                                                         Internal Comments
                                                                     </label>
                                                                     <textarea
-                                                                        className="w-full text-xs bg-gray-50 border border-gray-100 rounded-xl px-3 py-2 outline-none focus:ring-2 focus:ring-indigo-500 min-h-[80px] font-normal leading-relaxed"
+                                                                        className="w-full text-xs bg-gray-50 border border-gray-100 rounded-xl px-3 py-2 outline-none focus:ring-2 min-h-[80px] font-normal leading-relaxed"
+                                                                        style={{ ringColor: 'var(--primary)' }}
                                                                         placeholder="Add more details, links, or context..."
                                                                         value={editingComments[todo.id] || ''}
                                                                         onChange={(e) => setEditingComments(prev => ({ ...prev, [todo.id]: e.target.value }))}
@@ -248,7 +256,8 @@ const KanbanModal: React.FC<KanbanModalProps> = ({ isOpen, onClose, idea, users,
                                                                 <div className="flex items-center gap-2 pt-2">
                                                                     <button
                                                                         onClick={() => saveComments(todo.id)}
-                                                                        className="flex-[2] bg-indigo-600 text-white text-[10px] font-black uppercase tracking-widest py-2 rounded-xl shadow-md shadow-indigo-100 hover:bg-indigo-700 transition-all active:scale-95 flex items-center justify-center gap-2"
+                                                                        className="flex-[2] text-white text-[10px] font-black uppercase tracking-widest py-2 rounded-xl shadow-md transition-all active:scale-95 flex items-center justify-center gap-2"
+                                                                        style={{ backgroundColor: 'var(--primary)', boxShadow: '0 4px 6px -1px var(--primary-shadow)' }}
                                                                     >
                                                                         <Save className="w-3.5 h-3.5" /> Save Details
                                                                     </button>
@@ -297,7 +306,10 @@ const KanbanModal: React.FC<KanbanModalProps> = ({ isOpen, onClose, idea, users,
 
                                                         {sourceRef && !isExpanded && (
                                                             <div className="mt-4 pt-3 border-t border-gray-100 flex items-center justify-between">
-                                                                <span className="flex items-center gap-1.5 text-[8px] font-black uppercase tracking-[0.1em] text-indigo-400">
+                                                                <span
+                                                                    className="flex items-center gap-1.5 text-[8px] font-black uppercase tracking-[0.1em]"
+                                                                    style={{ color: 'var(--primary)' }}
+                                                                >
                                                                     <ClipboardList className="w-3 h-3" />
                                                                     Source: {sourceRef}
                                                                 </span>

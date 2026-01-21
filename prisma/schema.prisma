@@ -17,6 +17,10 @@ model User {
   googleId         String?  @unique
   personalEntities Json?
   ideaConfigs      Json?
+  noteCategories   Json?
+  theme            String?   @default("default")
+  customTheme      Json?
+  themeAdjustments Json?
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
@@ -27,6 +31,7 @@ model User {
   invitationsSent    Invitation[]  @relation("InvitationsSent")
   notesCreated       Note[]        @relation("NotesCreated")
   taggedInNotes      Note[]        @relation("TaggedUsers")
+  comments           Comment[]
 }
 
 model Idea {
@@ -107,22 +112,40 @@ model Note {
   author      User    @relation("NotesCreated", fields: [createdById], references: [id])
 
   ideaId      String?
-  idea        Idea?    @relation(fields: [ideaId], references: [id])
+  idea        Idea?    @relation(fields: [ideaId], references: [id], onDelete: Cascade)
 
   contactId   String?
-  contact     Contact? @relation("NoteToContact", fields: [contactId], references: [id])
+  contact     Contact? @relation("NoteToContact", fields: [contactId], references: [id], onDelete: Cascade)
 
   taggedContacts Contact[] @relation("TaggedContacts")
   taggedUsers    User[]    @relation("TaggedUsers")
   imageUrl    String?
   intent      String?
+  comments    Comment[]
+}
+
+model Comment {
+  id        String   @id @default(cuid())
+  body      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  authorId  String
+  author    User     @relation(fields: [authorId], references: [id])
+
+  noteId    String
+  note      Note     @relation(fields: [noteId], references: [id], onDelete: Cascade)
 }
 
 model Interaction {
   id        String    @id @default(cuid())
   type      String?
-  content   String?
   date      DateTime?
+  outcome   String?
+  nextAction String?
+  nextActionDate DateTime?
+  relatedIdeaId String?
+  relatedContactId String?
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
 
@@ -143,4 +166,5 @@ model Invitation {
 
   ideaId String?
   idea   Idea?   @relation(fields: [ideaId], references: [id])
+  message String?
 }
