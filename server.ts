@@ -7,11 +7,44 @@ import 'dotenv/config';
 import { sendInvitationEmail, sendTaskAssignmentEmail, sendNoteMentionEmail, sendInvitationAcceptedEmail } from './lib/email.js';
 import prisma from './lib/prisma.js';
 import { OAuth2Client } from 'google-auth-library';
+import { GoogleGenerativeAI } from '@google/generative-ai';
+
+const genAI = process.env.GEMINI_API_KEY ? new GoogleGenerativeAI(process.env.GEMINI_API_KEY) : null;
 
 const app = express();
 const JWT_SECRET = process.env.JWT_SECRET || 'ideacrm-dev-secret';
-const GOOGLE_CLIENT_ID = process.env.VITE_GOOGLE_CLIENT_ID;
+const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || process.env.VITE_GOOGLE_CLIENT_ID;
 const googleClient = new OAuth2Client(GOOGLE_CLIENT_ID);
+
+const stripHtml = (html: string) => {
+  if (!html) return '';
+  let text = html.replace(/<[^>]*>?/gm, ' '); // Strip tags
+  text = text.replace(/&nbsp;/g, ' ');
+  text = text.replace(/&gt;/g, '>');
+  text = text.replace(/&lt;/g, '<');
+  text = text.replace(/&quot;/g, '"');
+  text = text.replace(/&amp;/g, '&');
+  return text.replace(/\s+/g, ' ').trim(); // Collapse whitespace
+};
+
+const getCleanExcerpt = (content: string, maxLength = 150) => {
+  if (!content) return '';
+
+  // Handle Call Minute JSON
+  if (content.startsWith('{') && content.includes('"template"')) {
+    try {
+      const data = JSON.parse(content);
+      if (data.template === 'call-minute' && data.segments) {
+        const topics = data.segments.map((s: any) => s.topic).filter(Boolean).join(', ');
+        return `[Call Minute] ${topics}`;
+      }
+    } catch (e) { }
+  }
+
+  const clean = stripHtml(content);
+  if (clean.length <= maxLength) return clean;
+  return clean.substring(0, maxLength - 3) + '...';
+};
 
 // @ts-ignore - Argument of type 'NextHandleFunction' mismatch with Express middleware signature in certain type environments
 app.use(cors());
@@ -152,8 +185,12 @@ app.get('/api/data', authenticate, async (req: any, res) => {
             { idea: { OR: [{ ownerId: userId }, { collaborators: { some: { id: userId } } }] } },
             { taggedUsers: { some: { id: userId } } }
           ]
-        },
-        include: { taggedContacts: true, taggedUsers: true }
+        } as any,
+        include: {
+          taggedContacts: true,
+          taggedUsers: true,
+          comments: { include: { author: true } }
+        } as any
       }),
       prisma.interaction.findMany({ where: { createdById: userId } }),
       prisma.invitation.findMany({
@@ -181,8 +218,15 @@ app.get('/api/data', authenticate, async (req: any, res) => {
       ...note,
       body: note.content || '', // Map 'content' from schema to 'body' for frontend
       categories: JSON.parse(note.categories || '[]'),
-      taggedContactIds: note.taggedContacts.map(c => c.id),
-      taggedUserIds: note.taggedUsers.map(u => u.id),
+      taggedContactIds: (note as any).taggedContacts.map((c: any) => c.id),
+      taggedUserIds: (note as any).taggedUsers.map((u: any) => u.id),
+      comments: ((note as any).comments || []).map((c: any) => ({
+        id: c.id,
+        body: c.body,
+        createdAt: c.createdAt.toISOString(),
+        authorId: c.authorId,
+        authorName: c.author?.name || 'Unknown'
+      }))
     }));
 
     // Extract all unique users from ideas
@@ -192,7 +236,14 @@ app.get('/api/data', authenticate, async (req: any, res) => {
         .map(u => [u.id, u])
     ).values());
 
-    res.json({ ideas, contacts, notes, interactions, invitations, users });
+    // Map interactions to handle nulls
+    const formattedInteractions = ((interactions as any[]) || []).map(int => ({
+      ...int,
+      date: int.date?.toISOString(),
+      nextActionDate: int.nextActionDate?.toISOString(),
+    }));
+
+    res.json({ ideas, contacts, notes, interactions: formattedInteractions, invitations, users });
   } catch (err) {
     console.error('Data fetch error:', err);
     res.status(500).json({ error: 'Failed to fetch workspace data' });
@@ -311,6 +362,73 @@ app.post('/api/ideas/:id/leave', authenticate, async (req: any, res) => {
   }
 });
 
+app.post('/api/ideas/:id/counsel', authenticate, async (req: any, res) => {
+  try {
+    const { id } = req.params;
+    const idea = await prisma.idea.findUnique({
+      where: { id },
+      include: { owner: true }
+    });
+
+    if (!idea) return res.status(404).json({ error: 'Idea not found' });
+
+    // Fetch all context: notes, comments, todos
+    const [notes, rawIdea] = await Promise.all([
+      prisma.note.findMany({
+        where: { ideaId: id },
+        include: { comments: true }
+      }),
+      prisma.idea.findUnique({ where: { id } })
+    ]);
+
+    const todos = JSON.parse(rawIdea?.todos || '[]');
+    const contextLines: string[] = [];
+
+    contextLines.push(`Idea Title: ${idea.title}`);
+    contextLines.push(`Status: ${idea.status}`);
+    contextLines.push(`Type: ${idea.type}`);
+
+    contextLines.push('\n--- TODOS ---');
+    todos.forEach((t: any) => {
+      contextLines.push(`[${t.status || (t.completed ? 'Done' : 'Pending')}] ${t.text} (Urgent: ${t.isUrgent})`);
+    });
+
+    contextLines.push('\n--- NOTES & FEEDBACK ---');
+    notes.forEach(n => {
+      const cleanBody = stripHtml(n.content || '');
+      contextLines.push(`- ${cleanBody} (Intent: ${n.intent || 'Info'})`);
+      n.comments.forEach(c => {
+        contextLines.push(`  - Comment: ${c.body}`);
+      });
+    });
+
+    if (!genAI) {
+      return res.json({ advice: "I noticed you haven't configured a GEMINI_API_KEY in your .env file yet. Once provided, I'll be able to analyze your " + notes.length + " notes and " + todos.length + " tasks to give you precise guidance!" });
+    }
+
+    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+    const prompt = `You are an expert business counselor and strategist. 
+Review the following innovation project data and provide the SINGLE BEST NEXT STEP the user should take.
+Be concise (max 3-4 sentences). Use a professional, encouraging, and highly strategic tone.
+If there are many pending todos, identify the most critical one. 
+If notes suggest a pivot or a specific blocker, address it.
+
+DATA:
+${contextLines.join('\n')}
+
+BEST NEXT STEP:`;
+
+    const result = await model.generateContent(prompt);
+    const response = await result.response;
+    const text = response.text();
+
+    res.json({ advice: text });
+  } catch (err: any) {
+    console.error('Counseling error:', err);
+    res.status(500).json({ error: 'Failed to generate AI advice', details: err.message });
+  }
+});
+
 // --- CONTACTS ---
 app.post('/api/contacts', authenticate, async (req: any, res) => {
   try {
@@ -323,9 +441,12 @@ app.post('/api/contacts', authenticate, async (req: any, res) => {
 
     console.log(`Creating contact for user ${req.userId}`);
 
+    const fullName = `${contactData.firstName || ''} ${contactData.lastName || ''}`.trim();
+
     const contact = await prisma.contact.create({
       data: {
         ...contactData,
+        fullName: fullName || contactData.fullName,
         notes: req.body.notes,
         linkedIdeaIds: linkedIdeaIds ? (Array.isArray(linkedIdeaIds) ? JSON.stringify(linkedIdeaIds) : linkedIdeaIds) : '[]',
         ownerId: req.userId
@@ -352,14 +473,39 @@ app.put('/api/contacts/:id', authenticate, async (req: any, res) => {
     if (req.body.notes !== undefined) data.notes = req.body.notes;
     if (linkedIdeaIds !== undefined) data.linkedIdeaIds = Array.isArray(linkedIdeaIds) ? JSON.stringify(linkedIdeaIds) : linkedIdeaIds;
 
+    const fullName = updates.firstName !== undefined || updates.lastName !== undefined
+      ? `${updates.firstName ?? existing.firstName ?? ''} ${updates.lastName ?? existing.lastName ?? ''}`.trim()
+      : undefined;
+
     const contact = await prisma.contact.update({
       where: { id: req.params.id },
-      data
+      data: {
+        ...data,
+        ...(fullName !== undefined ? { fullName } : {})
+      }
     });
     res.json(contact);
   } catch (err: any) {
     console.error('Update contact error:', err);
     res.status(500).json({ error: 'Failed to update contact', details: err.message });
+  }
+});
+
+app.delete('/api/contacts/:id', authenticate, async (req: any, res) => {
+  try {
+    const contact = await prisma.contact.findUnique({ where: { id: req.params.id } });
+    if (!contact) return res.status(404).json({ error: 'Contact not found' });
+
+    // Ownership check
+    if ((contact as any).ownerId && (contact as any).ownerId !== req.userId) {
+      return res.status(403).json({ error: 'Unauthorized to delete this contact' });
+    }
+
+    await prisma.contact.delete({ where: { id: req.params.id } });
+    res.json({ success: true });
+  } catch (err: any) {
+    console.error('Delete contact error:', err);
+    res.status(500).json({ error: 'Failed to delete contact', details: err.message });
   }
 });
 
@@ -400,7 +546,7 @@ app.post('/api/notes', authenticate, async (req: any, res) => {
     if (taggedUserIds && Array.isArray(taggedUserIds) && taggedUserIds.length > 0) {
       const idea = ideaId ? await prisma.idea.findUnique({ where: { id: ideaId } }) : null;
       const mentionersName = user?.name || 'A teammate';
-      const excerpt = body ? (body.length > 100 ? body.substring(0, 97) + '...' : body) : 'a new note';
+      const excerpt = getCleanExcerpt(body || 'a new note');
 
       taggedUserIds.forEach(async (uId: string) => {
         try {
@@ -467,7 +613,7 @@ app.put('/api/notes/:id', authenticate, async (req: any, res) => {
     if (newUserIds.length > 0) {
       const user = await prisma.user.findUnique({ where: { id: req.userId } });
       const mentionersName = user?.name || 'A teammate';
-      const excerpt = body ? (body.length > 100 ? body.substring(0, 97) + '...' : body) : (note.content || 'a note update');
+      const excerpt = getCleanExcerpt(body || note.content || 'a note update');
 
       newUserIds.forEach(async (uId: string) => {
         try {
@@ -489,6 +635,67 @@ app.put('/api/notes/:id', authenticate, async (req: any, res) => {
   }
 
   res.json(note);
+});
+
+app.delete('/api/comments/:id', authenticate, async (req: any, res) => {
+  try {
+    const comment = await (prisma as any).comment.findUnique({
+      where: { id: req.params.id },
+      include: { note: true }
+    });
+
+    if (!comment) return res.status(404).json({ error: 'Comment not found' });
+
+    // Ownership check: comment author, OR note author, OR idea owner, OR contact owner
+    const isAuthor = comment.authorId === req.userId;
+    const isNoteAuthor = comment.note.createdById === req.userId;
+    let isIdeaOwner = false;
+    let isContactOwner = false;
+
+    if (!isAuthor && !isNoteAuthor) {
+      if (comment.note.ideaId) {
+        const idea = await prisma.idea.findUnique({ where: { id: comment.note.ideaId } });
+        isIdeaOwner = idea?.ownerId === req.userId;
+      }
+      if (comment.note.contactId) {
+        const contact = await prisma.contact.findUnique({ where: { id: comment.note.contactId } });
+        isContactOwner = (contact as any)?.ownerId === req.userId;
+      }
+    }
+
+    if (!isAuthor && !isNoteAuthor && !isIdeaOwner && !isContactOwner) {
+      return res.status(403).json({ error: 'Unauthorized to delete this comment' });
+    }
+
+    await (prisma as any).comment.delete({ where: { id: req.params.id } });
+    res.json({ success: true });
+  } catch (err: any) {
+    console.error('Comment deletion error:', err);
+    res.status(500).json({ error: 'Failed to delete comment', details: err.message });
+  }
+});
+
+app.post('/api/notes/:id/comments', authenticate, async (req: any, res) => {
+  try {
+    const { body } = req.body;
+    if (!body) return res.status(400).json({ error: 'Comment body is required' });
+
+    const comment = await (prisma as any).comment.create({
+      data: {
+        body,
+        noteId: req.params.id,
+        authorId: req.userId
+      },
+      include: {
+        author: true
+      }
+    });
+
+    res.json(comment);
+  } catch (err: any) {
+    console.error('Comment creation error:', err);
+    res.status(500).json({ error: 'Failed to create comment', details: err.message });
+  }
 });
 
 app.delete('/api/notes/:id', authenticate, async (req: any, res) => {
@@ -520,10 +727,16 @@ app.delete('/api/notes/:id', authenticate, async (req: any, res) => {
     }
 
     await prisma.note.delete({ where: { id: req.params.id } });
+    console.log(`Successfully deleted note ${req.params.id}`);
     res.json({ success: true });
   } catch (err: any) {
-    console.error('Delete note error:', err);
-    res.status(500).json({ error: 'Failed to delete note', details: err.message });
+    console.error('CRITICAL: Delete note error:', err);
+    res.status(500).json({
+      error: 'Failed to delete note',
+      details: err.message,
+      code: err.code,
+      meta: err.meta
+    });
   }
 });
 
@@ -546,12 +759,13 @@ app.put('/api/interactions/:id', authenticate, async (req: any, res) => {
 // --- INVITATIONS ---
 app.post('/api/invitations', authenticate, async (req: any, res) => {
   try {
-    const { email, ideaId, type } = req.body;
+    const { email, ideaId, type, message } = req.body;
     const inv = await prisma.invitation.create({
       data: {
         email: email.toLowerCase().trim(),
         ideaId: ideaId || null,
         type,
+        message: message || null,
         senderId: req.userId,
         status: 'Pending'
       }
@@ -561,9 +775,8 @@ app.post('/api/invitations', authenticate, async (req: any, res) => {
     const sender = await prisma.user.findUnique({ where: { id: req.userId } });
     const idea = ideaId ? await prisma.idea.findUnique({ where: { id: ideaId } }) : null;
 
-    if (sender && idea) {
-      sendInvitationEmail(inv.email, idea.title, sender.name || 'A partner', inv.id)
-        .catch(err => console.error('Failed to send invitation email:', err));
+    if (sender) {
+      await sendInvitationEmail(inv.email, idea ? idea.title : null, sender.name || 'A partner', inv.id, message);
     }
 
     res.json(inv);
@@ -668,12 +881,16 @@ app.delete('/api/ideas/:ideaId/collaborators/:userId', authenticate, async (req:
 app.put('/api/users/:id', authenticate, async (req: any, res) => {
   if (req.params.id !== req.userId) return res.status(403).json({ error: 'Forbidden' });
 
-  const { personalEntities, ideaConfigs, name } = req.body;
+  const { personalEntities, ideaConfigs, noteCategories, name, theme, customTheme, themeAdjustments } = req.body;
 
   const updateData: any = {};
   if (personalEntities) updateData.personalEntities = personalEntities;
   if (ideaConfigs) updateData.ideaConfigs = ideaConfigs;
+  if (noteCategories) updateData.noteCategories = noteCategories;
   if (name) updateData.name = name;
+  if (theme) updateData.theme = theme;
+  if (customTheme !== undefined) updateData.customTheme = customTheme;
+  if (themeAdjustments !== undefined) updateData.themeAdjustments = themeAdjustments;
 
   const user = await prisma.user.update({
     where: { id: req.userId },
