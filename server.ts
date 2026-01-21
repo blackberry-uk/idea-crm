@@ -68,6 +68,26 @@ app.get("/api/debug/config", (_req, res) => {
   });
 });
 
+// Test endpoint to check database connectivity
+app.get("/api/debug/db-test", async (_req, res) => {
+  try {
+    const userCount = await prisma.user.count();
+    res.json({
+      success: true,
+      userCount,
+      message: 'Database connection successful'
+    });
+  } catch (err) {
+    res.status(500).json({
+      success: false,
+      error: err.message,
+      code: err.code,
+      name: err.name
+    });
+  }
+});
+
+
 
 
 // Auth Middleware
