@@ -248,8 +248,8 @@ app.get('/api/data', authenticate, async (req: any, res) => {
       } as any,
       include: {
         taggedContacts: true,
-        taggedUsers: true,
-        comments: { include: { author: true } }
+        taggedUsers: true
+        // Temporarily removed: comments: { include: { author: true } }
       } as any
     });
     console.log('[API /data] Notes fetched:', rawNotes.length);
@@ -286,13 +286,7 @@ app.get('/api/data', authenticate, async (req: any, res) => {
       categories: JSON.parse(note.categories || '[]'),
       taggedContactIds: (note as any).taggedContacts.map((c: any) => c.id),
       taggedUserIds: (note as any).taggedUsers.map((u: any) => u.id),
-      comments: ((note as any).comments || []).map((c: any) => ({
-        id: c.id,
-        body: c.body,
-        createdAt: c.createdAt.toISOString(),
-        authorId: c.authorId,
-        authorName: c.author?.name || 'Unknown'
-      }))
+      comments: [] // Temporarily empty until Comment table is fixed in production
     }));
 
     // Extract all unique users from ideas
