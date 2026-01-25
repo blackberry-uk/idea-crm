@@ -39,6 +39,47 @@ const NoteComposer: React.FC<NoteComposerProps> = ({ onComplete, defaultIdeaId, 
   const [isDragging, setIsDragging] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const draftKey = useMemo(() => {
+    if (editingNote) return null;
+    if (defaultIdeaId) return `draft_note_idea_${defaultIdeaId}`;
+    if (defaultContactId) return `draft_note_contact_${defaultContactId}`;
+    return 'draft_note_global';
+  }, [defaultIdeaId, defaultContactId, editingNote]);
+
+  // Load draft on mount
+  useEffect(() => {
+    if (!draftKey || editingNote) return;
+    const saved = localStorage.getItem(draftKey);
+    if (saved) {
+      try {
+        const { body: savedBody, categories, intent } = JSON.parse(saved);
+        if (savedBody && !body) {
+          setBody(savedBody);
+          if (editorRef.current) editorRef.current.innerHTML = savedBody;
+        }
+        if (categories && selectedCategories.length === 0) setSelectedCategories(categories);
+        if (intent) setSelectedIntent(intent);
+      } catch (e) {
+        console.error('Failed to parse draft', e);
+      }
+    }
+  }, [draftKey, editingNote]);
+
+  // Save draft on change
+  useEffect(() => {
+    if (!draftKey || isSaving) return;
+    const isActuallyEmpty = !body || body.trim() === '' || body === '<br>' || body === '<div><br></div>';
+    if (isActuallyEmpty) {
+      localStorage.removeItem(draftKey);
+    } else {
+      localStorage.setItem(draftKey, JSON.stringify({
+        body,
+        categories: selectedCategories,
+        intent: selectedIntent,
+        updatedAt: new Date().toISOString()
+      }));
+    }
+  }, [body, selectedCategories, selectedIntent, draftKey, isSaving]);
 
   // Mention system state
   const [mentionQuery, setMentionQuery] = useState('');
@@ -420,6 +461,7 @@ const NoteComposer: React.FC<NoteComposerProps> = ({ onComplete, defaultIdeaId, 
         setIsPinned(false);
         setSelectedImage(null);
         setActiveMenu(null);
+        if (draftKey) localStorage.removeItem(draftKey);
       }
 
       if (onComplete) onComplete();

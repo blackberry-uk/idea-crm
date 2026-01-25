@@ -13,7 +13,19 @@ const Dashboard: React.FC = () => {
   const { data } = useStore();
   const { search } = useLocation();
   const showTrainingParam = new URLSearchParams(search).get('training') === 'true';
-  const [quickNoteIdea, setQuickNoteIdea] = React.useState<{ id: string, title: string } | null>(null);
+  const [quickNoteIdea, setQuickNoteIdea] = React.useState<{ id: string, title: string } | null>(() => {
+    const saved = localStorage.getItem('active_quick_note_idea');
+    return saved ? JSON.parse(saved) : null;
+  });
+
+  const handleSetQuickNoteIdea = (idea: { id: string, title: string } | null) => {
+    setQuickNoteIdea(idea);
+    if (idea) {
+      localStorage.setItem('active_quick_note_idea', JSON.stringify(idea));
+    } else {
+      localStorage.removeItem('active_quick_note_idea');
+    }
+  };
 
   React.useEffect(() => {
     document.title = 'Dashboard | Idea-CRM';
@@ -146,7 +158,7 @@ const Dashboard: React.FC = () => {
                       <button
                         onClick={(e) => {
                           e.preventDefault();
-                          setQuickNoteIdea({ id: idea.id, title: idea.title });
+                          handleSetQuickNoteIdea({ id: idea.id, title: idea.title });
                         }}
                         className="p-2 rounded-lg bg-gray-50 text-gray-400 hover:bg-[var(--primary-shadow)] hover:text-[var(--primary)] transition-all border border-transparent hover:border-[var(--primary)]/10"
                         title="Quick Note"
@@ -206,7 +218,7 @@ const Dashboard: React.FC = () => {
       )}
       <QuickNoteModal
         isOpen={!!quickNoteIdea}
-        onClose={() => setQuickNoteIdea(null)}
+        onClose={() => handleSetQuickNoteIdea(null)}
         ideaId={quickNoteIdea?.id || ''}
         ideaTitle={quickNoteIdea?.title || ''}
       />

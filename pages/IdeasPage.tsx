@@ -12,7 +12,19 @@ const IdeasPage: React.FC = () => {
   const { data, myIdeas, deleteIdea, leaveIdea, confirm, showToast } = useStore();
   const [showAddForm, setShowAddForm] = useState(false);
   const [activeEntity, setActiveEntity] = useState('All');
-  const [quickNoteIdea, setQuickNoteIdea] = useState<{ id: string, title: string } | null>(null);
+  const [quickNoteIdea, setQuickNoteIdea] = useState<{ id: string, title: string } | null>(() => {
+    const saved = localStorage.getItem('active_quick_note_idea');
+    return saved ? JSON.parse(saved) : null;
+  });
+
+  const handleSetQuickNoteIdea = (idea: { id: string, title: string } | null) => {
+    setQuickNoteIdea(idea);
+    if (idea) {
+      localStorage.setItem('active_quick_note_idea', JSON.stringify(idea));
+    } else {
+      localStorage.removeItem('active_quick_note_idea');
+    }
+  };
 
   const [sortMode, setSortMode] = React.useState<'active' | 'recent'>(
     (localStorage.getItem('dashboard_sort_mode') as 'active' | 'recent') || 'active'
@@ -202,7 +214,7 @@ const IdeasPage: React.FC = () => {
                       <button
                         onClick={(e) => {
                           e.preventDefault();
-                          setQuickNoteIdea({ id: idea.id, title: idea.title });
+                          handleSetQuickNoteIdea({ id: idea.id, title: idea.title });
                         }}
                         className="p-2.5 rounded-xl bg-gray-50 text-gray-400 hover:bg-[var(--primary-shadow)] hover:text-[var(--primary)] transition-all shadow-sm border border-transparent hover:border-[var(--primary)]/20 active:scale-90"
                         title="Quick Note"
@@ -236,7 +248,7 @@ const IdeasPage: React.FC = () => {
 
       <QuickNoteModal
         isOpen={!!quickNoteIdea}
-        onClose={() => setQuickNoteIdea(null)}
+        onClose={() => handleSetQuickNoteIdea(null)}
         ideaId={quickNoteIdea?.id || ''}
         ideaTitle={quickNoteIdea?.title || ''}
       />
