@@ -58,36 +58,6 @@ app.get("/health", (_req, res) => {
   res.json({ ok: true });
 });
 
-// Debug endpoint to check environment configuration
-app.get("/api/debug/config", (_req, res) => {
-  res.json({
-    hasGoogleClientId: !!GOOGLE_CLIENT_ID,
-    googleClientIdPrefix: GOOGLE_CLIENT_ID ? GOOGLE_CLIENT_ID.substring(0, 20) + '...' : 'NOT SET',
-    hasJwtSecret: !!JWT_SECRET,
-    nodeEnv: process.env.NODE_ENV
-  });
-});
-
-// Test endpoint to check database connectivity
-app.get("/api/debug/db-test", async (_req, res) => {
-  try {
-    const userCount = await prisma.user.count();
-    res.json({
-      success: true,
-      userCount,
-      message: 'Database connection successful'
-    });
-  } catch (err) {
-    res.status(500).json({
-      success: false,
-      error: err.message,
-      code: err.code,
-      name: err.name
-    });
-  }
-});
-
-
 
 
 // Auth Middleware
@@ -248,15 +218,14 @@ app.get('/api/data', authenticate, async (req: any, res) => {
       } as any,
       include: {
         taggedContacts: true,
-        taggedUsers: true
-        // Temporarily removed: comments: { include: { author: true } }
+        taggedUsers: true,
+        comments: { include: { author: true } }
       } as any
     });
     console.log('[API /data] Notes fetched:', rawNotes.length);
 
     console.log('[API /data] Fetching interactions...');
-    // Temporarily disabled - Interaction table issue in production
-    const interactions = []; // await prisma.interaction.findMany({ where: { createdById: userId } });
+    const interactions = await prisma.interaction.findMany({ where: { createdById: userId } });
     console.log('[API /data] Interactions fetched:', interactions.length);
 
     console.log('[API /data] Fetching invitations...');
@@ -287,7 +256,10 @@ app.get('/api/data', authenticate, async (req: any, res) => {
       categories: JSON.parse(note.categories || '[]'),
       taggedContactIds: (note as any).taggedContacts.map((c: any) => c.id),
       taggedUserIds: (note as any).taggedUsers.map((u: any) => u.id),
-      comments: [] // Temporarily empty until Comment table is fixed in production
+      comments: (note as any).comments?.map((comment: any) => ({
+        ...comment,
+        author: comment.author
+      })) || []
     }));
 
     // Extract all unique users from ideas
@@ -435,6 +407,7 @@ app.post('/api/ideas/:id/leave', authenticate, async (req: any, res) => {
 app.post('/api/ideas/:id/counsel', authenticate, async (req: any, res) => {
   try {
     const { id } = req.params;
+    const { userQuery } = req.body;
     const idea = await prisma.idea.findUnique({
       where: { id },
       include: { owner: true }
@@ -457,6 +430,12 @@ app.post('/api/ideas/:id/counsel', authenticate, async (req: any, res) => {
     contextLines.push(`Idea Title: ${idea.title}`);
     contextLines.push(`Status: ${idea.status}`);
     contextLines.push(`Type: ${idea.type}`);
+    if (idea.oneLiner) contextLines.push(`Program Brief/Mission: ${idea.oneLiner}`);
+    if (idea.problem) contextLines.push(`Problem: ${idea.problem}`);
+    if (idea.solution) contextLines.push(`Solution: ${idea.solution}`);
+    if (idea.targetCustomer) contextLines.push(`Target Customer: ${idea.targetCustomer}`);
+    if (idea.businessModel) contextLines.push(`Business Model: ${idea.businessModel}`);
+    if (idea.risks) contextLines.push(`Risks: ${idea.risks}`);
 
     contextLines.push('\n--- TODOS ---');
     todos.forEach((t: any) => {
@@ -476,12 +455,14 @@ app.post('/api/ideas/:id/counsel', authenticate, async (req: any, res) => {
       return res.json({ advice: "I noticed you haven't configured a GEMINI_API_KEY in your .env file yet. Once provided, I'll be able to analyze your " + notes.length + " notes and " + todos.length + " tasks to give you precise guidance!" });
     }
 
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+    const model = genAI.getGenerativeModel({ model: "gemini-flash-latest" });
     const prompt = `You are an expert business counselor and strategist. 
 Review the following innovation project data and provide the SINGLE BEST NEXT STEP the user should take.
+${userQuery ? `\nUSER SPECIFIC FOCUS/QUESTION: "${userQuery}"\n` : ''}
 Be concise (max 3-4 sentences). Use a professional, encouraging, and highly strategic tone.
 If there are many pending todos, identify the most critical one. 
 If notes suggest a pivot or a specific blocker, address it.
+If the user provided a specific focus above, prioritize addressing that.
 
 DATA:
 ${contextLines.join('\n')}
@@ -511,7 +492,7 @@ app.post('/api/contacts', authenticate, async (req: any, res) => {
 
     console.log(`Creating contact for user ${req.userId}`);
 
-    const fullName = `${contactData.firstName || ''} ${contactData.lastName || ''}`.trim();
+    const fullName = `${contactData.firstName || ''} ${contactData.lastName || ''} `.trim();
 
     const contact = await prisma.contact.create({
       data: {
@@ -544,7 +525,7 @@ app.put('/api/contacts/:id', authenticate, async (req: any, res) => {
     if (linkedIdeaIds !== undefined) data.linkedIdeaIds = Array.isArray(linkedIdeaIds) ? JSON.stringify(linkedIdeaIds) : linkedIdeaIds;
 
     const fullName = updates.firstName !== undefined || updates.lastName !== undefined
-      ? `${updates.firstName ?? existing.firstName ?? ''} ${updates.lastName ?? existing.lastName ?? ''}`.trim()
+      ? `${updates.firstName ?? existing.firstName ?? ''} ${updates.lastName ?? existing.lastName ?? ''} `.trim()
       : undefined;
 
     const contact = await prisma.contact.update({
@@ -591,7 +572,7 @@ app.post('/api/notes', authenticate, async (req: any, res) => {
     const user = await prisma.user.findUnique({ where: { id: req.userId } });
 
     if (req.body.imageUrl) {
-      console.log(`Note creation with image. Length: ${req.body.imageUrl.length}`);
+      console.log(`Note creation with image.Length: ${req.body.imageUrl.length} `);
     }
 
     const note = await (prisma.note as any).create({
@@ -641,7 +622,7 @@ app.post('/api/notes', authenticate, async (req: any, res) => {
     console.error('Create note error details:', err);
     res.status(500).json({
       error: 'Failed to create note',
-      details: `${err.name}: ${err.message}${err.code ? ' (Code: ' + err.code + ')' : ''}`
+      details: `${err.name}: ${err.message}${err.code ? ' (Code: ' + err.code + ')' : ''} `
     });
   }
 });
@@ -773,7 +754,7 @@ app.delete('/api/notes/:id', authenticate, async (req: any, res) => {
     const note = await prisma.note.findUnique({ where: { id: req.params.id } });
     if (!note) return res.status(404).json({ error: 'Note not found' });
 
-    console.log(`Attempting to delete note ${req.params.id} by user ${req.userId}`);
+    console.log(`Attempting to delete note ${req.params.id} by user ${req.userId} `);
 
     // Ownership check: author, idea owner, OR contact owner
     const isAuthor = note.createdById === req.userId;
@@ -792,12 +773,12 @@ app.delete('/api/notes/:id', authenticate, async (req: any, res) => {
     }
 
     if (!isAuthor && !isIdeaOwner && !isContactOwner) {
-      console.warn(`Unauthorized delete attempt on note ${note.id} by user ${req.userId}`);
+      console.warn(`Unauthorized delete attempt on note ${note.id} by user ${req.userId} `);
       return res.status(403).json({ error: 'Unauthorized to delete this note' });
     }
 
     await prisma.note.delete({ where: { id: req.params.id } });
-    console.log(`Successfully deleted note ${req.params.id}`);
+    console.log(`Successfully deleted note ${req.params.id} `);
     res.json({ success: true });
   } catch (err: any) {
     console.error('CRITICAL: Delete note error:', err);
@@ -1001,7 +982,7 @@ app.get('/api/health', (req, res) => res.json({ status: 'ok', cloud: true }));
 
 const PORT = process.env.PORT || 3001;
 if (process.env.NODE_ENV !== 'production') {
-  app.listen(PORT, () => console.log(`Backend running on port ${PORT}`));
+  app.listen(PORT, () => console.log(`Backend running on port ${PORT} `));
 }
 
 export default app;

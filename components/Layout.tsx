@@ -14,7 +14,8 @@ import {
   Upload,
   Trash2,
   Settings as SettingsIcon,
-  Mail
+  Mail,
+  Brain
 } from 'lucide-react';
 import { useStore } from '../store/useStore.ts';
 import { getInitials, getAvatarColor } from '../lib/utils';
@@ -40,6 +41,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     { name: 'Ideas', path: '/ideas', icon: Lightbulb },
     { name: 'Contacts', path: '/contacts', icon: Users },
     { name: 'Invitations', path: '/invitations', icon: Mail, badge: pendingInvs },
+    { name: 'Training', path: '/?training=true', icon: Brain },
     { name: 'Settings', path: '/settings', icon: SettingsIcon },
   ];
 
@@ -58,7 +60,19 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 
         <nav className="flex-1 px-4 py-4 space-y-1">
           {navItems.map((item) => {
-            const isActive = location.pathname === item.path || (item.path !== '/' && location.pathname.startsWith(item.path));
+            const hasTrainingParam = new URLSearchParams(location.search).get('training') === 'true';
+            const isTrainingItem = item.name === 'Training';
+            const isDashboardItem = item.name === 'Dashboard';
+
+            let isActive = false;
+            if (isTrainingItem) {
+              isActive = hasTrainingParam;
+            } else if (isDashboardItem) {
+              isActive = location.pathname === '/' && !hasTrainingParam;
+            } else {
+              isActive = location.pathname.startsWith(item.path);
+            }
+
             return (
               <Link
                 key={item.name}

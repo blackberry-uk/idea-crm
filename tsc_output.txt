@@ -1,0 +1,27 @@
+components/CallMinuteModal.tsx(1,50): error TS2792: Cannot find module 'react'. Did you mean to set the 'moduleResolution' option to 'nodenext', or to add aliases to the 'paths' option?
+components/CallMinuteModal.tsx(2,216): error TS2792: Cannot find module 'lucide-react'. Did you mean to set the 'moduleResolution' option to 'nodenext', or to add aliases to the 'paths' option?
+components/CallMinuteModal.tsx(4,24): error TS2792: Cannot find module 'date-fns'. Did you mean to set the 'moduleResolution' option to 'nodenext', or to add aliases to the 'paths' option?
+components/CallMinuteModal.tsx(477,9): error TS2792: Cannot find module 'react/jsx-runtime'. Did you mean to set the 'moduleResolution' option to 'nodenext', or to add aliases to the 'paths' option?
+components/CallMinuteViewer.tsx(1,31): error TS2792: Cannot find module 'react'. Did you mean to set the 'moduleResolution' option to 'nodenext', or to add aliases to the 'paths' option?
+components/CallMinuteViewer.tsx(2,86): error TS2792: Cannot find module 'lucide-react'. Did you mean to set the 'moduleResolution' option to 'nodenext', or to add aliases to the 'paths' option?
+components/CallMinuteViewer.tsx(3,24): error TS2792: Cannot find module 'date-fns'. Did you mean to set the 'moduleResolution' option to 'nodenext', or to add aliases to the 'paths' option?
+components/CallMinuteViewer.tsx(44,9): error TS2792: Cannot find module 'react/jsx-runtime'. Did you mean to set the 'moduleResolution' option to 'nodenext', or to add aliases to the 'paths' option?
+components/KanbanModal.tsx(1,33): error TS2792: Cannot find module 'react'. Did you mean to set the 'moduleResolution' option to 'nodenext', or to add aliases to the 'paths' option?
+components/KanbanModal.tsx(2,170): error TS2792: Cannot find module 'lucide-react'. Did you mean to set the 'moduleResolution' option to 'nodenext', or to add aliases to the 'paths' option?
+components/KanbanModal.tsx(4,34): error TS2792: Cannot find module 'date-fns'. Did you mean to set the 'moduleResolution' option to 'nodenext', or to add aliases to the 'paths' option?
+components/KanbanModal.tsx(133,9): error TS2792: Cannot find module 'react/jsx-runtime'. Did you mean to set the 'moduleResolution' option to 'nodenext', or to add aliases to the 'paths' option?
+components/NoteComposer.tsx(1,61): error TS2792: Cannot find module 'react'. Did you mean to set the 'moduleResolution' option to 'nodenext', or to add aliases to the 'paths' option?
+components/NoteComposer.tsx(3,269): error TS2792: Cannot find module 'lucide-react'. Did you mean to set the 'moduleResolution' option to 'nodenext', or to add aliases to the 'paths' option?
+components/NoteComposer.tsx(5,24): error TS2792: Cannot find module 'date-fns'. Did you mean to set the 'moduleResolution' option to 'nodenext', or to add aliases to the 'paths' option?
+components/NoteComposer.tsx(439,5): error TS2792: Cannot find module 'react/jsx-runtime'. Did you mean to set the 'moduleResolution' option to 'nodenext', or to add aliases to the 'paths' option?
+components/NoteDetailModal.tsx(1,33): error TS2792: Cannot find module 'react'. Did you mean to set the 'moduleResolution' option to 'nodenext', or to add aliases to the 'paths' option?
+components/NoteDetailModal.tsx(2,83): error TS2792: Cannot find module 'lucide-react'. Did you mean to set the 'moduleResolution' option to 'nodenext', or to add aliases to the 'paths' option?
+components/NoteDetailModal.tsx(5,24): error TS2792: Cannot find module 'date-fns'. Did you mean to set the 'moduleResolution' option to 'nodenext', or to add aliases to the 'paths' option?
+components/NoteDetailModal.tsx(36,9): error TS2792: Cannot find module 'react/jsx-runtime'. Did you mean to set the 'moduleResolution' option to 'nodenext', or to add aliases to the 'paths' option?
+pages/IdeaDetail.tsx(2,42): error TS2792: Cannot find module 'react'. Did you mean to set the 'moduleResolution' option to 'nodenext', or to add aliases to the 'paths' option?
+pages/IdeaDetail.tsx(3,46): error TS2792: Cannot find module 'react-router-dom'. Did you mean to set the 'moduleResolution' option to 'nodenext', or to add aliases to the 'paths' option?
+pages/IdeaDetail.tsx(5,24): error TS2792: Cannot find module 'date-fns'. Did you mean to set the 'moduleResolution' option to 'nodenext', or to add aliases to the 'paths' option?
+pages/IdeaDetail.tsx(49,8): error TS2792: Cannot find module 'lucide-react'. Did you mean to set the 'moduleResolution' option to 'nodenext', or to add aliases to the 'paths' option?
+pages/IdeaDetail.tsx(76,12): error TS2792: Cannot find module 'react/jsx-runtime'. Did you mean to set the 'moduleResolution' option to 'nodenext', or to add aliases to the 'paths' option?
+store/useStore.ts(2,46): error TS2792: Cannot find module 'react'. Did you mean to set the 'moduleResolution' option to 'nodenext', or to add aliases to the 'paths' option?
+store/useStore.ts(3,103): error TS5097: An import path can only end with a '.ts' extension when 'allowImportingTsExtensions' is enabled.

@@ -4,7 +4,11 @@ import { useStore } from '../store/useStore';
 import { CheckCircle2, Circle, Lightbulb, MessageSquare, Users, ClipboardList, UserPlus, Clock, Brain } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
-const OnboardingGuide: React.FC = () => {
+interface OnboardingGuideProps {
+    hideIfCompleted?: boolean;
+}
+
+const OnboardingGuide: React.FC<OnboardingGuideProps> = ({ hideIfCompleted }) => {
     const { data } = useStore();
     const hasIdea = data.ideas.length > 0;
 
@@ -73,22 +77,11 @@ const OnboardingGuide: React.FC = () => {
     ];
 
     const completedCount = tasks.filter(t => t.completed).length;
+    const isCompleted = completedCount === tasks.length && tasks.length > 0;
     const progress = Math.round((completedCount / tasks.length) * 100);
 
-    if (completedCount === tasks.length && tasks.length > 0) {
-        return (
-            <div className="bg-gradient-to-r from-emerald-500 to-teal-500 rounded-[2.5rem] p-8 text-white shadow-xl shadow-emerald-500/20 animate-in fade-in zoom-in duration-700">
-                <div className="flex items-center gap-6">
-                    <div className="w-16 h-16 bg-white/20 backdrop-blur-md rounded-2xl flex items-center justify-center shrink-0">
-                        <CheckCircle2 className="w-10 h-10 text-white" />
-                    </div>
-                    <div>
-                        <h2 className="text-2xl font-black tracking-tight">You're all set!</h2>
-                        <p className="text-emerald-50 font-medium italic">You've mastered the core Idea-CRM workflow. Great job!</p>
-                    </div>
-                </div>
-            </div>
-        );
+    if (hideIfCompleted && isCompleted) {
+        return null;
     }
 
     return (

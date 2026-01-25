@@ -2,14 +2,18 @@
 import React from 'react';
 import { useStore } from '../store/useStore.ts';
 import { format } from 'date-fns';
-import { Link } from 'react-router-dom';
-import { ChevronRight, Calendar, Clock, MessageSquare, TrendingUp, Info, Database, Cloud, MapPin, AtSign, ExternalLink, ShieldCheck, RotateCcw, CheckCheck, Brain, Mountain } from 'lucide-react';
+import { Link, useLocation } from 'react-router-dom';
+import { ChevronRight, Calendar, Clock, MessageSquare, TrendingUp, Info, Database, Cloud, MapPin, AtSign, ExternalLink, ShieldCheck, RotateCcw, CheckCheck, Brain, Mountain, MessageSquarePlus } from 'lucide-react';
 import { Note } from '../types';
 import { getNoteExcerpt } from '../lib/utils';
 import OnboardingGuide from '../components/OnboardingGuide';
+import QuickNoteModal from '../components/QuickNoteModal';
 
 const Dashboard: React.FC = () => {
   const { data } = useStore();
+  const { search } = useLocation();
+  const showTrainingParam = new URLSearchParams(search).get('training') === 'true';
+  const [quickNoteIdea, setQuickNoteIdea] = React.useState<{ id: string, title: string } | null>(null);
 
   React.useEffect(() => {
     document.title = 'Dashboard | Idea-CRM';
@@ -23,18 +27,42 @@ const Dashboard: React.FC = () => {
     memoir: { icon: Mountain, label: 'Memoir', color: 'text-yellow-600' },
   };
 
-  const activeIdeas = (data.ideas || [])
+  const [sortMode, setSortMode] = React.useState<'active' | 'recent'>(
+    (localStorage.getItem('dashboard_sort_mode') as 'active' | 'recent') || 'active'
+  );
+
+  const handleSetSortMode = (mode: 'active' | 'recent') => {
+    setSortMode(mode);
+    localStorage.setItem('dashboard_sort_mode', mode);
+  };
+
+  const processedIdeas = (data.ideas || [])
     .map(idea => {
       const ideaNotes = (data.notes || []).filter(n => n.ideaId === idea.id);
       const pendingTodos = (idea.todos || []).filter(t => !t.completed);
+
+      const lastNoteDate = ideaNotes.length > 0
+        ? Math.max(...ideaNotes.map(n => new Date(n.createdAt).getTime()))
+        : 0;
+
+      const lastActivityDate = Math.max(new Date(idea.updatedAt).getTime(), lastNoteDate);
+
       return {
         ...idea,
         noteCount: ideaNotes.length,
         todoCount: pendingTodos.length,
-        activityScore: ideaNotes.length + pendingTodos.length
+        activityScore: ideaNotes.length + pendingTodos.length,
+        lastActivityDate
       };
+    });
+
+  const displayedIdeas = [...processedIdeas]
+    .sort((a, b) => {
+      if (sortMode === 'active') {
+        return b.activityScore - a.activityScore;
+      }
+      return b.lastActivityDate - a.lastActivityDate;
     })
-    .sort((a, b) => b.activityScore - a.activityScore)
     .slice(0, 5);
 
   const recentNotes = [...(data.notes || [])]
@@ -61,7 +89,7 @@ const Dashboard: React.FC = () => {
         </div>
       </div>
 
-      <OnboardingGuide />
+      <OnboardingGuide hideIfCompleted={!showTrainingParam} />
 
       {isEmpty ? (
         <div className="bg-white border-2 border-dashed border-gray-200 rounded-3xl p-12 text-center max-w-2xl mx-auto space-y-6">
@@ -81,19 +109,50 @@ const Dashboard: React.FC = () => {
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           <section className="bg-white rounded-2xl border p-6 shadow-sm space-y-4">
-            <div className="flex items-center justify-between">
-              <h2 className="font-bold text-lg text-gray-900">Most Active Ideas</h2>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex items-center gap-4">
+                <h2 className="font-bold text-lg text-gray-900 whitespace-nowrap">
+                  {sortMode === 'active' ? 'Most Active Ideas' : 'Recently Updated'}
+                </h2>
+                <div className="flex items-center gap-1 bg-gray-50 p-1 rounded-xl border border-gray-100 shadow-inner">
+                  <button
+                    onClick={() => handleSetSortMode('active')}
+                    className={`px-3 py-1 text-[9px] font-black uppercase tracking-wider rounded-lg transition-all ${sortMode === 'active' ? 'bg-white text-[var(--primary)] shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}
+                  >
+                    Active
+                  </button>
+                  <button
+                    onClick={() => handleSetSortMode('recent')}
+                    className={`px-3 py-1 text-[9px] font-black uppercase tracking-wider rounded-lg transition-all ${sortMode === 'recent' ? 'bg-white text-[var(--primary)] shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}
+                  >
+                    Recent
+                  </button>
+                </div>
+              </div>
               <Link to="/ideas" className="text-xs font-bold hover:underline" style={{ color: 'var(--primary)' }}>View Pipeline</Link>
             </div>
             <div className="space-y-3">
-              {activeIdeas.map(idea => (
+              {displayedIdeas.map(idea => (
                 <Link key={idea.id} to={`/ideas/${idea.id}`} className="block p-4 rounded-xl border border-gray-50 transition-all group" style={{ transitionColor: 'var(--primary)' }}>
                   <div className="flex justify-between items-center">
                     <div className="min-w-0 flex-1">
                       <p className="font-bold text-gray-900 group-hover:text-[var(--primary)] transition-colors truncate">{idea.title}</p>
-                      <p className="text-[10px] text-gray-400 uppercase font-bold">Updated {format(new Date(idea.updatedAt), 'EEE, MMM d')}</p>
+                      <p className="text-[10px] text-gray-400 uppercase font-bold">
+                        {sortMode === 'recent' ? 'Last activity ' : 'Updated '}
+                        {format(new Date(sortMode === 'recent' ? idea.lastActivityDate : idea.updatedAt), 'EEE, MMM d')}
+                      </p>
                     </div>
                     <div className="flex items-center gap-4 shrink-0 px-4">
+                      <button
+                        onClick={(e) => {
+                          e.preventDefault();
+                          setQuickNoteIdea({ id: idea.id, title: idea.title });
+                        }}
+                        className="p-2 rounded-lg bg-gray-50 text-gray-400 hover:bg-[var(--primary-shadow)] hover:text-[var(--primary)] transition-all border border-transparent hover:border-[var(--primary)]/10"
+                        title="Quick Note"
+                      >
+                        <MessageSquarePlus className="w-4 h-4" />
+                      </button>
                       <div className="flex flex-col items-center">
                         <span className="text-[10px] font-bold text-gray-400 uppercase">Notes</span>
                         <div className="flex items-center gap-1" style={{ color: 'var(--primary)' }}>
@@ -145,6 +204,12 @@ const Dashboard: React.FC = () => {
           </section>
         </div>
       )}
+      <QuickNoteModal
+        isOpen={!!quickNoteIdea}
+        onClose={() => setQuickNoteIdea(null)}
+        ideaId={quickNoteIdea?.id || ''}
+        ideaTitle={quickNoteIdea?.title || ''}
+      />
     </div>
   );
 };

@@ -6,11 +6,32 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>IdeaCRM Tracker</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['"IBM Plex Sans"', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:ital,wght@0,100..700;1,100..700&display=swap"
+        rel="stylesheet">
     <style>
+        :root {
+            --thread-font: 'IBM Plex Sans', sans-serif;
+        }
+
         body {
-            font-family: 'Inter', sans-serif;
+            font-family: 'IBM Plex Sans', sans-serif;
+            font-size: 17px;
             background-color: #F2F3F4;
+        }
+
+        .idea-thread {
+            font-family: var(--thread-font);
         }
 
         ::-webkit-scrollbar {
@@ -63,6 +84,49 @@
             visibility: visible;
             transform: translateX(-50%) translateY(0);
         }
+
+        /* Right-aligned variant for elements on the right edge */
+        .premium-tooltip-right::after {
+            left: auto !important;
+            right: 0 !important;
+            transform: translateY(5px) !important;
+        }
+
+        .premium-tooltip-right:hover::after {
+            transform: translateY(0) !important;
+        }
+
+        /* Left-aligned variant for elements on the left edge */
+        .premium-tooltip-left::after {
+            left: 0 !important;
+            transform: translateY(5px) !important;
+        }
+
+        .premium-tooltip-left:hover::after {
+            transform: translateY(0) !important;
+        }
+
+        .rich-text-content ul {
+            list-style-type: disc;
+            margin-left: 1.5rem;
+            margin-bottom: 1rem;
+        }
+
+        .rich-text-content li {
+            margin-bottom: 0.25rem;
+        }
+
+        .rich-text-content font[size="2"] {
+            font-size: 0.75rem;
+        }
+
+        .rich-text-content font[size="3"] {
+            font-size: 0.875rem;
+        }
+
+        .rich-text-content font[size="5"] {
+            font-size: 1.125rem;
+        }
     </style>
 
     <script type="importmap">
@@ -84,7 +148,7 @@
   }
 }
 </script>
-  <script type="module" crossorigin src="/assets/index-1c4H-OLB.js"></script>
+  <script type="module" crossorigin src="/assets/index-BwAIbrlk.js"></script>
 </head>
 
 <body>
