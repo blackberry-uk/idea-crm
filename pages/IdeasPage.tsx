@@ -2,19 +2,53 @@
 import React, { useState } from 'react';
 import { useStore } from '../store/useStore.ts';
 import { Link } from 'react-router-dom';
-import { Plus, Users, Trash2, LogOut, Lightbulb } from 'lucide-react';
+import { Plus, Users, Trash2, LogOut, Lightbulb, MessageSquarePlus, MessageSquare, ShieldCheck } from 'lucide-react';
 import IdeaModal from '../components/IdeaModal';
+import QuickNoteModal from '../components/QuickNoteModal';
 import { getInitials } from '../lib/utils';
+import { format } from 'date-fns';
 
 const IdeasPage: React.FC = () => {
   const { data, myIdeas, deleteIdea, leaveIdea, confirm, showToast } = useStore();
   const [showAddForm, setShowAddForm] = useState(false);
   const [activeEntity, setActiveEntity] = useState('All');
+  const [quickNoteIdea, setQuickNoteIdea] = useState<{ id: string, title: string } | null>(null);
+
+  const [sortMode, setSortMode] = React.useState<'active' | 'recent'>(
+    (localStorage.getItem('dashboard_sort_mode') as 'active' | 'recent') || 'active'
+  );
+
+  const handleSetSortMode = (mode: 'active' | 'recent') => {
+    setSortMode(mode);
+    localStorage.setItem('dashboard_sort_mode', mode);
+  };
+
+  const processedIdeas = myIdeas.map(idea => {
+    const ideaNotes = (data.notes || []).filter(n => n.ideaId === idea.id);
+    const pendingTodos = (idea.todos || []).filter(t => !t.completed);
+
+    const lastNoteDate = ideaNotes.length > 0
+      ? Math.max(...ideaNotes.map(n => new Date(n.createdAt).getTime()))
+      : 0;
+
+    const lastActivityDate = Math.max(new Date(idea.updatedAt).getTime(), lastNoteDate);
+
+    return {
+      ...idea,
+      noteCount: ideaNotes.length,
+      todoCount: pendingTodos.length,
+      activityScore: ideaNotes.length + pendingTodos.length,
+      lastActivityDate
+    };
+  });
 
   const entities = ['All', ...(data.currentUser?.personalEntities || [])];
-  const filteredIdeas = myIdeas.filter(idea =>
-    activeEntity === 'All' || idea.entity === activeEntity
-  );
+  const filteredIdeas = processedIdeas
+    .filter(idea => activeEntity === 'All' || idea.entity === activeEntity)
+    .sort((a, b) => {
+      if (sortMode === 'active') return b.activityScore - a.activityScore;
+      return b.lastActivityDate - a.lastActivityDate;
+    });
 
   React.useEffect(() => {
     document.title = 'Idea Pipeline | Idea-CRM';
@@ -38,21 +72,38 @@ const IdeasPage: React.FC = () => {
         </button>
       </div>
 
-      {/* Bucket Filters */}
-      <div className="flex items-center gap-2 overflow-x-auto pb-4 scrollbar-hide">
-        {entities.map(entity => (
+      {/* Bucket Filters & Sort */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="flex items-center gap-2 overflow-x-auto pb-4 md:pb-0 scrollbar-hide">
+          {entities.map(entity => (
+            <button
+              key={entity}
+              onClick={() => setActiveEntity(entity)}
+              className={`px-5 py-2 rounded-2xl text-[11px] font-black uppercase tracking-wider whitespace-nowrap transition-all border shadow-sm ${activeEntity === entity
+                ? 'text-white'
+                : 'bg-white border-gray-100 text-gray-400 hover:border-[var(--primary)]'
+                }`}
+              style={activeEntity === entity ? { backgroundColor: 'var(--primary)', borderColor: 'var(--primary)', boxShadow: '0 4px 6px -1px var(--primary-shadow)' } : {}}
+            >
+              {entity}
+            </button>
+          ))}
+        </div>
+
+        <div className="flex items-center gap-1 bg-white p-1 rounded-2xl border border-gray-100 shadow-sm self-start">
           <button
-            key={entity}
-            onClick={() => setActiveEntity(entity)}
-            className={`px-5 py-2 rounded-2xl text-[11px] font-black uppercase tracking-wider whitespace-nowrap transition-all border shadow-sm ${activeEntity === entity
-              ? 'text-white'
-              : 'bg-white border-gray-100 text-gray-400 hover:border-[var(--primary)]'
-              }`}
-            style={activeEntity === entity ? { backgroundColor: 'var(--primary)', borderColor: 'var(--primary)', boxShadow: '0 4px 6px -1px var(--primary-shadow)' } : {}}
+            onClick={() => handleSetSortMode('active')}
+            className={`px-4 py-2 text-[10px] font-black uppercase tracking-wider rounded-xl transition-all ${sortMode === 'active' ? 'bg-[var(--primary)] text-white shadow-md' : 'text-gray-400 hover:text-gray-600'}`}
           >
-            {entity}
+            Most Active
           </button>
-        ))}
+          <button
+            onClick={() => handleSetSortMode('recent')}
+            className={`px-4 py-2 text-[10px] font-black uppercase tracking-wider rounded-xl transition-all ${sortMode === 'recent' ? 'bg-[var(--primary)] text-white shadow-md' : 'text-gray-400 hover:text-gray-600'}`}
+          >
+            Recently Updated
+          </button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
@@ -123,22 +174,47 @@ const IdeasPage: React.FC = () => {
                     {(idea.collaboratorIds?.length ?? 0) > 0 && <Users className="w-4 h-4" style={{ color: 'var(--primary)' }} />}
                   </div>
 
-                  <h3 className="text-xl font-black text-gray-900 mb-2 leading-tight tracking-tight">
+                  <h3 className="text-xl font-black text-gray-900 mb-2 leading-tight tracking-tight group-hover:text-[var(--primary)] transition-colors">
                     {idea.title}
                   </h3>
-                  <p className="text-sm text-gray-400 font-medium line-clamp-2 mb-6 leading-relaxed">{idea.oneLiner ?? ''}</p>
+                  <p className="text-sm text-gray-400 font-medium line-clamp-1 mb-6 leading-relaxed italic">{idea.oneLiner || 'No description provided'}</p>
 
-                  <div className="flex items-center gap-3 mt-auto pt-6 border-t border-gray-50">
-                    <div className="flex items-center gap-2">
+                  <div className="flex items-center justify-between mt-auto pt-6 border-t border-gray-50">
+                    <div className="flex items-center gap-3">
                       <div
-                        className="w-8 h-8 rounded-xl flex items-center justify-center text-white text-[10px] font-black shadow-md"
+                        className="w-10 h-10 rounded-xl flex items-center justify-center text-white text-[11px] font-black shadow-md"
                         style={{ backgroundColor: owner?.avatarColor || 'var(--primary)' }}
                       >
                         {getInitials(owner?.name || 'U')}
                       </div>
-                      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">
-                        {owner?.name || 'Unknown'}
-                      </span>
+                      <div className="flex flex-col">
+                        <span className="text-[10px] font-black text-gray-900 uppercase tracking-widest">
+                          {owner?.name || 'Unknown'}
+                        </span>
+                        <span className="text-[9px] font-bold text-gray-400 uppercase">
+                          {sortMode === 'recent' ? 'Active ' : 'Updated '}
+                          {format(new Date(sortMode === 'recent' ? idea.lastActivityDate : idea.updatedAt), 'MMM d')}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={(e) => {
+                          e.preventDefault();
+                          setQuickNoteIdea({ id: idea.id, title: idea.title });
+                        }}
+                        className="p-2.5 rounded-xl bg-gray-50 text-gray-400 hover:bg-[var(--primary-shadow)] hover:text-[var(--primary)] transition-all shadow-sm border border-transparent hover:border-[var(--primary)]/20 active:scale-90"
+                        title="Quick Note"
+                      >
+                        <MessageSquarePlus className="w-5 h-5" />
+                      </button>
+                      <div className="flex flex-col items-center px-2 py-1 bg-gray-50 rounded-xl border border-gray-100">
+                        <div className="flex items-center gap-1 text-[var(--primary)]">
+                          <MessageSquare className="w-3 h-3" />
+                          <span className="text-[10px] font-black">{idea.noteCount}</span>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -157,6 +233,13 @@ const IdeasPage: React.FC = () => {
       </div>
 
       <IdeaModal isOpen={showAddForm} onClose={() => setShowAddForm(false)} />
+
+      <QuickNoteModal
+        isOpen={!!quickNoteIdea}
+        onClose={() => setQuickNoteIdea(null)}
+        ideaId={quickNoteIdea?.id || ''}
+        ideaTitle={quickNoteIdea?.title || ''}
+      />
     </div>
   );
 };
