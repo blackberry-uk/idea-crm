@@ -62,7 +62,7 @@ const DailyTodos: React.FC = () => {
 
   const todayRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
-  const inputRefs = useRef<Record<string, HTMLInputElement | null>>({});
+  const inputRefs = useRef<Record<string, HTMLInputElement | HTMLTextAreaElement | null>>({});
 
   // Date range state
   const today = new Date();
@@ -339,14 +339,18 @@ const DailyTodos: React.FC = () => {
                   {/* Add new todo input */}
                   <div className="daily-todo-add-mobile">
                     <div className="daily-todo-add-input-row">
-                      <input
+                      <textarea
                         ref={el => { inputRefs.current[dateKey] = el; }}
                         className="daily-todo-add-input-big"
                         placeholder="What needs to be done?"
+                        rows={2}
                         value={newTodoTexts[dateKey] || ''}
                         onChange={e => setNewTodoTexts(prev => ({ ...prev, [dateKey]: e.target.value }))}
                         onKeyDown={e => {
-                          if (e.key === 'Enter') addTodo(dateKey);
+                          if (e.key === 'Enter' && !e.shiftKey) {
+                            e.preventDefault();
+                            addTodo(dateKey);
+                          }
                         }}
                       />
                       <button
