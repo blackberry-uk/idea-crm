@@ -213,13 +213,15 @@ const Dashboard: React.FC = () => {
                   {/* Inline add */}
                   <div className="daily-todo-add-mobile">
                     <div className="daily-todo-add-input-row">
-                      <input
+                      <textarea
                         className="daily-todo-add-input-big"
                         placeholder="What needs to be done?"
+                        rows={2}
                         value={newTodayText}
                         onChange={e => setNewTodayText(e.target.value)}
                         onKeyDown={async e => {
-                          if (e.key === 'Enter' && newTodayText.trim()) {
+                          if (e.key === 'Enter' && !e.shiftKey && newTodayText.trim()) {
+                            e.preventDefault();
                             try {
                               const today = new Date();
                               today.setHours(0, 0, 0, 0);
