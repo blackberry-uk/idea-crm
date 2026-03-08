@@ -323,20 +323,7 @@ const DailyTodos: React.FC = () => {
               {/* Todo list */}
               {!isCollapsed && (
                 <div className="daily-todos-list">
-                  {dayTodos.map(todo => (
-                    <DailyTodoItem
-                      key={todo.id}
-                      todo={todo}
-                      ideas={ideas}
-                      onToggleComplete={toggleComplete}
-                      onToggleUrgent={toggleUrgent}
-                      onDelete={deleteTodo}
-                      onSaveEdit={saveEdit}
-                      onTagIdea={tagTodoToIdea}
-                    />
-                  ))}
-
-                  {/* Add new todo input */}
+                  {/* Add new todo input — at top for clarity */}
                   <div className="daily-todo-add-mobile">
                     <div className="daily-todo-add-input-row">
                       <textarea
@@ -410,6 +397,20 @@ const DailyTodos: React.FC = () => {
                       </div>
                     )}
                   </div>
+
+                  {/* Todo items */}
+                  {dayTodos.map(todo => (
+                    <DailyTodoItem
+                      key={todo.id}
+                      todo={todo}
+                      ideas={ideas}
+                      onToggleComplete={toggleComplete}
+                      onToggleUrgent={toggleUrgent}
+                      onDelete={deleteTodo}
+                      onSaveEdit={saveEdit}
+                      onTagIdea={tagTodoToIdea}
+                    />
+                  ))}
                 </div>
               )}
             </div>
