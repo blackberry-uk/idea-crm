@@ -516,6 +516,45 @@
             color: #ef4444;
         }
 
+        /* Drag handle */
+        .daily-todo-drag-handle {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #d1d5db;
+            cursor: grab;
+            touch-action: none;
+            padding: 0.15rem;
+            margin-right: -0.15rem;
+            border-radius: 0.25rem;
+            transition: color 0.15s;
+            flex-shrink: 0;
+        }
+
+        .daily-todo-drag-handle:hover {
+            color: #9ca3af;
+        }
+
+        .daily-todo-drag-handle:active {
+            cursor: grabbing;
+            color: var(--primary, #6366f1);
+        }
+
+        /* Dragging state */
+        .daily-todo-item--dragging {
+            opacity: 0.4;
+            transform: scale(0.97);
+        }
+
+        /* Drop indicator */
+        .daily-todo-drop-indicator {
+            height: 3px;
+            background: var(--primary, #6366f1);
+            border-radius: 2px;
+            margin: 0 0.65rem;
+            box-shadow: 0 0 6px rgba(99, 102, 241, 0.4);
+        }
+
         /* Add todo — expand button (collapsed state) */
         .daily-todo-add-expand-btn {
             display: flex;

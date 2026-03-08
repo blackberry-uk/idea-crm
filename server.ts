@@ -992,7 +992,7 @@ app.get('/api/daily-todos', authenticate, async (req: any, res) => {
     }
     const todos = await (prisma as any).dailyTodo.findMany({
       where,
-      orderBy: [{ date: 'asc' }, { isUrgent: 'desc' }, { createdAt: 'asc' }],
+      orderBy: [{ date: 'asc' }, { sortOrder: 'asc' }, { createdAt: 'asc' }],
       include: { idea: { select: { id: true, title: true } } }
     });
     res.json(todos);
@@ -1006,11 +1006,18 @@ app.post('/api/daily-todos', authenticate, async (req: any, res) => {
   try {
     const { text, date, isUrgent, ideaId } = req.body;
     if (!text || !date) return res.status(400).json({ error: 'text and date are required' });
+    // Auto-set sortOrder to max+1 for this user+date
+    const maxOrder = await (prisma as any).dailyTodo.aggregate({
+      where: { userId: req.userId, date: new Date(date) },
+      _max: { sortOrder: true }
+    });
+    const nextOrder = (maxOrder._max.sortOrder ?? -1) + 1;
     const todo = await (prisma as any).dailyTodo.create({
       data: {
         text,
         date: new Date(date),
         isUrgent: isUrgent || false,
+        sortOrder: nextOrder,
         ideaId: ideaId || null,
         userId: req.userId
       },
@@ -1020,6 +1027,26 @@ app.post('/api/daily-todos', authenticate, async (req: any, res) => {
   } catch (err: any) {
     console.error('Daily todo create error:', err);
     res.status(500).json({ error: 'Failed to create daily todo', details: err.message });
+  }
+});
+
+// Reorder daily todos
+app.put('/api/daily-todos/reorder', authenticate, async (req: any, res) => {
+  try {
+    const { orderedIds } = req.body;
+    if (!Array.isArray(orderedIds)) return res.status(400).json({ error: 'orderedIds array required' });
+    await (prisma as any).$transaction(
+      orderedIds.map((id: string, index: number) =>
+        (prisma as any).dailyTodo.updateMany({
+          where: { id, userId: req.userId },
+          data: { sortOrder: index }
+        })
+      )
+    );
+    res.json({ success: true });
+  } catch (err: any) {
+    console.error('Reorder error:', err);
+    res.status(500).json({ error: 'Failed to reorder', details: err.message });
   }
 });
 

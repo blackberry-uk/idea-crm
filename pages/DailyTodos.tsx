@@ -58,6 +58,8 @@ const DailyTodos: React.FC = () => {
   const [collapsedDays, setCollapsedDays] = useState<Set<string>>(new Set());
   const [showTagPicker, setShowTagPicker] = useState<string | null>(null);
   const [expandedAddDay, setExpandedAddDay] = useState<string | null>(null);
+  const [dragId, setDragId] = useState<string | null>(null);
+  const [dragOverId, setDragOverId] = useState<string | null>(null);
 
   const ideas = data.ideas || [];
 
@@ -233,6 +235,30 @@ const DailyTodos: React.FC = () => {
     } catch (err: any) {
       showToast(err.message || 'Failed to tag todo', 'error');
     }
+  };
+
+  // Drag and drop reorder
+  const handleDrop = (dateKey: string) => {
+    if (!dragId || !dragOverId || dragId === dragOverId) {
+      setDragId(null);
+      setDragOverId(null);
+      return;
+    }
+    setTodos(prev => {
+      const dayTodos = prev.filter(t => toDateKey(new Date(t.date)) === dateKey);
+      const otherTodos = prev.filter(t => toDateKey(new Date(t.date)) !== dateKey);
+      const fromIdx = dayTodos.findIndex(t => t.id === dragId);
+      const toIdx = dayTodos.findIndex(t => t.id === dragOverId);
+      if (fromIdx === -1 || toIdx === -1) return prev;
+      const reordered = [...dayTodos];
+      const [moved] = reordered.splice(fromIdx, 1);
+      reordered.splice(toIdx, 0, moved);
+      // Persist order in background
+      apiClient.put('/daily-todos/reorder', { orderedIds: reordered.map(t => t.id) }).catch(() => {});
+      return [...otherTodos, ...reordered];
+    });
+    setDragId(null);
+    setDragOverId(null);
   };
 
   const scrollToToday = () => {
@@ -413,18 +439,41 @@ const DailyTodos: React.FC = () => {
                   </div>
                   )}
 
-                  {/* Todo items */}
-                  {dayTodos.map(todo => (
-                    <DailyTodoItem
+                  {/* Todo items with drag reorder */}
+                  {dayTodos.map((todo, idx) => (
+                    <div
                       key={todo.id}
-                      todo={todo}
-                      ideas={ideas}
-                      onToggleComplete={toggleComplete}
-                      onToggleUrgent={toggleUrgent}
-                      onDelete={deleteTodo}
-                      onSaveEdit={saveEdit}
-                      onTagIdea={tagTodoToIdea}
-                    />
+                      onDragOver={e => { e.preventDefault(); setDragOverId(todo.id); }}
+                      onDrop={() => handleDrop(dateKey)}
+                      onTouchMove={e => {
+                        const touch = e.touches[0];
+                        const el = document.elementFromPoint(touch.clientX, touch.clientY);
+                        const todoEl = el?.closest('[data-todo-id]');
+                        if (todoEl) setDragOverId(todoEl.getAttribute('data-todo-id'));
+                      }}
+                      onTouchEnd={() => { if (dragId) handleDrop(dateKey); }}
+                      data-todo-id={todo.id}
+                    >
+                      {dragId && dragOverId === todo.id && dragId !== todo.id && (
+                        <div className="daily-todo-drop-indicator" />
+                      )}
+                      <DailyTodoItem
+                        todo={todo}
+                        ideas={ideas}
+                        onToggleComplete={toggleComplete}
+                        onToggleUrgent={toggleUrgent}
+                        onDelete={deleteTodo}
+                        onSaveEdit={saveEdit}
+                        onTagIdea={tagTodoToIdea}
+                        isDragging={dragId === todo.id}
+                        dragHandleProps={{
+                          draggable: true,
+                          onDragStart: () => setDragId(todo.id),
+                          onDragEnd: () => { setDragId(null); setDragOverId(null); },
+                          onTouchStart: () => setDragId(todo.id),
+                        }}
+                      />
+                    </div>
                   ))}
                 </div>
               )}
