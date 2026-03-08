@@ -3,7 +3,7 @@ import React from 'react';
 import { useStore } from '../store/useStore.ts';
 import { format } from 'date-fns';
 import { Link, useLocation } from 'react-router-dom';
-import { MessageSquare, TrendingUp, Info, Cloud, RotateCcw, CheckCheck, Brain, Mountain, CalendarCheck, ChevronRight, Circle, Check, Flame, AlertTriangle, Plus, Lightbulb, ClipboardList } from 'lucide-react';
+import { MessageSquare, TrendingUp, Info, Cloud, RotateCcw, CheckCheck, Brain, Mountain, CalendarCheck, ChevronRight, Circle, Check, Flame, AlertTriangle, Plus, Lightbulb, ClipboardList, Tag, Send } from 'lucide-react';
 import { Note } from '../types';
 import { getNoteExcerpt } from '../lib/utils';
 import OnboardingGuide from '../components/OnboardingGuide';
@@ -21,6 +21,7 @@ const Dashboard: React.FC = () => {
   const [todosLoading, setTodosLoading] = React.useState(true);
   const [newTodayText, setNewTodayText] = React.useState('');
   const [newTodayIdeaId, setNewTodayIdeaId] = React.useState('');
+  const [showDashboardTagPicker, setShowDashboardTagPicker] = React.useState(false);
 
   const ideas = data.ideas || [];
 
@@ -210,12 +211,11 @@ const Dashboard: React.FC = () => {
                   ))}
 
                   {/* Inline add */}
-                  <div className="daily-todo-add-container">
-                    <div className="daily-todo-add">
-                      <Plus className="w-4 h-4 daily-todo-add-icon" />
+                  <div className="daily-todo-add-mobile">
+                    <div className="daily-todo-add-input-row">
                       <input
-                        className="daily-todo-add-input"
-                        placeholder="Add a to-do for today..."
+                        className="daily-todo-add-input-big"
+                        placeholder="What needs to be done?"
                         value={newTodayText}
                         onChange={e => setNewTodayText(e.target.value)}
                         onKeyDown={async e => {
@@ -237,20 +237,76 @@ const Dashboard: React.FC = () => {
                           }
                         }}
                       />
-                    </div>
-                    <div className="daily-todo-add-idea-row">
-                      <select
-                        className="daily-todo-add-idea-select"
-                        style={newTodayIdeaId ? { color: 'var(--primary)', borderColor: 'var(--primary)' } : {}}
-                        value={newTodayIdeaId}
-                        onChange={e => setNewTodayIdeaId(e.target.value)}
+                      <button
+                        className={`daily-todo-add-tag-btn ${newTodayIdeaId ? 'daily-todo-add-tag-btn--active' : ''}`}
+                        onClick={() => setShowDashboardTagPicker(!showDashboardTagPicker)}
+                        title="Tag to idea"
                       >
-                        <option value="">💡 Tag to idea...</option>
-                        {ideas.map(idea => (
-                          <option key={idea.id} value={idea.id}>{idea.title}</option>
-                        ))}
-                      </select>
+                        <Tag className="w-4 h-4" />
+                      </button>
+                      <button
+                        className="daily-todo-add-send-btn"
+                        onClick={async () => {
+                          if (!newTodayText.trim()) return;
+                          try {
+                            const today = new Date();
+                            today.setHours(0, 0, 0, 0);
+                            const todo = await apiClient.post('/daily-todos', {
+                              text: newTodayText.trim(),
+                              date: today.toISOString().slice(0, 10),
+                              ideaId: newTodayIdeaId || null
+                            });
+                            setTodayTodos(prev => [...prev, todo]);
+                            setNewTodayText('');
+                            setNewTodayIdeaId('');
+                          } catch (err) {
+                            console.error('Failed to add todo:', err);
+                          }
+                        }}
+                        disabled={!newTodayText.trim()}
+                        title="Add to-do"
+                      >
+                        <Send className="w-4 h-4" />
+                      </button>
                     </div>
+                    {newTodayIdeaId && (() => {
+                      const taggedIdea = ideas.find(i => i.id === newTodayIdeaId);
+                      return taggedIdea ? (
+                        <div className="daily-todo-add-tagged">
+                          <span className="daily-todo-add-tagged-badge">
+                            💡 {taggedIdea.title}
+                            <button onClick={() => setNewTodayIdeaId('')} className="daily-todo-add-tagged-remove">×</button>
+                          </span>
+                        </div>
+                      ) : null;
+                    })()}
+                    {showDashboardTagPicker && (
+                      <div className="daily-todo-add-picker">
+                        {ideas.map(idea => (
+                          <button
+                            key={idea.id}
+                            className={`daily-todo-add-picker-item ${newTodayIdeaId === idea.id ? 'daily-todo-add-picker-item--selected' : ''}`}
+                            onClick={() => {
+                              setNewTodayIdeaId(idea.id);
+                              setShowDashboardTagPicker(false);
+                            }}
+                          >
+                            💡 {idea.title}
+                          </button>
+                        ))}
+                        {newTodayIdeaId && (
+                          <button
+                            className="daily-todo-add-picker-item daily-todo-add-picker-item--remove"
+                            onClick={() => {
+                              setNewTodayIdeaId('');
+                              setShowDashboardTagPicker(false);
+                            }}
+                          >
+                            ✕ Remove tag
+                          </button>
+                        )}
+                      </div>
+                    )}
                   </div>
 
                   {todayTodos.length === 0 && (

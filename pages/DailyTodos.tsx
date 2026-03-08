@@ -3,7 +3,7 @@ import { apiClient } from '../lib/api/client';
 import { useStore } from '../store/useStore';
 import {
   Plus, ChevronDown, ChevronUp,
-  CalendarDays, ArrowDownToLine, Loader2, Sparkles
+  CalendarDays, ArrowDownToLine, Loader2, Sparkles, Tag, Send
 } from 'lucide-react';
 import DailyTodoItem, { DailyTodoData } from '../components/DailyTodoItem';
 
@@ -56,6 +56,7 @@ const DailyTodos: React.FC = () => {
   const [newTodoTexts, setNewTodoTexts] = useState<Record<string, string>>({});
   const [newTodoIdeaIds, setNewTodoIdeaIds] = useState<Record<string, string>>({});
   const [collapsedDays, setCollapsedDays] = useState<Set<string>>(new Set());
+  const [showTagPicker, setShowTagPicker] = useState<string | null>(null);
 
   const ideas = data.ideas || [];
 
@@ -336,34 +337,74 @@ const DailyTodos: React.FC = () => {
                   ))}
 
                   {/* Add new todo input */}
-                  <div className="daily-todo-add-container">
-                    <div className="daily-todo-add">
-                      <Plus className="w-4 h-4 daily-todo-add-icon" />
+                  <div className="daily-todo-add-mobile">
+                    <div className="daily-todo-add-input-row">
                       <input
                         ref={el => { inputRefs.current[dateKey] = el; }}
-                        className="daily-todo-add-input"
-                        placeholder="Add a to-do..."
+                        className="daily-todo-add-input-big"
+                        placeholder="What needs to be done?"
                         value={newTodoTexts[dateKey] || ''}
                         onChange={e => setNewTodoTexts(prev => ({ ...prev, [dateKey]: e.target.value }))}
                         onKeyDown={e => {
                           if (e.key === 'Enter') addTodo(dateKey);
                         }}
                       />
-                    </div>
-                    {/* Idea selector — separate row on mobile */}
-                    <div className="daily-todo-add-idea-row">
-                      <select
-                        className="daily-todo-add-idea-select"
-                        style={newTodoIdeaIds[dateKey] ? { color: 'var(--primary)', borderColor: 'var(--primary)' } : {}}
-                        value={newTodoIdeaIds[dateKey] || ''}
-                        onChange={e => setNewTodoIdeaIds(prev => ({ ...prev, [dateKey]: e.target.value }))}
+                      <button
+                        className={`daily-todo-add-tag-btn ${newTodoIdeaIds[dateKey] ? 'daily-todo-add-tag-btn--active' : ''}`}
+                        onClick={() => setShowTagPicker(showTagPicker === dateKey ? null : dateKey)}
+                        title="Tag to idea"
                       >
-                        <option value="">💡 Tag to idea...</option>
-                        {ideas.map(idea => (
-                          <option key={idea.id} value={idea.id}>{idea.title}</option>
-                        ))}
-                      </select>
+                        <Tag className="w-4 h-4" />
+                      </button>
+                      <button
+                        className="daily-todo-add-send-btn"
+                        onClick={() => addTodo(dateKey)}
+                        disabled={!(newTodoTexts[dateKey] || '').trim()}
+                        title="Add to-do"
+                      >
+                        <Send className="w-4 h-4" />
+                      </button>
                     </div>
+                    {/* Tagged idea badge */}
+                    {newTodoIdeaIds[dateKey] && (() => {
+                      const taggedIdea = ideas.find(i => i.id === newTodoIdeaIds[dateKey]);
+                      return taggedIdea ? (
+                        <div className="daily-todo-add-tagged">
+                          <span className="daily-todo-add-tagged-badge">
+                            💡 {taggedIdea.title}
+                            <button onClick={() => setNewTodoIdeaIds(prev => ({ ...prev, [dateKey]: '' }))} className="daily-todo-add-tagged-remove">×</button>
+                          </span>
+                        </div>
+                      ) : null;
+                    })()}
+                    {/* Idea picker dropdown */}
+                    {showTagPicker === dateKey && (
+                      <div className="daily-todo-add-picker">
+                        {ideas.map(idea => (
+                          <button
+                            key={idea.id}
+                            className={`daily-todo-add-picker-item ${newTodoIdeaIds[dateKey] === idea.id ? 'daily-todo-add-picker-item--selected' : ''}`}
+                            onClick={() => {
+                              setNewTodoIdeaIds(prev => ({ ...prev, [dateKey]: idea.id }));
+                              setShowTagPicker(null);
+                            }}
+                          >
+                            💡 {idea.title}
+                          </button>
+                        ))}
+                        {newTodoIdeaIds[dateKey] && (
+                          <button
+                            className="daily-todo-add-picker-item daily-todo-add-picker-item--remove"
+                            onClick={() => {
+                              setNewTodoIdeaIds(prev => ({ ...prev, [dateKey]: '' }));
+                              setShowTagPicker(null);
+                            }}
+                          >
+                            ✕ Remove tag
+                          </button>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
