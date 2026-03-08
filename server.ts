@@ -980,6 +980,134 @@ app.post('/api/import', authenticate, async (req: any, res) => {
 
 app.get('/api/health', (req, res) => res.json({ status: 'ok', cloud: true }));
 
+// --- DAILY TODOS ---
+app.get('/api/daily-todos', authenticate, async (req: any, res) => {
+  try {
+    const { from, to } = req.query;
+    const where: any = { userId: req.userId };
+    if (from || to) {
+      where.date = {};
+      if (from) where.date.gte = new Date(from as string);
+      if (to) where.date.lte = new Date(to as string);
+    }
+    const todos = await (prisma as any).dailyTodo.findMany({
+      where,
+      orderBy: [{ date: 'asc' }, { isUrgent: 'desc' }, { createdAt: 'asc' }],
+      include: { idea: { select: { id: true, title: true } } }
+    });
+    res.json(todos);
+  } catch (err: any) {
+    console.error('Daily todos fetch error:', err);
+    res.status(500).json({ error: 'Failed to fetch daily todos', details: err.message });
+  }
+});
+
+app.post('/api/daily-todos', authenticate, async (req: any, res) => {
+  try {
+    const { text, date, isUrgent, ideaId } = req.body;
+    if (!text || !date) return res.status(400).json({ error: 'text and date are required' });
+    const todo = await (prisma as any).dailyTodo.create({
+      data: {
+        text,
+        date: new Date(date),
+        isUrgent: isUrgent || false,
+        ideaId: ideaId || null,
+        userId: req.userId
+      },
+      include: { idea: { select: { id: true, title: true } } }
+    });
+    res.json(todo);
+  } catch (err: any) {
+    console.error('Daily todo create error:', err);
+    res.status(500).json({ error: 'Failed to create daily todo', details: err.message });
+  }
+});
+
+app.put('/api/daily-todos/:id', authenticate, async (req: any, res) => {
+  try {
+    const existing = await (prisma as any).dailyTodo.findUnique({ where: { id: req.params.id } });
+    if (!existing) return res.status(404).json({ error: 'Todo not found' });
+    if (existing.userId !== req.userId) return res.status(403).json({ error: 'Forbidden' });
+
+    const { text, completed, isUrgent, date, ideaId } = req.body;
+    const data: any = {};
+    if (text !== undefined) data.text = text;
+    if (completed !== undefined) {
+      data.completed = completed;
+      data.completedAt = completed ? new Date() : null;
+    }
+    if (isUrgent !== undefined) data.isUrgent = isUrgent;
+    if (date !== undefined) data.date = new Date(date);
+    if (ideaId !== undefined) data.ideaId = ideaId || null;
+
+    const todo = await (prisma as any).dailyTodo.update({
+      where: { id: req.params.id },
+      data,
+      include: { idea: { select: { id: true, title: true } } }
+    });
+    res.json(todo);
+  } catch (err: any) {
+    console.error('Daily todo update error:', err);
+    res.status(500).json({ error: 'Failed to update daily todo', details: err.message });
+  }
+});
+
+app.delete('/api/daily-todos/:id', authenticate, async (req: any, res) => {
+  try {
+    const existing = await (prisma as any).dailyTodo.findUnique({ where: { id: req.params.id } });
+    if (!existing) return res.status(404).json({ error: 'Todo not found' });
+    if (existing.userId !== req.userId) return res.status(403).json({ error: 'Forbidden' });
+
+    await (prisma as any).dailyTodo.delete({ where: { id: req.params.id } });
+    res.json({ success: true });
+  } catch (err: any) {
+    console.error('Daily todo delete error:', err);
+    res.status(500).json({ error: 'Failed to delete daily todo', details: err.message });
+  }
+});
+
+app.post('/api/daily-todos/carry-forward', authenticate, async (req: any, res) => {
+  try {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    // Find all incomplete todos from before today
+    const incompletePast = await (prisma as any).dailyTodo.findMany({
+      where: {
+        userId: req.userId,
+        completed: false,
+        date: { lt: today }
+      }
+    });
+
+    // Create copies for today
+    const created = [];
+    for (const todo of incompletePast) {
+      const newTodo = await (prisma as any).dailyTodo.create({
+        data: {
+          text: todo.text,
+          isUrgent: todo.isUrgent,
+          ideaId: todo.ideaId || null,
+          date: today,
+          userId: req.userId
+        },
+        include: { idea: { select: { id: true, title: true } } }
+      });
+      // Mark the old one as completed (carried forward)
+      await (prisma as any).dailyTodo.update({
+        where: { id: todo.id },
+        data: { completed: true, completedAt: new Date() }
+      });
+      created.push(newTodo);
+    }
+
+    res.json({ carried: created.length, todos: created });
+  } catch (err: any) {
+    console.error('Carry forward error:', err);
+    res.status(500).json({ error: 'Failed to carry forward todos', details: err.message });
+  }
+});
+
 const PORT = process.env.PORT || 3001;
 if (process.env.NODE_ENV !== 'production') {
   app.listen(PORT, () => console.log(`Backend running on port ${PORT} `));

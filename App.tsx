@@ -10,6 +10,7 @@ import ContactsPage from './pages/ContactsPage';
 import ContactDetail from './pages/ContactDetail';
 import Settings from './pages/Settings';
 import Invitations from './pages/Invitations';
+import DailyTodos from './pages/DailyTodos';
 import { useStore } from './store/useStore';
 import { apiClient } from './lib/api/client';
 import { Lightbulb, LogIn, UserPlus, ShieldCheck, AlertCircle, Eye, EyeOff } from 'lucide-react';
@@ -252,17 +253,27 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
   );
 };
 
+// On mobile, redirect "/" to "/daily" — the mobile home is the To-Do calendar
+const MobileHomeRedirect: React.FC = () => {
+  const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
+  if (isMobile) {
+    return <Navigate to="/daily" replace />;
+  }
+  return <Dashboard />;
+};
+
 const App: React.FC = () => {
   return (
     <Router>
       <Routes>
         <Route path="/login" element={<AuthPage />} />
-        <Route path="/" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+        <Route path="/" element={<ProtectedRoute><MobileHomeRedirect /></ProtectedRoute>} />
         <Route path="/ideas" element={<ProtectedRoute><IdeasPage /></ProtectedRoute>} />
         <Route path="/ideas/:id" element={<ProtectedRoute><IdeaDetail /></ProtectedRoute>} />
         <Route path="/reports/weekly" element={<ProtectedRoute><WeeklyReport /></ProtectedRoute>} />
         <Route path="/contacts" element={<ProtectedRoute><ContactsPage /></ProtectedRoute>} />
         <Route path="/contacts/:id" element={<ProtectedRoute><ContactDetail /></ProtectedRoute>} />
+        <Route path="/daily" element={<ProtectedRoute><DailyTodos /></ProtectedRoute>} />
         <Route path="/invitations" element={<ProtectedRoute><Invitations /></ProtectedRoute>} />
         <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
         <Route path="*" element={<Navigate to="/" replace />} />
