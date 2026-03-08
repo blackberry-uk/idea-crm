@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Check, Circle, Flame, Trash2, Tag, X, Lightbulb } from 'lucide-react';
+import { Check, Circle, Flame, Trash2, Tag, X, Lightbulb, GripVertical } from 'lucide-react';
 
 export interface DailyTodoData {
   id: string;
@@ -22,10 +22,12 @@ interface DailyTodoItemProps {
   onDelete: (id: string) => Promise<void>;
   onSaveEdit: (id: string, text: string) => Promise<void>;
   onTagIdea: (todoId: string, ideaId: string | null) => Promise<void>;
+  dragHandleProps?: Record<string, any>;
+  isDragging?: boolean;
 }
 
 const DailyTodoItem: React.FC<DailyTodoItemProps> = ({
-  todo, ideas, onToggleComplete, onToggleUrgent, onDelete, onSaveEdit, onTagIdea
+  todo, ideas, onToggleComplete, onToggleUrgent, onDelete, onSaveEdit, onTagIdea, dragHandleProps, isDragging
 }) => {
   const [editing, setEditing] = useState(false);
   const [editText, setEditText] = useState('');
@@ -45,8 +47,12 @@ const DailyTodoItem: React.FC<DailyTodoItemProps> = ({
 
   return (
     <div
-      className={`daily-todo-item ${todo.completed ? 'daily-todo-item--done' : ''} ${todo.isUrgent && !todo.completed ? 'daily-todo-item--urgent' : ''}`}
+      className={`daily-todo-item ${todo.completed ? 'daily-todo-item--done' : ''} ${todo.isUrgent && !todo.completed ? 'daily-todo-item--urgent' : ''} ${isDragging ? 'daily-todo-item--dragging' : ''}`}
     >
+      {/* Drag handle */}
+      <span className="daily-todo-drag-handle" {...(dragHandleProps || {})}>
+        <GripVertical className="w-4 h-4" />
+      </span>
       <button
         onClick={() => onToggleComplete(todo)}
         className={`daily-todo-check ${todo.completed ? 'daily-todo-check--done' : ''}`}
