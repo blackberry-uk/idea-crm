@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { useStore } from '../store/useStore.ts';
 import { Link } from 'react-router-dom';
-import { Plus, Users, Trash2, LogOut, Lightbulb, MessageSquarePlus, MessageSquare, ShieldCheck } from 'lucide-react';
+import { Plus, Users, Trash2, LogOut, Lightbulb, MessageSquarePlus, MessageSquare, ShieldCheck, ChevronRight } from 'lucide-react';
 import IdeaModal from '../components/IdeaModal';
 import QuickNoteModal from '../components/QuickNoteModal';
 import { getInitials } from '../lib/utils';
@@ -117,6 +117,60 @@ const IdeasPage: React.FC = () => {
           </button>
         </div>
       </div>
+
+      {/* Recently Updated Table — moved from Dashboard */}
+      <section className="bg-white rounded-2xl border p-6 shadow-sm space-y-4">
+        <div className="flex items-center gap-4">
+          <h2 className="font-bold text-lg text-gray-900 whitespace-nowrap">
+            {sortMode === 'active' ? 'Most Active Ideas' : 'Recently Updated'}
+          </h2>
+        </div>
+        <div className="space-y-3">
+          {[...processedIdeas]
+            .sort((a, b) => sortMode === 'active' ? b.activityScore - a.activityScore : b.lastActivityDate - a.lastActivityDate)
+            .slice(0, 5)
+            .map(idea => (
+              <Link key={idea.id} to={`/ideas/${idea.id}`} className="block p-4 rounded-xl border border-gray-50 hover:border-gray-200 transition-all group">
+                <div className="flex justify-between items-center">
+                  <div className="min-w-0 flex-1">
+                    <p className="font-bold text-gray-900 group-hover:text-[var(--primary)] transition-colors truncate">{idea.title}</p>
+                    <p className="text-[10px] text-gray-400 uppercase font-bold">
+                      {sortMode === 'recent' ? 'Last activity ' : 'Updated '}
+                      {format(new Date(sortMode === 'recent' ? idea.lastActivityDate : idea.updatedAt), 'EEE, MMM d')}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-4 shrink-0 px-4">
+                    <button
+                      onClick={(e) => {
+                        e.preventDefault();
+                        handleSetQuickNoteIdea({ id: idea.id, title: idea.title });
+                      }}
+                      className="p-2 rounded-lg bg-gray-50 text-gray-400 hover:bg-[var(--primary-shadow)] hover:text-[var(--primary)] transition-all border border-transparent hover:border-[var(--primary)]/10"
+                      title="Quick Note"
+                    >
+                      <MessageSquarePlus className="w-4 h-4" />
+                    </button>
+                    <div className="flex flex-col items-center">
+                      <span className="text-[10px] font-bold text-gray-400 uppercase">Notes</span>
+                      <div className="flex items-center gap-1" style={{ color: 'var(--primary)' }}>
+                        <MessageSquare className="w-3 h-3" />
+                        <span className="text-xs font-bold">{idea.noteCount}</span>
+                      </div>
+                    </div>
+                    <div className="flex flex-col items-center">
+                      <span className="text-[10px] font-bold text-gray-400 uppercase">Todos</span>
+                      <div className="flex items-center gap-1 text-amber-600">
+                        <ShieldCheck className="w-3 h-3" />
+                        <span className="text-xs font-bold">{idea.todoCount}</span>
+                      </div>
+                    </div>
+                  </div>
+                  <ChevronRight className="w-4 h-4 text-gray-300 group-hover:text-[var(--primary)] transition-colors" />
+                </div>
+              </Link>
+            ))}
+        </div>
+      </section>
 
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
         {filteredIdeas.map(idea => {

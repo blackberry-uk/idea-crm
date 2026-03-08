@@ -32,6 +32,26 @@ model User {
   notesCreated       Note[]        @relation("NotesCreated")
   taggedInNotes      Note[]        @relation("TaggedUsers")
   comments           Comment[]
+  dailyTodos         DailyTodo[]
+}
+
+model DailyTodo {
+  id          String    @id @default(cuid())
+  text        String
+  completed   Boolean   @default(false)
+  isUrgent    Boolean   @default(false)
+  date        DateTime  // The calendar day this todo belongs to
+  completedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id])
+
+  ideaId String?
+  idea   Idea?   @relation(fields: [ideaId], references: [id], onDelete: SetNull)
+
+  @@index([userId, date])
 }
 
 model Idea {
@@ -65,6 +85,7 @@ model Idea {
 
   invitations Invitation[]
   notes       Note[]
+  dailyTodos  DailyTodo[]
 }
 
 model Contact {

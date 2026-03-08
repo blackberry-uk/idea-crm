@@ -17,10 +17,12 @@ import {
   Mail,
   Brain
 } from 'lucide-react';
+import { CalendarCheck } from 'lucide-react';
 import { useStore } from '../store/useStore.ts';
 import { getInitials, getAvatarColor } from '../lib/utils';
 import NoteComposer from './NoteComposer';
 import ImportModal from './ImportModal';
+import MobileBottomNav from './MobileBottomNav';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -40,6 +42,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     { name: 'Dashboard', path: '/', icon: LayoutDashboard },
     { name: 'Ideas', path: '/ideas', icon: Lightbulb },
     { name: 'Contacts', path: '/contacts', icon: Users },
+    { name: 'Daily', path: '/daily', icon: CalendarCheck },
     { name: 'Invitations', path: '/invitations', icon: Mail, badge: pendingInvs },
     { name: 'Training', path: '/?training=true', icon: Brain },
     { name: 'Settings', path: '/settings', icon: SettingsIcon },
@@ -116,8 +119,11 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       </aside>
 
       <main className="flex-1 flex flex-col min-w-0">
-        <div className="flex-1 overflow-y-auto">{children}</div>
+        <div className="flex-1 overflow-y-auto mobile-main-content">{children}</div>
       </main>
+
+      {/* Mobile bottom nav */}
+      <MobileBottomNav />
     </div>
   );
 };
