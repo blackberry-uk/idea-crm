@@ -336,30 +336,34 @@ const DailyTodos: React.FC = () => {
                   ))}
 
                   {/* Add new todo input */}
-                  <div className="daily-todo-add">
-                    <Plus className="w-4 h-4 daily-todo-add-icon" />
-                    <input
-                      ref={el => { inputRefs.current[dateKey] = el; }}
-                      className="daily-todo-add-input"
-                      placeholder="Add a to-do..."
-                      value={newTodoTexts[dateKey] || ''}
-                      onChange={e => setNewTodoTexts(prev => ({ ...prev, [dateKey]: e.target.value }))}
-                      onKeyDown={e => {
-                        if (e.key === 'Enter') addTodo(dateKey);
-                      }}
-                    />
-                    {/* Idea selector for new todo */}
-                    <select
-                      className="text-[10px] font-bold text-gray-400 bg-transparent border border-gray-200 rounded-lg px-2 py-1 outline-none cursor-pointer hover:border-gray-300 transition-colors"
-                      style={newTodoIdeaIds[dateKey] ? { color: 'var(--primary)', borderColor: 'var(--primary)' } : {}}
-                      value={newTodoIdeaIds[dateKey] || ''}
-                      onChange={e => setNewTodoIdeaIds(prev => ({ ...prev, [dateKey]: e.target.value }))}
-                    >
-                      <option value="">No idea</option>
-                      {ideas.map(idea => (
-                        <option key={idea.id} value={idea.id}>{idea.title}</option>
-                      ))}
-                    </select>
+                  <div className="daily-todo-add-container">
+                    <div className="daily-todo-add">
+                      <Plus className="w-4 h-4 daily-todo-add-icon" />
+                      <input
+                        ref={el => { inputRefs.current[dateKey] = el; }}
+                        className="daily-todo-add-input"
+                        placeholder="Add a to-do..."
+                        value={newTodoTexts[dateKey] || ''}
+                        onChange={e => setNewTodoTexts(prev => ({ ...prev, [dateKey]: e.target.value }))}
+                        onKeyDown={e => {
+                          if (e.key === 'Enter') addTodo(dateKey);
+                        }}
+                      />
+                    </div>
+                    {/* Idea selector — separate row on mobile */}
+                    <div className="daily-todo-add-idea-row">
+                      <select
+                        className="daily-todo-add-idea-select"
+                        style={newTodoIdeaIds[dateKey] ? { color: 'var(--primary)', borderColor: 'var(--primary)' } : {}}
+                        value={newTodoIdeaIds[dateKey] || ''}
+                        onChange={e => setNewTodoIdeaIds(prev => ({ ...prev, [dateKey]: e.target.value }))}
+                      >
+                        <option value="">💡 Tag to idea...</option>
+                        {ideas.map(idea => (
+                          <option key={idea.id} value={idea.id}>{idea.title}</option>
+                        ))}
+                      </select>
+                    </div>
                   </div>
                 </div>
               )}

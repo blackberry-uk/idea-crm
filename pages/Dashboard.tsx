@@ -210,43 +210,47 @@ const Dashboard: React.FC = () => {
                   ))}
 
                   {/* Inline add */}
-                  <div className="daily-todo-add">
-                    <Plus className="w-4 h-4 daily-todo-add-icon" />
-                    <input
-                      className="daily-todo-add-input"
-                      placeholder="Add a to-do for today..."
-                      value={newTodayText}
-                      onChange={e => setNewTodayText(e.target.value)}
-                      onKeyDown={async e => {
-                        if (e.key === 'Enter' && newTodayText.trim()) {
-                          try {
-                            const today = new Date();
-                            today.setHours(0, 0, 0, 0);
-                            const todo = await apiClient.post('/daily-todos', {
-                              text: newTodayText.trim(),
-                              date: today.toISOString().slice(0, 10),
-                              ideaId: newTodayIdeaId || null
-                            });
-                            setTodayTodos(prev => [...prev, todo]);
-                            setNewTodayText('');
-                            setNewTodayIdeaId('');
-                          } catch (err) {
-                            console.error('Failed to add todo:', err);
+                  <div className="daily-todo-add-container">
+                    <div className="daily-todo-add">
+                      <Plus className="w-4 h-4 daily-todo-add-icon" />
+                      <input
+                        className="daily-todo-add-input"
+                        placeholder="Add a to-do for today..."
+                        value={newTodayText}
+                        onChange={e => setNewTodayText(e.target.value)}
+                        onKeyDown={async e => {
+                          if (e.key === 'Enter' && newTodayText.trim()) {
+                            try {
+                              const today = new Date();
+                              today.setHours(0, 0, 0, 0);
+                              const todo = await apiClient.post('/daily-todos', {
+                                text: newTodayText.trim(),
+                                date: today.toISOString().slice(0, 10),
+                                ideaId: newTodayIdeaId || null
+                              });
+                              setTodayTodos(prev => [...prev, todo]);
+                              setNewTodayText('');
+                              setNewTodayIdeaId('');
+                            } catch (err) {
+                              console.error('Failed to add todo:', err);
+                            }
                           }
-                        }
-                      }}
-                    />
-                    <select
-                      className="text-[10px] font-bold text-gray-400 bg-transparent border border-gray-200 rounded-lg px-2 py-1 outline-none cursor-pointer hover:border-gray-300 transition-colors"
-                      style={newTodayIdeaId ? { color: 'var(--primary)', borderColor: 'var(--primary)' } : {}}
-                      value={newTodayIdeaId}
-                      onChange={e => setNewTodayIdeaId(e.target.value)}
-                    >
-                      <option value="">No idea</option>
-                      {ideas.map(idea => (
-                        <option key={idea.id} value={idea.id}>{idea.title}</option>
-                      ))}
-                    </select>
+                        }}
+                      />
+                    </div>
+                    <div className="daily-todo-add-idea-row">
+                      <select
+                        className="daily-todo-add-idea-select"
+                        style={newTodayIdeaId ? { color: 'var(--primary)', borderColor: 'var(--primary)' } : {}}
+                        value={newTodayIdeaId}
+                        onChange={e => setNewTodayIdeaId(e.target.value)}
+                      >
+                        <option value="">💡 Tag to idea...</option>
+                        {ideas.map(idea => (
+                          <option key={idea.id} value={idea.id}>{idea.title}</option>
+                        ))}
+                      </select>
+                    </div>
                   </div>
 
                   {todayTodos.length === 0 && (
