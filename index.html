@@ -516,6 +516,32 @@
             color: #ef4444;
         }
 
+        /* Add todo — expand button (collapsed state) */
+        .daily-todo-add-expand-btn {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            width: 100%;
+            padding: 0.6rem 0.75rem;
+            margin: 0.25rem 0;
+            border: 1.5px dashed #e0e2e6;
+            border-radius: 0.75rem;
+            background: transparent;
+            color: #9ca3af;
+            font-size: 0.8rem;
+            font-weight: 600;
+            font-family: inherit;
+            cursor: pointer;
+            transition: all 0.2s;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        .daily-todo-add-expand-btn:hover {
+            border-color: var(--primary, #6366f1);
+            color: var(--primary, #6366f1);
+            background: rgba(99, 102, 241, 0.03);
+        }
+
         /* Add todo — redesigned */
         .daily-todo-add-mobile {
             padding: 0.5rem 0.65rem;

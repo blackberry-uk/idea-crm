@@ -57,6 +57,7 @@ const DailyTodos: React.FC = () => {
   const [newTodoIdeaIds, setNewTodoIdeaIds] = useState<Record<string, string>>({});
   const [collapsedDays, setCollapsedDays] = useState<Set<string>>(new Set());
   const [showTagPicker, setShowTagPicker] = useState<string | null>(null);
+  const [expandedAddDay, setExpandedAddDay] = useState<string | null>(null);
 
   const ideas = data.ideas || [];
 
@@ -152,6 +153,7 @@ const DailyTodos: React.FC = () => {
       setTodos(prev => [...prev, todo]);
       setNewTodoTexts(prev => ({ ...prev, [dateKey]: '' }));
       setNewTodoIdeaIds(prev => ({ ...prev, [dateKey]: '' }));
+      setExpandedAddDay(null);
     } catch (err: any) {
       showToast(err.message || 'Failed to add todo', 'error');
     }
@@ -323,7 +325,19 @@ const DailyTodos: React.FC = () => {
               {/* Todo list */}
               {!isCollapsed && (
                 <div className="daily-todos-list">
-                  {/* Add new todo input — at top for clarity */}
+                  {/* Add new todo — collapsed by default */}
+                  {expandedAddDay !== dateKey ? (
+                    <button
+                      className="daily-todo-add-expand-btn"
+                      onClick={() => {
+                        setExpandedAddDay(dateKey);
+                        setTimeout(() => inputRefs.current[dateKey]?.focus(), 50);
+                      }}
+                    >
+                      <Plus className="w-4 h-4" />
+                      <span>Add a to-do</span>
+                    </button>
+                  ) : (
                   <div className="daily-todo-add-mobile">
                     <div className="daily-todo-add-input-row">
                       <textarea
@@ -397,6 +411,7 @@ const DailyTodos: React.FC = () => {
                       </div>
                     )}
                   </div>
+                  )}
 
                   {/* Todo items */}
                   {dayTodos.map(todo => (
