@@ -517,12 +517,15 @@
         }
 
         /* Add todo */
+        .daily-todo-add-container {
+            margin-top: 0.15rem;
+        }
+
         .daily-todo-add {
             display: flex;
             align-items: center;
             gap: 0.6rem;
             padding: 0.45rem 0.65rem;
-            margin-top: 0.15rem;
         }
 
         .daily-todo-add-icon {
@@ -544,6 +547,28 @@
         .daily-todo-add-input::placeholder {
             color: #d1d5db;
             font-style: italic;
+        }
+
+        .daily-todo-add-idea-row {
+            padding: 0.15rem 0.65rem 0.45rem 2.5rem;
+        }
+
+        .daily-todo-add-idea-select {
+            font-size: 0.65rem;
+            font-weight: 700;
+            color: #9ca3af;
+            background: transparent;
+            border: 1px solid #e5e7eb;
+            border-radius: 0.5rem;
+            padding: 0.25rem 0.5rem;
+            outline: none;
+            cursor: pointer;
+            transition: all 0.15s;
+            font-family: inherit;
+        }
+
+        .daily-todo-add-idea-select:hover {
+            border-color: #d1d5db;
         }
 
         /* Mobile responsive */
@@ -589,6 +614,23 @@
             .daily-todo-action-btn {
                 width: 2rem;
                 height: 2rem;
+            }
+
+            /* Add todo — mobile optimizations */
+            .daily-todo-add-input {
+                font-size: 1rem;
+            }
+
+            .daily-todo-add-idea-row {
+                padding: 0.25rem 0.65rem 0.5rem 0.65rem;
+            }
+
+            .daily-todo-add-idea-select {
+                width: 100%;
+                font-size: 1rem;
+                padding: 0.5rem 0.75rem;
+                border-radius: 0.75rem;
+                background: #f9fafb;
             }
 
             /* Main content padding for bottom nav */
