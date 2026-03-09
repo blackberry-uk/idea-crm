@@ -9,6 +9,7 @@ import { getNoteExcerpt } from '../lib/utils';
 import OnboardingGuide from '../components/OnboardingGuide';
 import { apiClient } from '../lib/api/client';
 import DailyTodoItem from '../components/DailyTodoItem';
+import IdeaPickerDropdown from '../components/IdeaPickerDropdown';
 
 const Dashboard: React.FC = () => {
   const { data, updateIdea } = useStore();
@@ -113,6 +114,27 @@ const Dashboard: React.FC = () => {
     }
   };
 
+  const addSubtask = async (parentId: string, text: string) => {
+    const parent = todayTodos.find(t => t.id === parentId) || overdueTodos.find(t => t.id === parentId);
+    if (!parent) return;
+    try {
+      const subtask = await apiClient.post('/daily-todos', {
+        text,
+        date: new Date(parent.date).toISOString().split('T')[0],
+        parentId,
+        ideaId: parent.ideaId || null
+      });
+      setTodayTodos(prev => prev.map(t =>
+        t.id === parentId ? { ...t, children: [...(t.children || []), subtask] } : t
+      ));
+      setOverdueTodos(prev => prev.map(t =>
+        t.id === parentId ? { ...t, children: [...(t.children || []), subtask] } : t
+      ));
+    } catch (err) {
+      console.error('Failed to add subtask:', err);
+    }
+  };
+
   React.useEffect(() => {
     document.title = 'Dashboard | Idea-CRM';
     return () => { document.title = 'IdeaCRM Tracker'; };
@@ -207,6 +229,7 @@ const Dashboard: React.FC = () => {
                       onDelete={deleteTodo}
                       onSaveEdit={saveTodoEdit}
                       onTagIdea={tagTodoToIdea}
+                      onAddSubtask={addSubtask}
                     />
                   ))}
 
@@ -283,31 +306,13 @@ const Dashboard: React.FC = () => {
                       ) : null;
                     })()}
                     {showDashboardTagPicker && (
-                      <div className="daily-todo-add-picker">
-                        {[...ideas].sort((a, b) => a.title.localeCompare(b.title)).map(idea => (
-                          <button
-                            key={idea.id}
-                            className={`daily-todo-add-picker-item ${newTodayIdeaId === idea.id ? 'daily-todo-add-picker-item--selected' : ''}`}
-                            onClick={() => {
-                              setNewTodayIdeaId(idea.id);
-                              setShowDashboardTagPicker(false);
-                            }}
-                          >
-                            💡 {idea.title}
-                          </button>
-                        ))}
-                        {newTodayIdeaId && (
-                          <button
-                            className="daily-todo-add-picker-item daily-todo-add-picker-item--remove"
-                            onClick={() => {
-                              setNewTodayIdeaId('');
-                              setShowDashboardTagPicker(false);
-                            }}
-                          >
-                            ✕ Remove tag
-                          </button>
-                        )}
-                      </div>
+                      <IdeaPickerDropdown
+                        ideas={ideas}
+                        selectedIdeaId={newTodayIdeaId}
+                        onSelect={(id) => { setNewTodayIdeaId(id); setShowDashboardTagPicker(false); }}
+                        onRemove={() => { setNewTodayIdeaId(''); setShowDashboardTagPicker(false); }}
+                        showRemove={!!newTodayIdeaId}
+                      />
                     )}
                   </div>
 
@@ -443,6 +448,7 @@ const Dashboard: React.FC = () => {
                       onDelete={deleteTodo}
                       onSaveEdit={saveTodoEdit}
                       onTagIdea={tagTodoToIdea}
+                      onAddSubtask={addSubtask}
                     />
                   ))}
                 </div>
