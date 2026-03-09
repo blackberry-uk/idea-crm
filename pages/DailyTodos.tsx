@@ -449,7 +449,7 @@ const DailyTodos: React.FC = () => {
                     {/* Idea picker dropdown */}
                     {showTagPicker === dateKey && (
                       <div className="daily-todo-add-picker">
-                        {ideas.map(idea => (
+                        {[...ideas].sort((a, b) => a.title.localeCompare(b.title)).map(idea => (
                           <button
                             key={idea.id}
                             className={`daily-todo-add-picker-item ${newTodoIdeaIds[dateKey] === idea.id ? 'daily-todo-add-picker-item--selected' : ''}`}
