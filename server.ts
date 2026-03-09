@@ -1069,7 +1069,7 @@ app.put('/api/daily-todos/:id', authenticate, async (req: any, res) => {
     if (!existing) return res.status(404).json({ error: 'Todo not found' });
     if (existing.userId !== req.userId) return res.status(403).json({ error: 'Forbidden' });
 
-    const { text, completed, isUrgent, date, ideaId } = req.body;
+    const { text, completed, isUrgent, date, ideaId, status, dueDate, assigneeId, comments, originNoteId } = req.body;
     const data: any = {};
     if (text !== undefined) data.text = text;
     if (completed !== undefined) {
@@ -1079,6 +1079,11 @@ app.put('/api/daily-todos/:id', authenticate, async (req: any, res) => {
     if (isUrgent !== undefined) data.isUrgent = isUrgent;
     if (date !== undefined) data.date = new Date(date);
     if (ideaId !== undefined) data.ideaId = ideaId || null;
+    if (status !== undefined) data.status = status;
+    if (dueDate !== undefined) data.dueDate = dueDate || null;
+    if (assigneeId !== undefined) data.assigneeId = assigneeId || null;
+    if (comments !== undefined) data.comments = comments || null;
+    if (originNoteId !== undefined) data.originNoteId = originNoteId || null;
 
     const todo = await (prisma as any).dailyTodo.update({
       where: { id: req.params.id },

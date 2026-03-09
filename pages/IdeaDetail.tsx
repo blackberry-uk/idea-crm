@@ -232,57 +232,64 @@ const IdeaDetail: React.FC = () => {
     setIsEditingIdea(false);
   };
 
-  const handleAddTodo = (e: React.FormEvent) => {
+  const handleAddTodo = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!todoInput.trim()) return;
-    const now = new Date().toISOString();
-    const newTodo = {
-      id: Math.random().toString(36).substr(2, 9),
-      text: todoInput.trim(),
-      completed: false,
-      isUrgent: isUrlUrgent,
-      date: now, // Deprecated
-      createdAt: now,
-      dueDate: todoDueDate || undefined,
-      assigneeId: todoAssigneeId || data.currentUser?.id,
-      status: 'Not Started'
-    };
-    updateIdea(idea.id, {
-      todos: [...(idea.todos || []), newTodo]
-    });
-    setTodoInput('');
-    setTodoDueDate('');
-    setTodoAssigneeId('');
-    setIsUrlUrgent(false);
-    setIsAddingTodo(false);
+    try {
+      const newTodo = await apiClient.post('/daily-todos', {
+        text: todoInput.trim(),
+        date: new Date().toISOString().split('T')[0],
+        isUrgent: isUrlUrgent,
+        ideaId: idea.id,
+        dueDate: todoDueDate || null,
+        assigneeId: todoAssigneeId || data.currentUser?.id || null,
+        status: 'Not Started'
+      });
+      setLinkedDailyTodos(prev => [...prev, newTodo]);
+      setTodoInput('');
+      setTodoDueDate('');
+      setTodoAssigneeId('');
+      setIsUrlUrgent(false);
+      setIsAddingTodo(false);
+    } catch (err: any) {
+      console.error('Failed to add todo:', err);
+    }
   };
 
-  const toggleTodo = (todoId: string) => {
-    const updatedTodos = (idea.todos || []).map(t => {
-      if (t.id === todoId) {
-        const newCompleted = !t.completed;
-        return {
-          ...t,
-          completed: newCompleted,
-          completedAt: newCompleted ? new Date().toISOString() : undefined,
-          status: newCompleted ? 'Done' : 'Working'
-        };
-      }
-      return t;
-    });
-    updateIdea(idea.id, { todos: updatedTodos });
+  const toggleTodo = async (todoId: string) => {
+    const todo = linkedDailyTodos.find(t => t.id === todoId);
+    if (!todo) return;
+    try {
+      const updated = await apiClient.put(`/daily-todos/${todoId}`, {
+        completed: !todo.completed,
+        status: !todo.completed ? 'Done' : 'Working'
+      });
+      setLinkedDailyTodos(prev => prev.map(t => t.id === todoId ? updated : t));
+    } catch (err) {
+      console.error('Failed to toggle todo:', err);
+    }
   };
 
-  const toggleUrgent = (todoId: string) => {
-    const updatedTodos = (idea.todos || []).map(t =>
-      t.id === todoId ? { ...t, isUrgent: !t.isUrgent } : t
-    );
-    updateIdea(idea.id, { todos: updatedTodos });
+  const toggleUrgent = async (todoId: string) => {
+    const todo = linkedDailyTodos.find(t => t.id === todoId);
+    if (!todo) return;
+    try {
+      const updated = await apiClient.put(`/daily-todos/${todoId}`, {
+        isUrgent: !todo.isUrgent
+      });
+      setLinkedDailyTodos(prev => prev.map(t => t.id === todoId ? updated : t));
+    } catch (err) {
+      console.error('Failed to toggle urgent:', err);
+    }
   };
 
-  const deleteTodo = (todoId: string) => {
-    const updatedTodos = (idea.todos || []).filter(t => t.id !== todoId);
-    updateIdea(idea.id, { todos: updatedTodos });
+  const deleteTodo = async (todoId: string) => {
+    try {
+      await apiClient.delete(`/daily-todos/${todoId}`);
+      setLinkedDailyTodos(prev => prev.filter(t => t.id !== todoId));
+    } catch (err) {
+      console.error('Failed to delete todo:', err);
+    }
   };
 
   const startEditingTodo = (todo: any) => {
@@ -292,17 +299,18 @@ const IdeaDetail: React.FC = () => {
     setEditingTodoAssigneeId(todo.assigneeId || '');
   };
 
-  const handleSaveEditTodo = (todoId: string) => {
+  const handleSaveEditTodo = async (todoId: string) => {
     if (!editingTodoText.trim()) return;
-    const updatedTodos = (idea.todos || []).map(t =>
-      t.id === todoId ? {
-        ...t,
+    try {
+      const updated = await apiClient.put(`/daily-todos/${todoId}`, {
         text: editingTodoText.trim(),
-        dueDate: editingTodoDueDate || undefined,
-        assigneeId: editingTodoAssigneeId || undefined
-      } : t
-    );
-    updateIdea(idea.id, { todos: updatedTodos });
+        dueDate: editingTodoDueDate || null,
+        assigneeId: editingTodoAssigneeId || null
+      });
+      setLinkedDailyTodos(prev => prev.map(t => t.id === todoId ? updated : t));
+    } catch (err) {
+      console.error('Failed to save todo:', err);
+    }
     setEditingTodoId(null);
   };
 
@@ -1189,8 +1197,8 @@ const IdeaDetail: React.FC = () => {
 
               <div className="space-y-2 mb-6">
                 {useMemo(() => {
-                  const weights = { 'Working': 0, 'Not Started': 1, 'Done': 2, 'Archived': 3 };
-                  return [...(idea.todos || [])]
+                  const weights: Record<string, number> = { 'Working': 0, 'Not Started': 1, 'Done': 2, 'Archived': 3 };
+                  return [...linkedDailyTodos]
                     .filter(t => t.status !== 'Archived')
                     .sort((a, b) => {
                       const statusA = a.status || (a.completed ? 'Done' : 'Not Started');
@@ -1201,7 +1209,7 @@ const IdeaDetail: React.FC = () => {
                       }
                       return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
                     });
-                }, [idea.todos]).map((todo, idx) => {
+                }, [linkedDailyTodos]).map((todo, idx) => {
                   const isUrgent = todo.isUrgent;
                   const isDone = todo.completed;
                   const assignee = data.users.find(u => u.id === todo.assigneeId);
@@ -1331,47 +1339,11 @@ const IdeaDetail: React.FC = () => {
                     </div>
                   );
                 })}
-                {(idea.todos || []).length === 0 && linkedDailyTodos.length === 0 && (
+                {linkedDailyTodos.length === 0 && (
                   <p className="text-[10px] text-gray-400 italic text-center py-4">No tasks yet. Ready to start?</p>
                 )}
               </div>
 
-              {/* Linked Daily To-Dos */}
-              {linkedDailyTodos.length > 0 && (
-                <div className="mt-4 pt-4 border-t border-dashed border-[var(--border)]">
-                  <h3 className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-3 flex items-center gap-2">
-                    <CalendarCheck className="w-3.5 h-3.5" style={{ color: 'var(--primary)' }} />
-                    From Daily To-Dos
-                    <span className="text-[8px] font-bold text-gray-300 normal-case tracking-normal">({linkedDailyTodos.filter(t => !t.completed).length} pending)</span>
-                  </h3>
-                  <div className="space-y-1.5">
-                    {linkedDailyTodos
-                      .sort((a, b) => {
-                        if (a.completed !== b.completed) return a.completed ? 1 : -1;
-                        return new Date(b.date).getTime() - new Date(a.date).getTime();
-                      })
-                      .map(todo => (
-                      <div
-                        key={todo.id}
-                        className={`flex items-center gap-2.5 px-2 py-1.5 rounded-lg transition-all ${todo.completed ? 'opacity-50' : ''} hover:bg-gray-50`}
-                      >
-                        <button
-                          onClick={() => toggleLinkedDailyTodo(todo)}
-                          className={`transition-colors ${todo.completed ? 'text-green-500' : 'text-gray-300 hover:text-[var(--primary)]'}`}
-                        >
-                          {todo.completed ? <CheckCircle2 className="w-4 h-4" /> : <Circle className="w-4 h-4" />}
-                        </button>
-                        <span className={`flex-1 text-[12px] ${todo.completed ? 'line-through text-gray-300' : 'text-gray-700 font-medium'}`}>
-                          {todo.text}
-                        </span>
-                        <span className="text-[9px] text-gray-300 font-bold shrink-0">
-                          {format(new Date(todo.date), 'MMM d')}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
             </section>
 
             {/* Collaborators Panel */}

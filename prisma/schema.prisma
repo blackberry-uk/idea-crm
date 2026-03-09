@@ -46,6 +46,13 @@ model DailyTodo {
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
+  // Kanban / Idea fields
+  status       String?   // Not Started, Working, Done, Archived
+  dueDate      String?
+  assigneeId   String?
+  comments     String?
+  originNoteId String?
+
   userId String
   user   User   @relation(fields: [userId], references: [id])
 
@@ -57,6 +64,7 @@ model DailyTodo {
   children DailyTodo[] @relation("TodoSubtasks")
 
   @@index([userId, date])
+  @@index([ideaId])
 }
 
 model Idea {
