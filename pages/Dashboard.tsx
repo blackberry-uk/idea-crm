@@ -284,7 +284,7 @@ const Dashboard: React.FC = () => {
                     })()}
                     {showDashboardTagPicker && (
                       <div className="daily-todo-add-picker">
-                        {ideas.map(idea => (
+                        {[...ideas].sort((a, b) => a.title.localeCompare(b.title)).map(idea => (
                           <button
                             key={idea.id}
                             className={`daily-todo-add-picker-item ${newTodayIdeaId === idea.id ? 'daily-todo-add-picker-item--selected' : ''}`}
