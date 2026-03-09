@@ -2,11 +2,13 @@
 import React, { useState } from 'react';
 import { useStore } from '../store/useStore.ts';
 import { Link } from 'react-router-dom';
-import { Plus, Users, Trash2, LogOut, Lightbulb, MessageSquarePlus, MessageSquare, ShieldCheck, ChevronRight } from 'lucide-react';
+import { Plus, Trash2, LogOut, Lightbulb, MessageSquarePlus, MessageSquare, ShieldCheck, ArrowUpDown } from 'lucide-react';
 import IdeaModal from '../components/IdeaModal';
 import QuickNoteModal from '../components/QuickNoteModal';
-import { getInitials } from '../lib/utils';
 import { format } from 'date-fns';
+
+type SortCol = 'title' | 'lastUpdate' | 'notes' | 'todos';
+type SortDir = 'asc' | 'desc';
 
 const IdeasPage: React.FC = () => {
   const { data, myIdeas, deleteIdea, leaveIdea, confirm, showToast } = useStore();
@@ -26,40 +28,50 @@ const IdeasPage: React.FC = () => {
     }
   };
 
-  const [sortMode, setSortMode] = React.useState<'active' | 'recent'>(
-    (localStorage.getItem('dashboard_sort_mode') as 'active' | 'recent') || 'active'
+  const [sortCol, setSortCol] = useState<SortCol>(
+    (localStorage.getItem('ideas_sort_col') as SortCol) || 'lastUpdate'
+  );
+  const [sortDir, setSortDir] = useState<SortDir>(
+    (localStorage.getItem('ideas_sort_dir') as SortDir) || 'desc'
   );
 
-  const handleSetSortMode = (mode: 'active' | 'recent') => {
-    setSortMode(mode);
-    localStorage.setItem('dashboard_sort_mode', mode);
+  const handleSort = (col: SortCol) => {
+    const newDir = sortCol === col && sortDir === 'asc' ? 'desc' : sortCol === col && sortDir === 'desc' ? 'asc' : col === 'title' ? 'asc' : 'desc';
+    setSortCol(col);
+    setSortDir(newDir);
+    localStorage.setItem('ideas_sort_col', col);
+    localStorage.setItem('ideas_sort_dir', newDir);
   };
 
   const processedIdeas = myIdeas.map(idea => {
     const ideaNotes = (data.notes || []).filter(n => n.ideaId === idea.id);
     const pendingTodos = (idea.todos || []).filter(t => !t.completed);
-
     const lastNoteDate = ideaNotes.length > 0
       ? Math.max(...ideaNotes.map(n => new Date(n.createdAt).getTime()))
       : 0;
-
     const lastActivityDate = Math.max(new Date(idea.updatedAt).getTime(), lastNoteDate);
 
     return {
       ...idea,
       noteCount: ideaNotes.length,
       todoCount: pendingTodos.length,
-      activityScore: ideaNotes.length + pendingTodos.length,
       lastActivityDate
     };
   });
 
   const entities = ['All', ...(data.currentUser?.personalEntities || [])];
-  const filteredIdeas = processedIdeas
+
+  const sortedIdeas = processedIdeas
     .filter(idea => activeEntity === 'All' || idea.entity === activeEntity)
     .sort((a, b) => {
-      if (sortMode === 'active') return b.activityScore - a.activityScore;
-      return b.lastActivityDate - a.lastActivityDate;
+      const dir = sortDir === 'asc' ? 1 : -1;
+      switch (sortCol) {
+        case 'title': return dir * a.title.localeCompare(b.title);
+        case 'lastUpdate': return dir * (a.lastActivityDate - b.lastActivityDate);
+        case 'notes': return dir * (a.noteCount - b.noteCount);
+        case 'todos': return dir * (a.todoCount - b.todoCount);
+        default: return 0;
+      }
     });
 
   React.useEffect(() => {
@@ -67,236 +79,162 @@ const IdeasPage: React.FC = () => {
     return () => { document.title = 'IdeaCRM Tracker'; };
   }, []);
 
+  const SortIcon = ({ col }: { col: SortCol }) => (
+    <span className={`ideas-sort-icon ${sortCol === col ? 'ideas-sort-icon--active' : ''}`}>
+      {sortCol === col ? (sortDir === 'asc' ? '▲' : '▼') : <ArrowUpDown className="w-3 h-3" />}
+    </span>
+  );
+
   return (
-    <div className="max-w-6xl mx-auto space-y-6 px-8 py-8">
+    <div className="max-w-6xl mx-auto space-y-5 px-8 py-8">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900 tracking-tight">Idea Pipeline</h1>
-          <p className="text-gray-500">{filteredIdeas.length} Active Ideas</p>
+          <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Idea Pipeline</h1>
+          <p className="text-sm text-gray-400">{sortedIdeas.length} Ideas</p>
         </div>
         <button
           onClick={() => setShowAddForm(true)}
-          className="flex items-center justify-center gap-2 text-white px-6 py-2.5 rounded-xl font-semibold shadow-lg transition-all active:scale-95"
+          className="flex items-center justify-center gap-2 text-white px-5 py-2 rounded-xl font-semibold shadow-lg transition-all active:scale-95 text-sm"
           style={{ backgroundColor: 'var(--primary)', boxShadow: '0 10px 15px -3px var(--primary-shadow)' }}
         >
-          <Plus className="w-5 h-5" />
-          Create New Idea
+          <Plus className="w-4 h-4" />
+          New Idea
         </button>
       </div>
 
-      {/* Bucket Filters & Sort */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div className="flex items-center gap-2 overflow-x-auto pb-4 md:pb-0 scrollbar-hide">
-          {entities.map(entity => (
-            <button
-              key={entity}
-              onClick={() => setActiveEntity(entity)}
-              className={`px-5 py-2 rounded-2xl text-[11px] font-black uppercase tracking-wider whitespace-nowrap transition-all border shadow-sm ${activeEntity === entity
-                ? 'text-white'
-                : 'bg-white border-gray-100 text-gray-400 hover:border-[var(--primary)]'
-                }`}
-              style={activeEntity === entity ? { backgroundColor: 'var(--primary)', borderColor: 'var(--primary)', boxShadow: '0 4px 6px -1px var(--primary-shadow)' } : {}}
-            >
-              {entity}
-            </button>
-          ))}
-        </div>
-
-        <div className="flex items-center gap-1 bg-white p-1 rounded-2xl border border-gray-100 shadow-sm self-start">
+      {/* Entity Filters */}
+      <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-hide">
+        {entities.map(entity => (
           <button
-            onClick={() => handleSetSortMode('active')}
-            className={`px-4 py-2 text-[10px] font-black uppercase tracking-wider rounded-xl transition-all ${sortMode === 'active' ? 'bg-[var(--primary)] text-white shadow-md' : 'text-gray-400 hover:text-gray-600'}`}
+            key={entity}
+            onClick={() => setActiveEntity(entity)}
+            className={`px-4 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider whitespace-nowrap transition-all border shadow-sm ${activeEntity === entity
+              ? 'text-white'
+              : 'bg-white border-gray-100 text-gray-400 hover:border-[var(--primary)]'
+            }`}
+            style={activeEntity === entity ? { backgroundColor: 'var(--primary)', borderColor: 'var(--primary)' } : {}}
           >
-            Most Active
+            {entity}
           </button>
-          <button
-            onClick={() => handleSetSortMode('recent')}
-            className={`px-4 py-2 text-[10px] font-black uppercase tracking-wider rounded-xl transition-all ${sortMode === 'recent' ? 'bg-[var(--primary)] text-white shadow-md' : 'text-gray-400 hover:text-gray-600'}`}
-          >
-            Recently Updated
-          </button>
-        </div>
+        ))}
       </div>
 
-      {/* Recently Updated Table — moved from Dashboard */}
-      <section className="bg-white rounded-2xl border p-6 shadow-sm space-y-4">
-        <div className="flex items-center gap-4">
-          <h2 className="font-bold text-lg text-gray-900 whitespace-nowrap">
-            {sortMode === 'active' ? 'Most Active Ideas' : 'Recently Updated'}
-          </h2>
-        </div>
-        <div className="space-y-3">
-          {[...processedIdeas]
-            .sort((a, b) => sortMode === 'active' ? b.activityScore - a.activityScore : b.lastActivityDate - a.lastActivityDate)
-            .slice(0, 5)
-            .map(idea => (
-              <Link key={idea.id} to={`/ideas/${idea.id}`} className="block p-4 rounded-xl border border-gray-50 hover:border-gray-200 transition-all group">
-                <div className="flex justify-between items-center">
-                  <div className="min-w-0 flex-1">
-                    <p className="font-bold text-gray-900 group-hover:text-[var(--primary)] transition-colors truncate">{idea.title}</p>
-                    <p className="text-[10px] text-gray-400 uppercase font-bold">
-                      {sortMode === 'recent' ? 'Last activity ' : 'Updated '}
-                      {format(new Date(sortMode === 'recent' ? idea.lastActivityDate : idea.updatedAt), 'EEE, MMM d')}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-4 shrink-0 px-4">
-                    <button
-                      onClick={(e) => {
-                        e.preventDefault();
-                        handleSetQuickNoteIdea({ id: idea.id, title: idea.title });
-                      }}
-                      className="p-2 rounded-lg bg-gray-50 text-gray-400 hover:bg-[var(--primary-shadow)] hover:text-[var(--primary)] transition-all border border-transparent hover:border-[var(--primary)]/10"
-                      title="Quick Note"
-                    >
-                      <MessageSquarePlus className="w-4 h-4" />
-                    </button>
-                    <div className="flex flex-col items-center">
-                      <span className="text-[10px] font-bold text-gray-400 uppercase">Notes</span>
-                      <div className="flex items-center gap-1" style={{ color: 'var(--primary)' }}>
-                        <MessageSquare className="w-3 h-3" />
-                        <span className="text-xs font-bold">{idea.noteCount}</span>
-                      </div>
-                    </div>
-                    <div className="flex flex-col items-center">
-                      <span className="text-[10px] font-bold text-gray-400 uppercase">Todos</span>
-                      <div className="flex items-center gap-1 text-amber-600">
-                        <ShieldCheck className="w-3 h-3" />
-                        <span className="text-xs font-bold">{idea.todoCount}</span>
-                      </div>
-                    </div>
-                  </div>
-                  <ChevronRight className="w-4 h-4 text-gray-300 group-hover:text-[var(--primary)] transition-colors" />
-                </div>
-              </Link>
-            ))}
-        </div>
-      </section>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-        {filteredIdeas.map(idea => {
-          const owner = data.users.find(u => u.id === idea.ownerId);
-          const isOwner = idea.ownerId === data.currentUser?.id;
-          return (
-            <div key={idea.id} className="relative group animate-in fade-in slide-in-from-bottom-4 duration-300">
-              <button
-                onClick={(e) => {
-                  e.preventDefault();
-                  if (isOwner) {
-                    confirm({
-                      title: 'Delete Idea',
-                      message: `Are you sure you want to permanently delete "${idea.title}"? This action cannot be undone.`,
-                      confirmLabel: 'Delete',
-                      type: 'danger',
-                      onConfirm: async () => {
-                        try {
-                          await deleteIdea(idea.id);
-                          showToast('Idea deleted successfully', 'success');
-                        } catch (err: any) {
-                          showToast(err.message || 'Failed to delete idea', 'error');
-                        }
-                      }
-                    });
-                  } else {
-                    confirm({
-                      title: 'Leave Project',
-                      message: `Stop collaborating on "${idea.title}"?`,
-                      confirmLabel: 'Leave',
-                      type: 'danger',
-                      onConfirm: async () => {
-                        try {
-                          await leaveIdea(idea.id);
-                          showToast('You have left the project', 'info');
-                        } catch (err: any) {
-                          showToast(err.message || 'Failed to leave project', 'error');
-                        }
-                      }
-                    });
-                  }
-                }}
-                className="absolute top-4 right-4 z-10 p-2 bg-white rounded-xl border border-gray-100 shadow-sm opacity-0 group-hover:opacity-100 transition-all hover:bg-red-50 hover:text-red-600 hover:border-red-100 active:scale-90"
-                title={isOwner ? "Delete Idea" : "Leave Project"}
-              >
-                {isOwner ? <Trash2 className="w-4 h-4" /> : <LogOut className="w-4 h-4" />}
-              </button>
-
-              <Link to={`/ideas/${idea.id}`} className="block h-full">
-                <div className="bg-white rounded-[2.5rem] border border-gray-100 p-8 shadow-sm hover:shadow-xl hover:border-[var(--primary)] group-hover:-translate-y-1 transition-all h-full flex flex-col">
-                  <div className="flex items-center justify-between mb-6">
-                    <div className="flex flex-wrap gap-2">
-                      <span className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider border ${['Ideation', 'Scoping', 'Backlog'].includes(idea.status) ? 'bg-amber-50 text-amber-600 border-amber-100' :
-                        ['Research'].includes(idea.status) ? 'bg-blue-50 text-blue-600 border-blue-100' :
-                          ['Prototype', 'Proposal', 'Business Plan'].includes(idea.status) ? 'bg-[var(--primary)]/10 text-[var(--primary)] border-[var(--primary)]/20' :
-                            ['Testing', 'Approval', 'Capital Raise'].includes(idea.status) ? 'bg-purple-50 text-purple-600 border-purple-100' :
-                              ['Launched', 'Execution', 'Active', 'Done'].includes(idea.status) ? 'bg-emerald-50 text-emerald-600 border-emerald-100' :
-                                idea.status === 'Dead' ? 'bg-red-50 text-red-600 border-red-100' :
-                                  'bg-gray-100 text-gray-500 border-gray-200'
-                        }`}>
-                        {idea.status}
-                      </span>
-                      <span className="px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest bg-slate-50 text-slate-400 border border-slate-100">
-                        {idea.entity}
-                      </span>
-                    </div>
-                    {(idea.collaboratorIds?.length ?? 0) > 0 && <Users className="w-4 h-4" style={{ color: 'var(--primary)' }} />}
-                  </div>
-
-                  <h3 className="text-xl font-black text-gray-900 mb-2 leading-tight tracking-tight group-hover:text-[var(--primary)] transition-colors">
-                    {idea.title}
-                  </h3>
-                  <p className="text-sm text-gray-400 font-medium line-clamp-1 mb-6 leading-relaxed italic">{idea.oneLiner || 'No description provided'}</p>
-
-                  <div className="flex items-center justify-between mt-auto pt-6 border-t border-gray-50">
-                    <div className="flex items-center gap-3">
-                      <div
-                        className="w-10 h-10 rounded-xl flex items-center justify-center text-white text-[11px] font-black shadow-md"
-                        style={{ backgroundColor: owner?.avatarColor || 'var(--primary)' }}
-                      >
-                        {getInitials(owner?.name || 'U')}
-                      </div>
-                      <div className="flex flex-col">
-                        <span className="text-[10px] font-black text-gray-900 uppercase tracking-widest">
-                          {owner?.name || 'Unknown'}
-                        </span>
-                        <span className="text-[9px] font-bold text-gray-400 uppercase">
-                          {sortMode === 'recent' ? 'Active ' : 'Updated '}
-                          {format(new Date(sortMode === 'recent' ? idea.lastActivityDate : idea.updatedAt), 'MMM d')}
-                        </span>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-2">
+      {/* Sortable Ideas Table */}
+      <section className="bg-white rounded-2xl border shadow-sm overflow-hidden">
+        <table className="ideas-table">
+          <thead>
+            <tr>
+              <th className="ideas-th ideas-th--sortable" onClick={() => handleSort('title')}>
+                Idea <SortIcon col="title" />
+              </th>
+              <th className="ideas-th ideas-th--hide-mobile">Status</th>
+              <th className="ideas-th ideas-th--hide-mobile">Entity</th>
+              <th className="ideas-th ideas-th--sortable ideas-th--center" onClick={() => handleSort('lastUpdate')}>
+                Updated <SortIcon col="lastUpdate" />
+              </th>
+              <th className="ideas-th ideas-th--sortable ideas-th--center" onClick={() => handleSort('notes')}>
+                Notes <SortIcon col="notes" />
+              </th>
+              <th className="ideas-th ideas-th--sortable ideas-th--center" onClick={() => handleSort('todos')}>
+                Todos <SortIcon col="todos" />
+              </th>
+              <th className="ideas-th" style={{ width: '4.5rem' }}></th>
+            </tr>
+          </thead>
+          <tbody>
+            {sortedIdeas.map(idea => {
+              const isOwner = idea.ownerId === data.currentUser?.id;
+              return (
+                <tr key={idea.id} className="ideas-row">
+                  <td className="ideas-td">
+                    <Link to={`/ideas/${idea.id}`} className="ideas-title-link">
+                      {idea.title}
+                    </Link>
+                  </td>
+                  <td className="ideas-td ideas-td--hide-mobile">
+                    <span className={`ideas-status-badge ${
+                      ['Ideation', 'Scoping', 'Backlog'].includes(idea.status) ? 'ideas-status--amber' :
+                      ['Research'].includes(idea.status) ? 'ideas-status--blue' :
+                      ['Prototype', 'Proposal', 'Business Plan'].includes(idea.status) ? 'ideas-status--primary' :
+                      ['Testing', 'Approval', 'Capital Raise'].includes(idea.status) ? 'ideas-status--purple' :
+                      ['Launched', 'Execution', 'Active', 'Done'].includes(idea.status) ? 'ideas-status--green' :
+                      idea.status === 'Dead' ? 'ideas-status--red' : 'ideas-status--gray'
+                    }`}>
+                      {idea.status}
+                    </span>
+                  </td>
+                  <td className="ideas-td ideas-td--hide-mobile">
+                    <span className="ideas-entity-badge">{idea.entity}</span>
+                  </td>
+                  <td className="ideas-td ideas-td--center ideas-td--muted">
+                    {format(new Date(idea.lastActivityDate), 'MMM d')}
+                  </td>
+                  <td className="ideas-td ideas-td--center">
+                    <span className="ideas-count" style={{ color: 'var(--primary)' }}>
+                      <MessageSquare className="w-3 h-3" />
+                      {idea.noteCount}
+                    </span>
+                  </td>
+                  <td className="ideas-td ideas-td--center">
+                    <span className="ideas-count ideas-count--amber">
+                      <ShieldCheck className="w-3 h-3" />
+                      {idea.todoCount}
+                    </span>
+                  </td>
+                  <td className="ideas-td ideas-td--center">
+                    <div className="flex items-center gap-1 justify-center">
                       <button
-                        onClick={(e) => {
-                          e.preventDefault();
-                          handleSetQuickNoteIdea({ id: idea.id, title: idea.title });
-                        }}
-                        className="p-2.5 rounded-xl bg-gray-50 text-gray-400 hover:bg-[var(--primary-shadow)] hover:text-[var(--primary)] transition-all shadow-sm border border-transparent hover:border-[var(--primary)]/20 active:scale-90"
+                        onClick={() => handleSetQuickNoteIdea({ id: idea.id, title: idea.title })}
+                        className="ideas-action-btn"
                         title="Quick Note"
                       >
-                        <MessageSquarePlus className="w-5 h-5" />
+                        <MessageSquarePlus className="w-3.5 h-3.5" />
                       </button>
-                      <div className="flex flex-col items-center px-2 py-1 bg-gray-50 rounded-xl border border-gray-100">
-                        <div className="flex items-center gap-1 text-[var(--primary)]">
-                          <MessageSquare className="w-3 h-3" />
-                          <span className="text-[10px] font-black">{idea.noteCount}</span>
-                        </div>
-                      </div>
+                      <button
+                        onClick={() => {
+                          if (isOwner) {
+                            confirm({
+                              title: 'Delete Idea',
+                              message: `Permanently delete "${idea.title}"?`,
+                              confirmLabel: 'Delete',
+                              type: 'danger',
+                              onConfirm: async () => {
+                                try { await deleteIdea(idea.id); showToast('Idea deleted', 'success'); }
+                                catch (err: any) { showToast(err.message || 'Failed', 'error'); }
+                              }
+                            });
+                          } else {
+                            confirm({
+                              title: 'Leave Project',
+                              message: `Stop collaborating on "${idea.title}"?`,
+                              confirmLabel: 'Leave',
+                              type: 'danger',
+                              onConfirm: async () => {
+                                try { await leaveIdea(idea.id); showToast('Left project', 'info'); }
+                                catch (err: any) { showToast(err.message || 'Failed', 'error'); }
+                              }
+                            });
+                          }
+                        }}
+                        className="ideas-action-btn ideas-action-btn--danger"
+                        title={isOwner ? 'Delete' : 'Leave'}
+                      >
+                        {isOwner ? <Trash2 className="w-3.5 h-3.5" /> : <LogOut className="w-3.5 h-3.5" />}
+                      </button>
                     </div>
-                  </div>
-                </div>
-              </Link>
-            </div>
-          );
-        })}
-        {filteredIdeas.length === 0 && (
-          <div className="col-span-full py-24 text-center bg-white rounded-[3rem] border border-dashed border-gray-200">
-            <div className="w-16 h-16 bg-gray-50 rounded-2xl flex items-center justify-center mx-auto mb-4">
-              <Lightbulb className="w-8 h-8 text-gray-200" />
-            </div>
-            <p className="text-gray-400 font-bold uppercase tracking-widest text-xs">No ideas found in this bucket</p>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+        {sortedIdeas.length === 0 && (
+          <div className="py-16 text-center">
+            <Lightbulb className="w-8 h-8 text-gray-200 mx-auto mb-3" />
+            <p className="text-gray-400 font-bold uppercase tracking-widest text-xs">No ideas found</p>
           </div>
         )}
-      </div>
+      </section>
 
       <IdeaModal isOpen={showAddForm} onClose={() => setShowAddForm(false)} />
 
