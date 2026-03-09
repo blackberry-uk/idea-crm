@@ -168,7 +168,7 @@ const DailyTodoItem: React.FC<DailyTodoItemProps> = ({
                     <X className="w-3 h-3" /> Remove tag
                   </button>
                 )}
-                {ideas.map(idea => (
+                {[...ideas].sort((a, b) => a.title.localeCompare(b.title)).map(idea => (
                   <button
                     key={idea.id}
                     onClick={() => { onTagIdea(todo.id, idea.id); setShowTagMenu(false); }}
