@@ -1,10 +1,11 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useStore } from '../store/useStore.ts';
 import { Link } from 'react-router-dom';
 import { Plus, Trash2, LogOut, Lightbulb, MessageSquarePlus, MessageSquare, ShieldCheck, ArrowUpDown } from 'lucide-react';
 import IdeaModal from '../components/IdeaModal';
 import QuickNoteModal from '../components/QuickNoteModal';
+import { apiClient } from '../lib/api/client';
 import { format } from 'date-fns';
 
 type SortCol = 'title' | 'lastUpdate' | 'notes' | 'todos';
@@ -43,9 +44,39 @@ const IdeasPage: React.FC = () => {
     localStorage.setItem('ideas_sort_dir', newDir);
   };
 
+  // Fetch daily todos to include in counts
+  const [dailyTodoCounts, setDailyTodoCounts] = useState<Record<string, number>>({});
+  useEffect(() => {
+    const fetchDailyTodos = async () => {
+      try {
+        const from = new Date(); from.setFullYear(from.getFullYear() - 1);
+        const to = new Date(); to.setFullYear(to.getFullYear() + 1);
+        const all = await apiClient.get(`/daily-todos?from=${from.toISOString()}&to=${to.toISOString()}`) as any[];
+        // Count pending daily todos per ideaId
+        const counts: Record<string, number> = {};
+        for (const t of all) {
+          if (t.ideaId && !t.completed) {
+            counts[t.ideaId] = (counts[t.ideaId] || 0) + 1;
+          }
+          // Also count children
+          for (const c of (t.children || [])) {
+            if (c.ideaId && !c.completed) {
+              counts[c.ideaId] = (counts[c.ideaId] || 0) + 1;
+            }
+          }
+        }
+        setDailyTodoCounts(counts);
+      } catch (err) {
+        console.error('Failed to fetch daily todo counts:', err);
+      }
+    };
+    fetchDailyTodos();
+  }, []);
+
   const processedIdeas = myIdeas.map(idea => {
     const ideaNotes = (data.notes || []).filter(n => n.ideaId === idea.id);
-    const pendingTodos = (idea.todos || []).filter(t => !t.completed);
+    const pendingIdeaTodos = (idea.todos || []).filter(t => !t.completed);
+    const pendingDailyTodos = dailyTodoCounts[idea.id] || 0;
     const lastNoteDate = ideaNotes.length > 0
       ? Math.max(...ideaNotes.map(n => new Date(n.createdAt).getTime()))
       : 0;
@@ -54,7 +85,7 @@ const IdeasPage: React.FC = () => {
     return {
       ...idea,
       noteCount: ideaNotes.length,
-      todoCount: pendingTodos.length,
+      todoCount: pendingIdeaTodos.length + pendingDailyTodos,
       lastActivityDate
     };
   });
