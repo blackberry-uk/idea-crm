@@ -6,6 +6,7 @@ import {
   CalendarDays, ArrowDownToLine, Loader2, Sparkles, Tag, Send
 } from 'lucide-react';
 import DailyTodoItem, { DailyTodoData } from '../components/DailyTodoItem';
+import IdeaPickerDropdown from '../components/IdeaPickerDropdown';
 
 type DailyTodo = DailyTodoData;
 
@@ -446,33 +447,14 @@ const DailyTodos: React.FC = () => {
                         </div>
                       ) : null;
                     })()}
-                    {/* Idea picker dropdown */}
                     {showTagPicker === dateKey && (
-                      <div className="daily-todo-add-picker">
-                        {[...ideas].sort((a, b) => a.title.localeCompare(b.title)).map(idea => (
-                          <button
-                            key={idea.id}
-                            className={`daily-todo-add-picker-item ${newTodoIdeaIds[dateKey] === idea.id ? 'daily-todo-add-picker-item--selected' : ''}`}
-                            onClick={() => {
-                              setNewTodoIdeaIds(prev => ({ ...prev, [dateKey]: idea.id }));
-                              setShowTagPicker(null);
-                            }}
-                          >
-                            💡 {idea.title}
-                          </button>
-                        ))}
-                        {newTodoIdeaIds[dateKey] && (
-                          <button
-                            className="daily-todo-add-picker-item daily-todo-add-picker-item--remove"
-                            onClick={() => {
-                              setNewTodoIdeaIds(prev => ({ ...prev, [dateKey]: '' }));
-                              setShowTagPicker(null);
-                            }}
-                          >
-                            ✕ Remove tag
-                          </button>
-                        )}
-                      </div>
+                      <IdeaPickerDropdown
+                        ideas={ideas}
+                        selectedIdeaId={newTodoIdeaIds[dateKey]}
+                        onSelect={(id) => { setNewTodoIdeaIds(prev => ({ ...prev, [dateKey]: id })); setShowTagPicker(null); }}
+                        onRemove={() => { setNewTodoIdeaIds(prev => ({ ...prev, [dateKey]: '' })); setShowTagPicker(null); }}
+                        showRemove={!!newTodoIdeaIds[dateKey]}
+                      />
                     )}
                   </div>
                   )}

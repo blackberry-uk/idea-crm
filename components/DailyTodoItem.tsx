@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Check, Circle, Flame, Trash2, Tag, X, Lightbulb, GripVertical, Plus, ChevronDown, ChevronRight } from 'lucide-react';
+import IdeaPickerDropdown from './IdeaPickerDropdown';
 
 export interface DailyTodoData {
   id: string;
@@ -156,31 +157,15 @@ const DailyTodoItem: React.FC<DailyTodoItemProps> = ({
             {showTagMenu && (
               <div style={{
                 position: 'absolute', right: 0, top: '100%', zIndex: 50,
-                background: 'white', border: '1px solid #e5e7eb', borderRadius: '0.75rem',
-                boxShadow: '0 10px 25px -5px rgba(0,0,0,0.1)', padding: '0.5rem',
                 minWidth: '200px', maxHeight: '200px', overflowY: 'auto'
               }}>
-                {todo.ideaId && (
-                  <button
-                    onClick={() => { onTagIdea(todo.id, null); setShowTagMenu(false); }}
-                    className="w-full text-left px-3 py-2 rounded-lg text-xs font-bold text-red-500 hover:bg-red-50 transition-colors flex items-center gap-2"
-                  >
-                    <X className="w-3 h-3" /> Remove tag
-                  </button>
-                )}
-                {[...ideas].sort((a, b) => a.title.localeCompare(b.title)).map(idea => (
-                  <button
-                    key={idea.id}
-                    onClick={() => { onTagIdea(todo.id, idea.id); setShowTagMenu(false); }}
-                    className={`w-full text-left px-3 py-2 rounded-lg text-xs font-medium hover:bg-gray-50 transition-colors truncate ${todo.ideaId === idea.id ? 'font-bold' : ''}`}
-                    style={todo.ideaId === idea.id ? { color: 'var(--primary)' } : { color: '#374151' }}
-                  >
-                    {idea.title}
-                  </button>
-                ))}
-                {ideas.length === 0 && (
-                  <p className="px-3 py-2 text-xs text-gray-400 italic">No ideas yet</p>
-                )}
+                <IdeaPickerDropdown
+                  ideas={ideas}
+                  selectedIdeaId={todo.ideaId}
+                  onSelect={(id) => { onTagIdea(todo.id, id); setShowTagMenu(false); }}
+                  onRemove={() => { onTagIdea(todo.id, null); setShowTagMenu(false); }}
+                  showRemove={!!todo.ideaId}
+                />
               </div>
             )}
           </div>
