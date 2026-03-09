@@ -319,7 +319,7 @@ const DailyTodos: React.FC = () => {
         <div className="daily-todos-title-row">
           <div className="daily-todos-title-group">
             <CalendarDays className="daily-todos-title-icon" />
-            <h1>Daily To-Dos</h1>
+            <h1>Calendar</h1>
           </div>
           <div className="daily-todos-actions">
             <button

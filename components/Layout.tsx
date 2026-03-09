@@ -42,7 +42,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     { name: 'Dashboard', path: '/', icon: LayoutDashboard },
     { name: 'Ideas', path: '/ideas', icon: Lightbulb },
     { name: 'Contacts', path: '/contacts', icon: Users },
-    { name: 'Daily', path: '/daily', icon: CalendarCheck },
+    { name: 'Calendar', path: '/daily', icon: CalendarCheck },
     { name: 'Invitations', path: '/invitations', icon: Mail, badge: pendingInvs },
     { name: 'Training', path: '/?training=true', icon: Brain },
     { name: 'Settings', path: '/settings', icon: SettingsIcon },

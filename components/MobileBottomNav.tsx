@@ -8,7 +8,7 @@ const MobileBottomNav: React.FC = () => {
   const items = [
     { path: '/', icon: LayoutDashboard, label: 'Home' },
     { path: '/ideas', icon: Lightbulb, label: 'Ideas' },
-    { path: '/daily', icon: CalendarCheck, label: 'To-Dos' },
+    { path: '/daily', icon: CalendarCheck, label: 'Calendar' },
     { path: '/contacts', icon: Users, label: 'Contacts' },
     { path: '/settings', icon: Settings, label: 'Settings' },
   ];
