@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { X, Layout, Plus, Trash2, Calendar, Users, AlertCircle, CheckCircle2, Circle, MoreVertical, Archive, ClipboardList, Zap, Flag, MessageSquare, Save, Clock } from 'lucide-react';
-import { Idea, Todo, User, Note } from '../types';
-import { format, parseISO } from 'date-fns';
+import { Idea, User, Note } from '../types';
+import { format } from 'date-fns';
 import { getInitials, getAvatarColor } from '../lib/utils';
+import { apiClient } from '../lib/api/client';
 
 interface KanbanModalProps {
     isOpen: boolean;
@@ -21,10 +22,40 @@ const KanbanModal: React.FC<KanbanModalProps> = ({ isOpen, onClose, idea, users,
     const [draggedTodoId, setDraggedTodoId] = useState<string | null>(null);
     const [expandedTodoId, setExpandedTodoId] = useState<string | null>(null);
     const [editingComments, setEditingComments] = useState<{ [key: string]: string }>({});
+    const [todos, setTodos] = useState<any[]>([]);
+    const [loading, setLoading] = useState(true);
+
+    // Fetch daily todos for this idea
+    useEffect(() => {
+        if (!isOpen || !idea?.id) return;
+        const fetchTodos = async () => {
+            setLoading(true);
+            try {
+                const from = new Date(); from.setFullYear(from.getFullYear() - 2);
+                const to = new Date(); to.setFullYear(to.getFullYear() + 2);
+                const all = await apiClient.get(
+                    `/daily-todos?from=${from.toISOString()}&to=${to.toISOString()}`
+                ) as any[];
+                const ideaTodos = all.filter(t => t.ideaId === idea.id);
+                // Flatten: include both parents and their children
+                const flat: any[] = [];
+                for (const t of ideaTodos) {
+                    flat.push(t);
+                    for (const c of (t.children || [])) {
+                        if (c.ideaId === idea.id) flat.push(c);
+                    }
+                }
+                setTodos(flat);
+            } catch (err) {
+                console.error('Failed to fetch kanban todos:', err);
+            } finally {
+                setLoading(false);
+            }
+        };
+        fetchTodos();
+    }, [isOpen, idea?.id]);
 
     if (!isOpen) return null;
-
-    const todos = idea.todos || [];
 
     const getTodosByStatus = (status: ColumnType) => {
         return todos
@@ -37,10 +68,8 @@ const KanbanModal: React.FC<KanbanModalProps> = ({ isOpen, onClose, idea, users,
                 return false;
             })
             .sort((a, b) => {
-                // Urgent first
                 if (a.isUrgent && !b.isUrgent) return -1;
                 if (!a.isUrgent && b.isUrgent) return 1;
-                // Then by creation date (newest first)
                 return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
             });
     };
@@ -56,20 +85,16 @@ const KanbanModal: React.FC<KanbanModalProps> = ({ isOpen, onClose, idea, users,
         const todoId = e.dataTransfer.getData('todoId');
         if (!todoId) return;
 
-        const newTodos = todos.map(t => {
-            if (t.id === todoId) {
-                const isCompleted = targetStatus === 'Done' || targetStatus === 'Archived';
-                return {
-                    ...t,
-                    status: targetStatus,
-                    completed: targetStatus === 'Done' ? true : (targetStatus === 'Archived' ? t.completed : false),
-                    completedAt: targetStatus === 'Done' ? (t.completedAt || new Date().toISOString()) : (t.completed ? t.completedAt : undefined)
-                };
-            }
-            return t;
-        });
-
-        await onUpdateIdea(idea.id, { todos: newTodos });
+        const isCompleted = targetStatus === 'Done';
+        try {
+            const updated = await apiClient.put(`/daily-todos/${todoId}`, {
+                status: targetStatus,
+                completed: isCompleted ? true : (targetStatus === 'Archived' ? undefined : false)
+            });
+            setTodos(prev => prev.map(t => t.id === todoId ? { ...t, ...updated } : t));
+        } catch (err) {
+            console.error('Failed to update todo status:', err);
+        }
         setDraggedTodoId(null);
     };
 
@@ -79,47 +104,62 @@ const KanbanModal: React.FC<KanbanModalProps> = ({ isOpen, onClose, idea, users,
     };
 
     const toggleTodoDone = async (todoId: string) => {
-        const newTodos = todos.map(t => {
-            if (t.id === todoId) {
-                const nowDone = !t.completed;
-                return {
-                    ...t,
-                    completed: nowDone,
-                    completedAt: nowDone ? new Date().toISOString() : undefined,
-                    status: nowDone ? 'Done' : 'Working'
-                };
-            }
-            return t;
-        });
-        await onUpdateIdea(idea.id, { todos: newTodos });
+        const todo = todos.find(t => t.id === todoId);
+        if (!todo) return;
+        const nowDone = !todo.completed;
+        try {
+            const updated = await apiClient.put(`/daily-todos/${todoId}`, {
+                completed: nowDone,
+                status: nowDone ? 'Done' : 'Working'
+            });
+            setTodos(prev => prev.map(t => t.id === todoId ? { ...t, ...updated } : t));
+        } catch (err) {
+            console.error('Failed to toggle todo:', err);
+        }
     };
 
     const toggleUrgent = async (todoId: string) => {
-        const newTodos = todos.map(t =>
-            t.id === todoId ? { ...t, isUrgent: !t.isUrgent } : t
-        );
-        await onUpdateIdea(idea.id, { todos: newTodos });
+        const todo = todos.find(t => t.id === todoId);
+        if (!todo) return;
+        try {
+            const updated = await apiClient.put(`/daily-todos/${todoId}`, {
+                isUrgent: !todo.isUrgent
+            });
+            setTodos(prev => prev.map(t => t.id === todoId ? { ...t, ...updated } : t));
+        } catch (err) {
+            console.error('Failed to toggle urgent:', err);
+        }
     };
 
     const updateDueDate = async (todoId: string, dueDate: string) => {
-        const newTodos = todos.map(t =>
-            t.id === todoId ? { ...t, dueDate } : t
-        );
-        await onUpdateIdea(idea.id, { todos: newTodos });
+        try {
+            const updated = await apiClient.put(`/daily-todos/${todoId}`, { dueDate });
+            setTodos(prev => prev.map(t => t.id === todoId ? { ...t, ...updated } : t));
+        } catch (err) {
+            console.error('Failed to update due date:', err);
+        }
     };
 
     const saveComments = async (todoId: string) => {
-        const newTodos = todos.map(t =>
-            t.id === todoId ? { ...t, comments: editingComments[todoId] } : t
-        );
-        await onUpdateIdea(idea.id, { todos: newTodos });
-        setExpandedTodoId(null);
+        try {
+            const updated = await apiClient.put(`/daily-todos/${todoId}`, {
+                comments: editingComments[todoId] || ''
+            });
+            setTodos(prev => prev.map(t => t.id === todoId ? { ...t, ...updated } : t));
+            setExpandedTodoId(null);
+        } catch (err) {
+            console.error('Failed to save comments:', err);
+        }
     };
 
     const deleteTodo = async (todoId: string) => {
-        const newTodos = todos.filter(t => t.id !== todoId);
-        await onUpdateIdea(idea.id, { todos: newTodos });
-        setExpandedTodoId(null);
+        try {
+            await apiClient.delete(`/daily-todos/${todoId}`);
+            setTodos(prev => prev.filter(t => t.id !== todoId));
+            setExpandedTodoId(null);
+        } catch (err) {
+            console.error('Failed to delete todo:', err);
+        }
     };
 
     const getSourceReference = (originNoteId?: string) => {
@@ -159,7 +199,10 @@ const KanbanModal: React.FC<KanbanModalProps> = ({ isOpen, onClose, idea, users,
 
                 {/* Board */}
                 <div className="flex-1 overflow-x-auto p-8 flex gap-6 scrollbar-hide">
-                    {COLUMNS.map(status => (
+                    {loading ? (
+                        <div className="flex-1 flex items-center justify-center text-gray-400 text-sm font-bold">Loading...</div>
+                    ) : (
+                    COLUMNS.map(status => (
                         <div
                             key={status}
                             className="flex-shrink-0 w-80 flex flex-col h-full bg-gray-100/50 rounded-[28px] border border-gray-200/50"
@@ -175,12 +218,6 @@ const KanbanModal: React.FC<KanbanModalProps> = ({ isOpen, onClose, idea, users,
                                         {getTodosByStatus(status).length}
                                     </span>
                                 </div>
-                                <button
-                                    className="p-1 px-2 text-[10px] font-bold hover:bg-[var(--primary)]/10 rounded-lg transition-colors"
-                                    style={{ color: 'var(--primary)' }}
-                                >
-                                    <Plus className="w-3.5 h-3.5" />
-                                </button>
                             </div>
 
                             <div className="flex-1 overflow-y-auto px-4 pb-4 space-y-3 custom-scrollbar">
@@ -328,7 +365,8 @@ const KanbanModal: React.FC<KanbanModalProps> = ({ isOpen, onClose, idea, users,
                                 )}
                             </div>
                         </div>
-                    ))}
+                    ))
+                    )}
                 </div>
             </div>
 
