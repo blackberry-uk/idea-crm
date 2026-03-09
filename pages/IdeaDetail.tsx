@@ -1,5 +1,5 @@
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { useNavigate, useParams, Link } from 'react-router-dom';
 import { useStore } from '../store/useStore';
 import { format } from 'date-fns';
@@ -45,7 +45,8 @@ import {
   EyeOff,
   ChevronDown,
   ChevronRight,
-  Send
+  Send,
+  CalendarCheck
 } from 'lucide-react';
 import NoteComposer from '../components/NoteComposer';
 import NoteDetailModal from '../components/NoteDetailModal';
@@ -54,6 +55,7 @@ import KanbanModal from '../components/KanbanModal';
 
 import { getStagesForType } from '../lib/idea-utils';
 import AICounselor from '../components/AICounselor';
+import { apiClient } from '../lib/api/client';
 
 const INTENT_CONFIG: Record<string, { icon: any, label: string, color: string }> = {
   follow_up: { icon: RotateCcw, label: 'Follow up', color: 'text-green-600' },
@@ -114,6 +116,38 @@ const IdeaDetail: React.FC = () => {
   const [expandedCommentsNoteId, setExpandedCommentsNoteId] = useState<string | null>(null);
   const [selectedNoteForDetail, setSelectedNoteForDetail] = useState<Note | null>(null);
   const [commentBody, setCommentBody] = useState<Record<string, string>>({});
+
+  // Fetch daily todos tagged to this idea
+  const [linkedDailyTodos, setLinkedDailyTodos] = useState<any[]>([]);
+  useEffect(() => {
+    if (!idea?.id) return;
+    const fetchLinked = async () => {
+      try {
+        const from = new Date();
+        from.setDate(from.getDate() - 365);
+        const to = new Date();
+        to.setDate(to.getDate() + 365);
+        const all = await apiClient.get(
+          `/daily-todos?from=${from.toISOString()}&to=${to.toISOString()}`
+        ) as any[];
+        setLinkedDailyTodos(all.filter(t => t.ideaId === idea.id));
+      } catch (err) {
+        console.error('Failed to fetch linked daily todos:', err);
+      }
+    };
+    fetchLinked();
+  }, [idea?.id]);
+
+  const toggleLinkedDailyTodo = async (todo: any) => {
+    try {
+      const updated = await apiClient.put(`/daily-todos/${todo.id}`, {
+        completed: !todo.completed
+      });
+      setLinkedDailyTodos(prev => prev.map(t => t.id === todo.id ? updated : t));
+    } catch (err) {
+      console.error('Failed to toggle daily todo:', err);
+    }
+  };
 
   const handleTodoDragStart = (idx: number) => {
     setDraggedTodoIndex(idx);
@@ -1297,10 +1331,47 @@ const IdeaDetail: React.FC = () => {
                     </div>
                   );
                 })}
-                {(idea.todos || []).length === 0 && (
+                {(idea.todos || []).length === 0 && linkedDailyTodos.length === 0 && (
                   <p className="text-[10px] text-gray-400 italic text-center py-4">No tasks yet. Ready to start?</p>
                 )}
               </div>
+
+              {/* Linked Daily To-Dos */}
+              {linkedDailyTodos.length > 0 && (
+                <div className="mt-4 pt-4 border-t border-dashed border-[var(--border)]">
+                  <h3 className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-3 flex items-center gap-2">
+                    <CalendarCheck className="w-3.5 h-3.5" style={{ color: 'var(--primary)' }} />
+                    From Daily To-Dos
+                    <span className="text-[8px] font-bold text-gray-300 normal-case tracking-normal">({linkedDailyTodos.filter(t => !t.completed).length} pending)</span>
+                  </h3>
+                  <div className="space-y-1.5">
+                    {linkedDailyTodos
+                      .sort((a, b) => {
+                        if (a.completed !== b.completed) return a.completed ? 1 : -1;
+                        return new Date(b.date).getTime() - new Date(a.date).getTime();
+                      })
+                      .map(todo => (
+                      <div
+                        key={todo.id}
+                        className={`flex items-center gap-2.5 px-2 py-1.5 rounded-lg transition-all ${todo.completed ? 'opacity-50' : ''} hover:bg-gray-50`}
+                      >
+                        <button
+                          onClick={() => toggleLinkedDailyTodo(todo)}
+                          className={`transition-colors ${todo.completed ? 'text-green-500' : 'text-gray-300 hover:text-[var(--primary)]'}`}
+                        >
+                          {todo.completed ? <CheckCircle2 className="w-4 h-4" /> : <Circle className="w-4 h-4" />}
+                        </button>
+                        <span className={`flex-1 text-[12px] ${todo.completed ? 'line-through text-gray-300' : 'text-gray-700 font-medium'}`}>
+                          {todo.text}
+                        </span>
+                        <span className="text-[9px] text-gray-300 font-bold shrink-0">
+                          {format(new Date(todo.date), 'MMM d')}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </section>
 
             {/* Collaborators Panel */}
