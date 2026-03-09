@@ -52,6 +52,10 @@ model DailyTodo {
   ideaId String?
   idea   Idea?   @relation(fields: [ideaId], references: [id], onDelete: SetNull)
 
+  parentId String?
+  parent   DailyTodo?  @relation("TodoSubtasks", fields: [parentId], references: [id], onDelete: Cascade)
+  children DailyTodo[] @relation("TodoSubtasks")
+
   @@index([userId, date])
 }
 

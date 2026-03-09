@@ -984,7 +984,7 @@ app.get('/api/health', (req, res) => res.json({ status: 'ok', cloud: true }));
 app.get('/api/daily-todos', authenticate, async (req: any, res) => {
   try {
     const { from, to } = req.query;
-    const where: any = { userId: req.userId };
+    const where: any = { userId: req.userId, parentId: null };
     if (from || to) {
       where.date = {};
       if (from) where.date.gte = new Date(from as string);
@@ -993,7 +993,13 @@ app.get('/api/daily-todos', authenticate, async (req: any, res) => {
     const todos = await (prisma as any).dailyTodo.findMany({
       where,
       orderBy: [{ date: 'asc' }, { sortOrder: 'asc' }, { createdAt: 'asc' }],
-      include: { idea: { select: { id: true, title: true } } }
+      include: {
+        idea: { select: { id: true, title: true } },
+        children: {
+          orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
+          include: { idea: { select: { id: true, title: true } } }
+        }
+      }
     });
     res.json(todos);
   } catch (err: any) {
@@ -1004,11 +1010,11 @@ app.get('/api/daily-todos', authenticate, async (req: any, res) => {
 
 app.post('/api/daily-todos', authenticate, async (req: any, res) => {
   try {
-    const { text, date, isUrgent, ideaId } = req.body;
+    const { text, date, isUrgent, ideaId, parentId } = req.body;
     if (!text || !date) return res.status(400).json({ error: 'text and date are required' });
     // Auto-set sortOrder to max+1 for this user+date
     const maxOrder = await (prisma as any).dailyTodo.aggregate({
-      where: { userId: req.userId, date: new Date(date) },
+      where: { userId: req.userId, date: new Date(date), parentId: parentId || null },
       _max: { sortOrder: true }
     });
     const nextOrder = (maxOrder._max.sortOrder ?? -1) + 1;
@@ -1019,9 +1025,16 @@ app.post('/api/daily-todos', authenticate, async (req: any, res) => {
         isUrgent: isUrgent || false,
         sortOrder: nextOrder,
         ideaId: ideaId || null,
+        parentId: parentId || null,
         userId: req.userId
       },
-      include: { idea: { select: { id: true, title: true } } }
+      include: {
+        idea: { select: { id: true, title: true } },
+        children: {
+          orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
+          include: { idea: { select: { id: true, title: true } } }
+        }
+      }
     });
     res.json(todo);
   } catch (err: any) {
@@ -1070,7 +1083,13 @@ app.put('/api/daily-todos/:id', authenticate, async (req: any, res) => {
     const todo = await (prisma as any).dailyTodo.update({
       where: { id: req.params.id },
       data,
-      include: { idea: { select: { id: true, title: true } } }
+      include: {
+        idea: { select: { id: true, title: true } },
+        children: {
+          orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
+          include: { idea: { select: { id: true, title: true } } }
+        }
+      }
     });
     res.json(todo);
   } catch (err: any) {

@@ -166,7 +166,10 @@ const DailyTodos: React.FC = () => {
       const updated = await apiClient.put(`/daily-todos/${todo.id}`, {
         completed: !todo.completed
       });
-      setTodos(prev => prev.map(t => t.id === todo.id ? updated : t));
+      setTodos(prev => prev
+        .map(t => t.id === todo.id ? updated : t)
+        .map(t => t.children ? { ...t, children: t.children.map(c => c.id === todo.id ? updated : c) } : t)
+      );
     } catch (err: any) {
       showToast(err.message || 'Failed to update', 'error');
     }
@@ -177,7 +180,10 @@ const DailyTodos: React.FC = () => {
       const updated = await apiClient.put(`/daily-todos/${todo.id}`, {
         isUrgent: !todo.isUrgent
       });
-      setTodos(prev => prev.map(t => t.id === todo.id ? updated : t));
+      setTodos(prev => prev
+        .map(t => t.id === todo.id ? updated : t)
+        .map(t => t.children ? { ...t, children: t.children.map(c => c.id === todo.id ? updated : c) } : t)
+      );
     } catch (err: any) {
       showToast(err.message || 'Failed to update', 'error');
     }
@@ -186,7 +192,11 @@ const DailyTodos: React.FC = () => {
   const deleteTodo = async (id: string) => {
     try {
       await apiClient.delete(`/daily-todos/${id}`);
-      setTodos(prev => prev.filter(t => t.id !== id));
+      // Remove from top-level or from parent's children
+      setTodos(prev => prev
+        .filter(t => t.id !== id)
+        .map(t => t.children ? { ...t, children: t.children.filter(c => c.id !== id) } : t)
+      );
     } catch (err: any) {
       showToast(err.message || 'Failed to delete', 'error');
     }
@@ -195,7 +205,10 @@ const DailyTodos: React.FC = () => {
   const saveEdit = async (id: string, text: string) => {
     try {
       const updated = await apiClient.put(`/daily-todos/${id}`, { text });
-      setTodos(prev => prev.map(t => t.id === id ? updated : t));
+      setTodos(prev => prev
+        .map(t => t.id === id ? updated : t)
+        .map(t => t.children ? { ...t, children: t.children.map(c => c.id === id ? updated : c) } : t)
+      );
     } catch (err: any) {
       showToast(err.message || 'Failed to update', 'error');
     }
@@ -231,7 +244,10 @@ const DailyTodos: React.FC = () => {
   const tagTodoToIdea = async (todoId: string, ideaId: string | null) => {
     try {
       const updated = await apiClient.put(`/daily-todos/${todoId}`, { ideaId });
-      setTodos(prev => prev.map(t => t.id === todoId ? updated : t));
+      setTodos(prev => prev
+        .map(t => t.id === todoId ? updated : t)
+        .map(t => t.children ? { ...t, children: t.children.map(c => c.id === todoId ? updated : c) } : t)
+      );
     } catch (err: any) {
       showToast(err.message || 'Failed to tag todo', 'error');
     }
@@ -259,6 +275,28 @@ const DailyTodos: React.FC = () => {
     });
     setDragId(null);
     setDragOverId(null);
+  };
+
+  const addSubtask = async (parentId: string, text: string) => {
+    const parent = todos.find(t => t.id === parentId);
+    if (!parent) return;
+    const dateKey = toDateKey(new Date(parent.date));
+    try {
+      const subtask = await apiClient.post('/daily-todos', {
+        text,
+        date: dateKey,
+        parentId,
+        ideaId: parent.ideaId || null
+      });
+      // Add subtask to parent's children
+      setTodos(prev => prev.map(t =>
+        t.id === parentId
+          ? { ...t, children: [...(t.children || []), subtask] }
+          : t
+      ));
+    } catch (err: any) {
+      showToast(err.message || 'Failed to add subtask', 'error');
+    }
   };
 
   const scrollToToday = () => {
@@ -465,6 +503,7 @@ const DailyTodos: React.FC = () => {
                         onDelete={deleteTodo}
                         onSaveEdit={saveEdit}
                         onTagIdea={tagTodoToIdea}
+                        onAddSubtask={addSubtask}
                         isDragging={dragId === todo.id}
                         dragHandleProps={{
                           draggable: true,

@@ -555,6 +555,74 @@
             box-shadow: 0 0 6px rgba(99, 102, 241, 0.4);
         }
 
+        /* Subtask styles */
+        .daily-todo-item--subtask {
+            margin-left: 2rem;
+            padding-left: 0.5rem;
+            border-left: 2px solid #e5e7eb;
+            font-size: 0.8rem;
+        }
+
+        .daily-todo-item--subtask .daily-todo-text {
+            font-size: 0.8rem;
+        }
+
+        .daily-todo-subtask-count {
+            display: inline-flex;
+            align-items: center;
+            margin-left: 0.5rem;
+            padding: 0.1rem 0.4rem;
+            border-radius: 0.5rem;
+            font-size: 0.6rem;
+            font-weight: 800;
+            background: var(--primary-shadow, #eef2ff);
+            color: var(--primary, #6366f1);
+            vertical-align: middle;
+        }
+
+        .daily-todo-expand-btn {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: none;
+            border: none;
+            padding: 0.1rem;
+            cursor: pointer;
+            color: #9ca3af;
+            transition: color 0.15s;
+            flex-shrink: 0;
+        }
+
+        .daily-todo-expand-btn:hover {
+            color: var(--primary, #6366f1);
+        }
+
+        .daily-todo-subtask-add {
+            margin-left: 2rem;
+            padding: 0.35rem 0.5rem;
+            border-left: 2px solid var(--primary, #6366f1);
+        }
+
+        .daily-todo-subtask-input {
+            width: 100%;
+            font-size: 0.8rem;
+            font-weight: 500;
+            color: #374151;
+            outline: none;
+            border: 1px solid #e5e7eb;
+            border-radius: 0.5rem;
+            padding: 0.4rem 0.65rem;
+            background: #fafafa;
+            font-family: inherit;
+            transition: all 0.2s;
+        }
+
+        .daily-todo-subtask-input:focus {
+            border-color: var(--primary, #6366f1);
+            background: white;
+            box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.08);
+        }
+
         /* Add todo — expand button (collapsed state) */
         .daily-todo-add-expand-btn {
             display: flex;
