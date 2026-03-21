@@ -46,7 +46,8 @@ import {
   ChevronDown,
   ChevronRight,
   Send,
-  CalendarCheck
+  CalendarCheck,
+  MoreHorizontal
 } from 'lucide-react';
 import NoteComposer from '../components/NoteComposer';
 import NoteDetailModal from '../components/NoteDetailModal';
@@ -116,6 +117,7 @@ const IdeaDetail: React.FC = () => {
   const [expandedCommentsNoteId, setExpandedCommentsNoteId] = useState<string | null>(null);
   const [selectedNoteForDetail, setSelectedNoteForDetail] = useState<Note | null>(null);
   const [commentBody, setCommentBody] = useState<Record<string, string>>({});
+  const [expandedNoteActionsId, setExpandedNoteActionsId] = useState<string | null>(null);
 
   // Fetch daily todos tagged to this idea
   const [linkedDailyTodos, setLinkedDailyTodos] = useState<any[]>([]);
@@ -528,6 +530,8 @@ const IdeaDetail: React.FC = () => {
     const currentIntent = note.intent || 'memoir';
     const IntentIcon = INTENT_CONFIG[currentIntent]?.icon || Mountain;
 
+    const isNoteExpanded = expandedNoteActionsId === note.id;
+
     return (
       <div
         key={note.id}
@@ -541,6 +545,7 @@ const IdeaDetail: React.FC = () => {
           }
         ${isPinned ? 'ring-2 ring-[var(--primary)]/20' : ''}
         ${note.isHidden ? 'opacity-50 grayscale' : ''}
+        ${isNoteExpanded ? 'note-card--expanded' : ''}
       `}
         style={{
           backgroundColor: currentIntent === 'follow_up' ? 'var(--follow-up)' : isPinned ? 'var(--primary-shadow)' : 'var(--note-bg)',
@@ -584,7 +589,30 @@ const IdeaDetail: React.FC = () => {
           <span className="text-blue-400">{note.createdBy}</span>
 
           <div className="ml-auto flex items-center gap-4" onDoubleClick={e => e.stopPropagation()}>
-            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
+            {/* Mobile: overflow toggle */}
+            {note.createdById === data.currentUser?.id && (
+              <button
+                className="note-card-overflow-btn"
+                onClick={() => setExpandedNoteActionsId(isNoteExpanded ? null : note.id)}
+                title="More actions"
+              >
+                <MoreHorizontal className="w-4 h-4" />
+              </button>
+            )}
+
+            {/* Categories — always visible */}
+            {note.categories && note.categories.length > 0 && (
+              <div className="flex flex-wrap gap-1.5">
+                {note.categories.map(cat => (
+                  <span key={cat} className="px-1.5 py-0.5 rounded text-[9px] font-black uppercase tracking-tighter border" style={{ backgroundColor: 'var(--primary)', color: '#fff', borderColor: 'var(--primary)' }}>
+                    {cat}
+                  </span>
+                ))}
+              </div>
+            )}
+
+            {/* Desktop: hover-revealed. Mobile: hidden until overflow tap */}
+            <div className="note-card-actions-secondary flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
               {note.createdById === data.currentUser?.id && (
                 <div className="flex items-center gap-1">
                   <button
@@ -619,17 +647,9 @@ const IdeaDetail: React.FC = () => {
               )}
             </div>
 
-            {note.categories && note.categories.length > 0 && (
-              <div className="flex flex-wrap gap-1.5">
-                {note.categories.map(cat => (
-                  <span key={cat} className="px-1.5 py-0.5 rounded text-[9px] font-black uppercase tracking-tighter border" style={{ backgroundColor: 'var(--primary)', color: '#fff', borderColor: 'var(--primary)' }}>
-                    {cat}
-                  </span>
-                ))}
-              </div>
-            )}
+            {/* Hide/Pin — Desktop: always. Mobile: behind overflow */}
             {note.createdById === data.currentUser?.id && (
-              <div className="flex items-center gap-1">
+              <div className="note-card-actions-secondary flex items-center gap-1">
                 <button
                   onClick={() => toggleHideNote(note.id)}
                   className={`p-1.5 rounded-lg transition-all flex items-center justify-center ${note.isHidden ? 'bg-gray-100 text-gray-700 border border-[var(--border)] shadow-sm' : 'text-gray-300 hover:text-gray-500 hover:bg-gray-100'}`}

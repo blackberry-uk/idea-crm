@@ -555,6 +555,40 @@
             box-shadow: 0 0 6px rgba(99, 102, 241, 0.4);
         }
 
+        /* Cross-day drop target highlight */
+        .daily-todos-day--drop-target {
+            border-color: var(--primary, #6366f1) !important;
+            background: rgba(99, 102, 241, 0.04) !important;
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.12), 0 8px 25px -5px rgba(99, 102, 241, 0.15) !important;
+            transition: all 0.2s ease;
+        }
+
+        .daily-todos-day--drop-target .daily-todos-day-header {
+            background: rgba(99, 102, 241, 0.06);
+        }
+
+        /* Empty-day drop zone */
+        .daily-todo-drop-zone {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 1.25rem 1rem;
+            margin: 0.25rem 0.65rem 0.5rem;
+            border: 2px dashed var(--primary, #6366f1);
+            border-radius: 0.75rem;
+            background: rgba(99, 102, 241, 0.04);
+            color: var(--primary, #6366f1);
+            font-size: 0.8rem;
+            font-weight: 700;
+            letter-spacing: 0.01em;
+            animation: dropZonePulse 1.5s ease-in-out infinite;
+        }
+
+        @keyframes dropZonePulse {
+            0%, 100% { opacity: 0.7; }
+            50% { opacity: 1; }
+        }
+
         /* Subtask styles */
         .daily-todo-item--subtask {
             margin-left: 2rem;
@@ -1049,8 +1083,22 @@
             }
 
             .daily-todo-action-btn {
-                width: 2rem;
-                height: 2rem;
+                width: 1.75rem;
+                height: 1.75rem;
+            }
+
+            /* Hide less-essential action buttons on mobile */
+            .daily-todo-action-btn[title="Add subtask"],
+            .daily-todo-action-btn[title="Tag to idea"],
+            .daily-todo-action-btn[title="Change idea tag"] {
+                display: none;
+            }
+
+            /* Show them when parent item is focused/active */
+            .daily-todo-item:focus-within .daily-todo-action-btn[title="Add subtask"],
+            .daily-todo-item:focus-within .daily-todo-action-btn[title="Tag to idea"],
+            .daily-todo-item:focus-within .daily-todo-action-btn[title="Change idea tag"] {
+                display: flex;
             }
 
             /* Add todo — mobile optimizations */
@@ -1153,6 +1201,83 @@
             body {
                 padding-top: env(safe-area-inset-top, 0px);
             }
+        }
+
+        /* iOS standalone: also handle apple-mobile-web-app */
+        @supports (-webkit-touch-callout: none) {
+            @media (display-mode: standalone) {
+                /* Push page headers below the status bar */
+                .daily-todos-header {
+                    padding-top: calc(1.5rem + env(safe-area-inset-top, 0px));
+                }
+
+                /* Idea/Contact detail sticky headers */
+                .sticky.top-0 {
+                    top: env(safe-area-inset-top, 0px) !important;
+                }
+
+                /* Dashboard and other page top padding */
+                .mobile-main-content {
+                    padding-top: env(safe-area-inset-top, 0px);
+                }
+            }
+        }
+
+        /* ===== MOBILE NOTE CARD DECLUTTER ===== */
+        @media (max-width: 768px) {
+            /* Note card action row: hide hover-only actions by default */
+            .note-card-actions-secondary {
+                display: none !important;
+            }
+
+            /* When note card is tapped/active, show all actions */
+            .note-card--expanded .note-card-actions-secondary {
+                display: flex !important;
+            }
+
+            /* Note card: reduce horizontal padding on mobile */
+            .group.relative.p-6 {
+                padding: 1rem 1rem !important;
+            }
+
+            /* Note body: reduce inner padding */
+            .group.relative .px-10 {
+                padding-left: 0.5rem !important;
+                padding-right: 0.5rem !important;
+            }
+
+            /* Comment section: reduce inner padding */
+            .group.relative .mt-8.pt-4.px-10 {
+                padding-left: 0.5rem !important;
+                padding-right: 0.5rem !important;
+            }
+
+            /* Note card mobile overflow toggle */
+            .note-card-overflow-btn {
+                display: flex !important;
+            }
+        }
+
+        /* Desktop: always hide overflow toggle */
+        .note-card-overflow-btn {
+            display: none;
+            align-items: center;
+            justify-content: center;
+            width: 1.75rem;
+            height: 1.75rem;
+            border-radius: 0.5rem;
+            border: none;
+            background: transparent;
+            color: #9ca3af;
+            cursor: pointer;
+            transition: all 0.15s;
+            padding: 0;
+        }
+
+        .note-card-overflow-btn:hover,
+        .note-card-overflow-btn:active {
+            background: #f3f4f6;
+            color: #6b7280;
         }
     </style>
     <script type="importmap">
