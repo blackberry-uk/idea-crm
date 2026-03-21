@@ -61,6 +61,8 @@ const DailyTodos: React.FC = () => {
   const [expandedAddDay, setExpandedAddDay] = useState<string | null>(null);
   const [dragId, setDragId] = useState<string | null>(null);
   const [dragOverId, setDragOverId] = useState<string | null>(null);
+  const [dragOverDateKey, setDragOverDateKey] = useState<string | null>(null);
+  const [dragSourceDateKey, setDragSourceDateKey] = useState<string | null>(null);
 
   const ideas = data.ideas || [];
 
@@ -254,28 +256,80 @@ const DailyTodos: React.FC = () => {
     }
   };
 
-  // Drag and drop reorder
-  const handleDrop = (dateKey: string) => {
-    if (!dragId || !dragOverId || dragId === dragOverId) {
+  // Drag and drop reorder (within day) or move (across days)
+  const handleDrop = (dropDateKey: string) => {
+    if (!dragId) {
       setDragId(null);
       setDragOverId(null);
+      setDragOverDateKey(null);
+      setDragSourceDateKey(null);
       return;
     }
-    setTodos(prev => {
-      const dayTodos = prev.filter(t => toDateKey(new Date(t.date)) === dateKey);
-      const otherTodos = prev.filter(t => toDateKey(new Date(t.date)) !== dateKey);
-      const fromIdx = dayTodos.findIndex(t => t.id === dragId);
-      const toIdx = dayTodos.findIndex(t => t.id === dragOverId);
-      if (fromIdx === -1 || toIdx === -1) return prev;
-      const reordered = [...dayTodos];
-      const [moved] = reordered.splice(fromIdx, 1);
-      reordered.splice(toIdx, 0, moved);
-      // Persist order in background
-      apiClient.put('/daily-todos/reorder', { orderedIds: reordered.map(t => t.id) }).catch(() => {});
-      return [...otherTodos, ...reordered];
-    });
+
+    const sourceDateKey = dragSourceDateKey;
+    const isCrossDay = sourceDateKey && sourceDateKey !== dropDateKey;
+
+    if (isCrossDay) {
+      // --- Cross-day move ---
+      // Optimistically move the todo to the new day
+      setTodos(prev => {
+        const movedTodo = prev.find(t => t.id === dragId);
+        if (!movedTodo) return prev;
+        const updatedTodo = { ...movedTodo, date: dropDateKey + 'T00:00:00.000Z' };
+        return prev.map(t => t.id === dragId ? updatedTodo : t);
+      });
+      // Persist the date change
+      apiClient.put(`/daily-todos/${dragId}`, { date: dropDateKey }).catch(() => {
+        showToast('Failed to move todo', 'error');
+        // Revert on failure
+        if (sourceDateKey) {
+          setTodos(prev => {
+            const movedTodo = prev.find(t => t.id === dragId);
+            if (!movedTodo) return prev;
+            const revertedTodo = { ...movedTodo, date: sourceDateKey + 'T00:00:00.000Z' };
+            return prev.map(t => t.id === dragId ? revertedTodo : t);
+          });
+        }
+      });
+    } else if (dragOverId && dragId !== dragOverId) {
+      // --- Same-day reorder ---
+      setTodos(prev => {
+        const dayTodos = prev.filter(t => toDateKey(new Date(t.date)) === dropDateKey);
+        const otherTodos = prev.filter(t => toDateKey(new Date(t.date)) !== dropDateKey);
+        const fromIdx = dayTodos.findIndex(t => t.id === dragId);
+        const toIdx = dayTodos.findIndex(t => t.id === dragOverId);
+        if (fromIdx === -1 || toIdx === -1) return prev;
+        const reordered = [...dayTodos];
+        const [moved] = reordered.splice(fromIdx, 1);
+        reordered.splice(toIdx, 0, moved);
+        // Persist order in background
+        apiClient.put('/daily-todos/reorder', { orderedIds: reordered.map(t => t.id) }).catch(() => {});
+        return [...otherTodos, ...reordered];
+      });
+    }
     setDragId(null);
     setDragOverId(null);
+    setDragOverDateKey(null);
+    setDragSourceDateKey(null);
+  };
+
+  const handleDayDragOver = (e: React.DragEvent, dateKey: string) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    if (dragId && dragSourceDateKey !== dateKey) {
+      setDragOverDateKey(dateKey);
+    }
+  };
+
+  const handleDayDragLeave = (e: React.DragEvent, dateKey: string) => {
+    // Only clear if we're actually leaving the day container (not entering a child)
+    const relatedTarget = e.relatedTarget as HTMLElement;
+    const currentTarget = e.currentTarget as HTMLElement;
+    if (!currentTarget.contains(relatedTarget)) {
+      if (dragOverDateKey === dateKey) {
+        setDragOverDateKey(null);
+      }
+    }
   };
 
   const addSubtask = async (parentId: string, text: string) => {
@@ -359,7 +413,11 @@ const DailyTodos: React.FC = () => {
             <div
               key={dateKey}
               ref={isToday ? todayRef : undefined}
-              className={`daily-todos-day ${isToday ? 'daily-todos-day--today' : ''} ${isPast ? 'daily-todos-day--past' : ''}`}
+              className={`daily-todos-day ${isToday ? 'daily-todos-day--today' : ''} ${isPast ? 'daily-todos-day--past' : ''} ${dragId && dragOverDateKey === dateKey && dragSourceDateKey !== dateKey ? 'daily-todos-day--drop-target' : ''}`}
+              onDragOver={e => handleDayDragOver(e, dateKey)}
+              onDragLeave={e => handleDayDragLeave(e, dateKey)}
+              onDrop={e => { e.preventDefault(); if (dragId && dragSourceDateKey !== dateKey) handleDrop(dateKey); }}
+              data-date-key={dateKey}
             >
               {/* Date header */}
               <div
@@ -463,16 +521,38 @@ const DailyTodos: React.FC = () => {
                   {dayTodos.map((todo, idx) => (
                     <div
                       key={todo.id}
-                      onDragOver={e => { e.preventDefault(); setDragOverId(todo.id); }}
-                      onDrop={() => handleDrop(dateKey)}
+                      draggable
+                      onDragStart={e => {
+                        e.dataTransfer.setData('text/plain', todo.id);
+                        e.dataTransfer.effectAllowed = 'move';
+                        setDragId(todo.id);
+                        setDragSourceDateKey(dateKey);
+                      }}
+                      onDragEnd={() => { setDragId(null); setDragOverId(null); setDragOverDateKey(null); setDragSourceDateKey(null); }}
+                      onDragOver={e => { e.preventDefault(); e.stopPropagation(); e.dataTransfer.dropEffect = 'move'; setDragOverId(todo.id); setDragOverDateKey(dateKey); }}
+                      onDrop={e => { e.preventDefault(); e.stopPropagation(); handleDrop(dateKey); }}
+                      onTouchStart={() => { setDragId(todo.id); setDragSourceDateKey(dateKey); }}
                       onTouchMove={e => {
                         const touch = e.touches[0];
                         const el = document.elementFromPoint(touch.clientX, touch.clientY);
+                        // Detect which todo item we're over
                         const todoEl = el?.closest('[data-todo-id]');
                         if (todoEl) setDragOverId(todoEl.getAttribute('data-todo-id'));
+                        // Detect which day container we're over
+                        const dayEl = el?.closest('[data-date-key]');
+                        if (dayEl) {
+                          const overDateKey = dayEl.getAttribute('data-date-key');
+                          if (overDateKey) setDragOverDateKey(overDateKey);
+                        }
                       }}
-                      onTouchEnd={() => { if (dragId) handleDrop(dateKey); }}
+                      onTouchEnd={() => {
+                        if (dragId) {
+                          // Use dragOverDateKey for cross-day, or fallback to current dateKey
+                          handleDrop(dragOverDateKey || dateKey);
+                        }
+                      }}
                       data-todo-id={todo.id}
+                      style={{ cursor: 'grab' }}
                     >
                       {dragId && dragOverId === todo.id && dragId !== todo.id && (
                         <div className="daily-todo-drop-indicator" />
@@ -487,15 +567,16 @@ const DailyTodos: React.FC = () => {
                         onTagIdea={tagTodoToIdea}
                         onAddSubtask={addSubtask}
                         isDragging={dragId === todo.id}
-                        dragHandleProps={{
-                          draggable: true,
-                          onDragStart: () => setDragId(todo.id),
-                          onDragEnd: () => { setDragId(null); setDragOverId(null); },
-                          onTouchStart: () => setDragId(todo.id),
-                        }}
                       />
                     </div>
                   ))}
+
+                  {/* Empty day drop zone — shows when dragging over an empty day or at the bottom */}
+                  {dragId && dragSourceDateKey !== dateKey && dragOverDateKey === dateKey && dayTodos.length === 0 && (
+                    <div className="daily-todo-drop-zone">
+                      <span>Drop here to move to {weekday}</span>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
