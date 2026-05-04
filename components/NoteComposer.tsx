@@ -24,13 +24,14 @@ interface NoteComposerProps {
 }
 
 const NoteComposer: React.FC<NoteComposerProps> = ({ onComplete, defaultIdeaId, defaultContactId, editingNote, title, titleIcon, onCancel, flat }) => {
-  const { data, addNote, updateNote, updateIdea, addComment, showToast } = useStore();
+  const { data, addNote, updateNote, updateIdea, addComment, addEntity, showToast } = useStore();
   const [body, setBody] = useState(editingNote?.body || '');
   const [noteDate, setNoteDate] = useState(format(editingNote ? new Date(editingNote.createdAt) : new Date(), 'yyyy-MM-dd'));
   const [selectedCategories, setSelectedCategories] = useState<string[]>(editingNote?.categories || []);
   const [isPinned, setIsPinned] = useState(editingNote?.isPinned || false);
   const [taggedContacts, setTaggedContacts] = useState<string[]>(editingNote?.taggedContactIds || []);
   const [taggedUserIds, setTaggedUserIds] = useState<string[]>(editingNote?.taggedUserIds || []);
+  const [taggedEntityIds, setTaggedEntityIds] = useState<string[]>(editingNote?.taggedEntityIds || []);
   const [newCustomCategory, setNewCustomCategory] = useState('');
   const [showCallMinuteModal, setShowCallMinuteModal] = useState(false);
   const [selectedIntent, setSelectedIntent] = useState<NoteIntent>(editingNote?.intent || 'memoir');
@@ -81,10 +82,15 @@ const NoteComposer: React.FC<NoteComposerProps> = ({ onComplete, defaultIdeaId, 
     }
   }, [body, selectedCategories, selectedIntent, draftKey, isSaving]);
 
-  // Mention system state
+  // Mention system state (@)
   const [mentionQuery, setMentionQuery] = useState('');
   const [showMentionList, setShowMentionList] = useState(false);
   const [mentionPosition, setMentionPosition] = useState({ top: 0, left: 0 });
+
+  // Entity mention system state (#)
+  const [entityQuery, setEntityQuery] = useState('');
+  const [showEntityList, setShowEntityList] = useState(false);
+  const [entityPosition, setEntityPosition] = useState({ top: 0, left: 0 });
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const currentIdea = useMemo(() =>
@@ -132,6 +138,20 @@ const NoteComposer: React.FC<NoteComposerProps> = ({ onComplete, defaultIdeaId, 
       c.name.toLowerCase().includes(mentionQuery.toLowerCase())
     ).slice(0, 5);
   }, [data.contacts, data.users, currentIdea, mentionQuery]);
+
+  const entityCandidates = useMemo(() => {
+    const allEntities = (data.entities || []).map(e => ({ id: e.id, name: e.name }));
+    if (!entityQuery) return allEntities.slice(0, 5);
+    return allEntities.filter(e =>
+      e.name.toLowerCase().includes(entityQuery.toLowerCase())
+    ).slice(0, 5);
+  }, [data.entities, entityQuery]);
+
+  // Check if the # query matches no existing entities (for create-on-the-fly)
+  const showCreateEntity = useMemo(() => {
+    if (!entityQuery || entityQuery.length < 2) return false;
+    return !entityCandidates.some(e => e.name.toLowerCase() === entityQuery.toLowerCase());
+  }, [entityQuery, entityCandidates]);
 
   const editorRef = useRef<HTMLDivElement>(null);
 
@@ -183,6 +203,7 @@ const NoteComposer: React.FC<NoteComposerProps> = ({ onComplete, defaultIdeaId, 
       if (mentionMatch) {
         setMentionQuery(mentionMatch[1]);
         setShowMentionList(true);
+        setShowEntityList(false);
 
         const rect = range.getBoundingClientRect();
         const editorRect = editorRef.current.getBoundingClientRect();
@@ -192,6 +213,23 @@ const NoteComposer: React.FC<NoteComposerProps> = ({ onComplete, defaultIdeaId, 
         });
       } else {
         setShowMentionList(false);
+      }
+
+      // Detect entity trigger (#)
+      const entityMatch = textBeforeCursor.match(/#(\w*)$/);
+      if (entityMatch) {
+        setEntityQuery(entityMatch[1]);
+        setShowEntityList(true);
+        setShowMentionList(false);
+
+        const rect = range.getBoundingClientRect();
+        const editorRect = editorRef.current.getBoundingClientRect();
+        setEntityPosition({
+          top: rect.bottom - editorRect.top + 10,
+          left: rect.left - editorRect.left
+        });
+      } else {
+        setShowEntityList(false);
       }
     } else {
       setShowMentionList(false);
@@ -236,6 +274,50 @@ const NoteComposer: React.FC<NoteComposerProps> = ({ onComplete, defaultIdeaId, 
     setBody(editorRef.current.innerHTML);
     setShowMentionList(false);
     editorRef.current.focus();
+  };
+
+  const insertEntityMention = async (entityId: string, name: string) => {
+    const selection = window.getSelection();
+    if (!selection || selection.rangeCount === 0 || !editorRef.current) return;
+
+    const range = selection.getRangeAt(0);
+    const container = range.startContainer;
+
+    if (container.nodeType === Node.TEXT_NODE) {
+      const text = container.textContent || '';
+      const textBeforeCursor = text.slice(0, range.startOffset);
+      const textAfterCursor = text.slice(range.startOffset);
+
+      const entityMatch = textBeforeCursor.match(/#(\w*)$/);
+      if (entityMatch) {
+        const startPos = entityMatch.index!;
+        const newTextBefore = textBeforeCursor.slice(0, startPos) + `#${name} `;
+        container.textContent = newTextBefore + textAfterCursor;
+
+        const newRange = document.createRange();
+        newRange.setStart(container, newTextBefore.length);
+        newRange.setEnd(container, newTextBefore.length);
+        selection.removeAllRanges();
+        selection.addRange(newRange);
+      }
+    }
+
+    setTaggedEntityIds(prev => Array.from(new Set([...prev, entityId])));
+    setBody(editorRef.current.innerHTML);
+    setShowEntityList(false);
+    editorRef.current.focus();
+  };
+
+  const createAndInsertEntity = async (name: string) => {
+    try {
+      const entity = await addEntity({ name: name.trim() });
+      if (entity?.id) {
+        await insertEntityMention(entity.id, entity.name);
+      }
+    } catch (err) {
+      console.error('Failed to create entity:', err);
+      showToast('Failed to create entity', 'error');
+    }
   };
 
   const handleToggleCategory = (cat: string) => {
@@ -428,6 +510,7 @@ const NoteComposer: React.FC<NoteComposerProps> = ({ onComplete, defaultIdeaId, 
           isPinned,
           taggedContactIds: taggedContacts,
           taggedUserIds: taggedUserIds,
+          taggedEntityIds: taggedEntityIds,
           imageUrl: selectedImage || undefined,
           intent: selectedIntent,
           createdAt: selectedDateWithCurrentTime.toISOString()
@@ -446,6 +529,7 @@ const NoteComposer: React.FC<NoteComposerProps> = ({ onComplete, defaultIdeaId, 
           location: finalLocation,
           taggedContactIds: taggedContacts,
           taggedUserIds: taggedUserIds,
+          taggedEntityIds: taggedEntityIds,
           imageUrl: selectedImage || undefined,
           intent: selectedIntent,
           createdAt: selectedDateWithCurrentTime.toISOString()
@@ -458,6 +542,7 @@ const NoteComposer: React.FC<NoteComposerProps> = ({ onComplete, defaultIdeaId, 
         setSelectedIntent('memoir');
         setTaggedContacts([]);
         setTaggedUserIds([]);
+        setTaggedEntityIds([]);
         setIsPinned(false);
         setSelectedImage(null);
         setActiveMenu(null);
@@ -556,7 +641,7 @@ const NoteComposer: React.FC<NoteComposerProps> = ({ onComplete, defaultIdeaId, 
             />
             {(!body || body === '<br>') && (
               <div className="absolute top-[17px] left-[17px] text-sm text-gray-400 pointer-events-none font-sans leading-relaxed">
-                Capture a thought... (Type @ to mention someone)
+                Capture a thought... (@ to mention, # to tag entity)
               </div>
             )}
           </div>
@@ -631,6 +716,41 @@ const NoteComposer: React.FC<NoteComposerProps> = ({ onComplete, defaultIdeaId, 
                   <span className="text-[11px] font-bold text-gray-700">{candidate.name}</span>
                 </button>
               ))}
+            </div>
+          )}
+
+          {/* Entity (#) mention dropdown */}
+          {showEntityList && (entityCandidates.length > 0 || showCreateEntity) && (
+            <div
+              className="absolute z-50 w-64 bg-white rounded-2xl shadow-2xl border border-gray-100 overflow-hidden animate-in fade-in zoom-in-95"
+              style={{
+                top: entityPosition.top,
+                left: entityPosition.left
+              }}
+            >
+              {entityCandidates.map((entity) => (
+                <button
+                  key={entity.id}
+                  onClick={() => insertEntityMention(entity.id, entity.name)}
+                  className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 transition-colors border-b border-gray-50 last:border-0"
+                >
+                  <div className="w-8 h-8 rounded-lg flex items-center justify-center text-[10px] font-bold bg-indigo-50 text-indigo-600">
+                    #
+                  </div>
+                  <span className="text-[11px] font-bold text-gray-700">{entity.name}</span>
+                </button>
+              ))}
+              {showCreateEntity && (
+                <button
+                  onClick={() => createAndInsertEntity(entityQuery)}
+                  className="w-full flex items-center gap-3 px-4 py-3 hover:bg-indigo-50 transition-colors border-t border-gray-100"
+                >
+                  <div className="w-8 h-8 rounded-lg flex items-center justify-center text-[10px] font-bold bg-indigo-100 text-indigo-700">
+                    +
+                  </div>
+                  <span className="text-[11px] font-bold text-indigo-600">Create "{entityQuery}"</span>
+                </button>
+              )}
             </div>
           )}
 

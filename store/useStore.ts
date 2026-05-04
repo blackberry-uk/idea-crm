@@ -12,7 +12,7 @@ export interface ParseResult {
 }
 
 const EMPTY_DATA: AppData = {
-  users: [], ideas: [], contacts: [], notes: [], interactions: [], invitations: [],
+  users: [], ideas: [], contacts: [], entities: [], notes: [], interactions: [], invitations: [],
   globalNoteCategories: ['Competitor', 'Insight', 'Action', 'Mockup', 'AI Analysis'],
   currentUser: null,
   toast: null,
@@ -130,6 +130,15 @@ export const useStore = () => {
     },
 
     updateIdea: async (id: string, updates: Partial<Idea>) => {
+      // Optimistic local update — apply immediately so UI feels instant
+      globalState = {
+        ...globalState,
+        ideas: globalState.ideas.map(idea =>
+          idea.id === id ? { ...idea, ...updates } : idea
+        )
+      };
+      notify();
+
       const res = await apiClient.put(`/ideas/${id}`, updates);
       await hydrate();
       return res;
@@ -234,6 +243,23 @@ export const useStore = () => {
 
     deleteContact: async (id: string) => {
       await apiClient.delete(`/contacts/${id}`);
+      await hydrate();
+    },
+
+    addEntity: async (entity: any) => {
+      const res = await apiClient.post('/entities', entity);
+      await hydrate();
+      return res;
+    },
+
+    updateEntity: async (id: string, updates: any) => {
+      const res = await apiClient.put(`/entities/${id}`, updates);
+      await hydrate();
+      return res;
+    },
+
+    deleteEntity: async (id: string) => {
+      await apiClient.delete(`/entities/${id}`);
       await hydrate();
     },
 

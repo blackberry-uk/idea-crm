@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Check, Circle, Flame, Trash2, Tag, X, Lightbulb, GripVertical, Plus, ChevronDown, ChevronRight } from 'lucide-react';
+import { Check, Circle, Flame, Trash2, X, Lightbulb, GripVertical, Plus, ChevronDown, ChevronRight } from 'lucide-react';
 import IdeaPickerDropdown from './IdeaPickerDropdown';
+import { TaskChevronMenu } from './TaskChevronMenu';
 
 export interface DailyTodoData {
   id: string;
@@ -15,7 +16,16 @@ export interface DailyTodoData {
   idea: { id: string; title: string } | null;
   parentId?: string | null;
   children?: DailyTodoData[];
+  comments?: string | null;
+  dueDate?: string | null;
+  timeBlock?: string | null;
 }
+
+const BLOCK_SHORT: Record<string, string> = {
+  morning: 'AM',
+  afternoon: 'PM',
+  evening: 'EVE',
+};
 
 interface DailyTodoItemProps {
   todo: DailyTodoData;
@@ -26,22 +36,31 @@ interface DailyTodoItemProps {
   onSaveEdit: (id: string, text: string) => Promise<void>;
   onTagIdea: (todoId: string, ideaId: string | null) => Promise<void>;
   onAddSubtask?: (parentId: string, text: string) => Promise<void>;
+  onOpenDetail?: (todo: DailyTodoData) => void;
+  onChangeDate?: (id: string, dateKey: string | null) => Promise<void>;
+  onChangeTimeBlock?: (id: string, block: string) => Promise<void>;
   dragHandleProps?: Record<string, any>;
   isDragging?: boolean;
   isSubtask?: boolean;
+  customContainerStyle?: React.CSSProperties;
+  overrideDateLabel?: string | null;
 }
 
 const DailyTodoItem: React.FC<DailyTodoItemProps> = ({
-  todo, ideas, onToggleComplete, onToggleUrgent, onDelete, onSaveEdit, onTagIdea, onAddSubtask, dragHandleProps, isDragging, isSubtask
+  todo, ideas, onToggleComplete, onToggleUrgent, onDelete, onSaveEdit, onTagIdea, onAddSubtask, onOpenDetail, onChangeDate, onChangeTimeBlock, dragHandleProps, isDragging, isSubtask, customContainerStyle, overrideDateLabel
 }) => {
   const [editing, setEditing] = useState(false);
   const [editText, setEditText] = useState('');
-  const [showTagMenu, setShowTagMenu] = useState(false);
   const [showSubtaskInput, setShowSubtaskInput] = useState(false);
   const [subtaskText, setSubtaskText] = useState('');
   const [subtasksExpanded, setSubtasksExpanded] = useState(true);
+  const [menuOpen, setMenuOpen] = useState(false);
 
   const startEdit = () => {
+    if (onOpenDetail && !isSubtask) {
+      onOpenDetail(todo);
+      return;
+    }
     setEditing(true);
     setEditText(todo.text);
   };
@@ -63,134 +82,137 @@ const DailyTodoItem: React.FC<DailyTodoItemProps> = ({
   const children = todo.children || [];
   const hasChildren = children.length > 0;
   const completedChildren = children.filter(c => c.completed).length;
+  const blockTag = BLOCK_SHORT[(todo.timeBlock as string) || 'morning'] || 'AM';
 
   return (
-    <div>
+    <div style={{ position: 'relative' }}>
+      {/* Click-away backdrop for chevron menu */}
+      {menuOpen && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 40 }} onClick={() => setMenuOpen(false)} />
+      )}
+
+      {isSubtask && (
+        <div style={{ position: 'absolute', left: '0.6rem', top: '-10px', height: '30px', width: '12px', borderLeft: '2px solid #9ca3af', borderBottom: '2px solid #9ca3af', borderBottomLeftRadius: '6px', zIndex: 1 }} />
+      )}
+
       <div
-        className={`daily-todo-item ${todo.completed ? 'daily-todo-item--done' : ''} ${todo.isUrgent && !todo.completed ? 'daily-todo-item--urgent' : ''} ${isDragging ? 'daily-todo-item--dragging' : ''} ${isSubtask ? 'daily-todo-item--subtask' : ''}`}
+        className={`wv-task ${todo.completed ? 'wv-task--done' : ''} ${todo.isUrgent && !todo.completed ? 'wv-task--urgent' : ''} ${isDragging ? 'cl-todo-dragging' : ''} ${isSubtask ? 'wv-task--subtask' : ''}`}
+        style={{ ...(isSubtask ? { marginLeft: '1.5rem', position: 'relative', zIndex: 2 } : {}), ...customContainerStyle }}
       >
-        {/* Drag handle — only for parent tasks */}
-        {!isSubtask && (
-          <span className="daily-todo-drag-handle" {...(dragHandleProps || {})}>
-            <GripVertical className="w-4 h-4" />
-          </span>
-        )}
-
-        {/* Subtask expand/collapse toggle */}
-        {!isSubtask && hasChildren && (
-          <button
-            className="daily-todo-expand-btn"
-            onClick={() => setSubtasksExpanded(!subtasksExpanded)}
-          >
-            {subtasksExpanded ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
-          </button>
-        )}
-
-        <button
-          onClick={() => onToggleComplete(todo)}
-          className={`daily-todo-check ${todo.completed ? 'daily-todo-check--done' : ''}`}
-        >
-          {todo.completed ? <Check className="w-4 h-4" /> : <Circle className="w-4 h-4" />}
-        </button>
-
-        {editing ? (
-          <input
-            className="daily-todo-edit-input"
-            value={editText}
-            onChange={e => setEditText(e.target.value)}
-            onBlur={() => commitEdit()}
-            onKeyDown={e => {
-              if (e.key === 'Enter') commitEdit();
-              if (e.key === 'Escape') setEditing(false);
-            }}
-            autoFocus
-          />
-        ) : (
-          <div className="flex-1 min-w-0">
-            <span
-              className={`daily-todo-text ${todo.completed ? 'daily-todo-text--done' : ''}`}
-              onClick={startEdit}
+        {/* Row 1: checkbox + text + subtask count + urgent icon */}
+        <div className="wv-task-row-1">
+          {!isSubtask && hasChildren && (
+            <button
+              className="daily-todo-expand-btn"
+              onClick={() => setSubtasksExpanded(!subtasksExpanded)}
+              style={{ marginRight: '2px' }}
             >
-              {todo.text}
-            </span>
-            {hasChildren && !isSubtask && (
-              <span className="daily-todo-subtask-count">
-                {completedChildren}/{children.length}
+              {subtasksExpanded ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
+            </button>
+          )}
+
+          <button
+            className={`wv-task-check ${todo.completed ? 'wv-task-check--done' : ''}`}
+            onClick={e => { e.stopPropagation(); onToggleComplete(todo); }}
+          >
+            {todo.completed && <Check className="w-2.5 h-2.5" />}
+          </button>
+
+          {editing ? (
+            <input
+              className="daily-todo-edit-input"
+              value={editText}
+              onChange={e => setEditText(e.target.value)}
+              onBlur={() => commitEdit()}
+              onKeyDown={e => {
+                if (e.key === 'Enter') commitEdit();
+                if (e.key === 'Escape') setEditing(false);
+              }}
+              autoFocus
+              style={{ flex: 1 }}
+            />
+          ) : (
+            <div className="wv-task-text-container" onClick={startEdit}>
+              <span className="wv-task-text" title={todo.text}>
+                {todo.text}
+                {todo.comments && !isSubtask && <span style={{ marginLeft: '4px', opacity: 0.5 }}>📝</span>}
               </span>
-            )}
-            {todo.idea && (
-              <Link
-                to={`/ideas/${todo.idea.id}`}
-                className="inline-flex items-center gap-1 ml-2 px-1.5 py-0.5 rounded-md text-[9px] font-bold uppercase tracking-wider hover:opacity-80 transition-opacity"
-                style={{ backgroundColor: 'var(--primary-shadow, #eef2ff)', color: 'var(--primary, #6366f1)' }}
-                onClick={e => e.stopPropagation()}
-              >
-                <Lightbulb className="w-2.5 h-2.5" />
-                {todo.idea.title.length > 20 ? todo.idea.title.slice(0, 20) + '\u2026' : todo.idea.title}
-              </Link>
-            )}
-          </div>
-        )}
+            </div>
+          )}
 
-        <div className="daily-todo-actions">
-          {/* Add subtask — only for parent tasks */}
-          {!isSubtask && onAddSubtask && !todo.completed && (
-            <button
-              onClick={() => setShowSubtaskInput(!showSubtaskInput)}
-              className="daily-todo-action-btn"
-              title="Add subtask"
-              style={showSubtaskInput ? { color: 'var(--primary, #6366f1)' } : {}}
-            >
-              <Plus className="w-3.5 h-3.5" />
-            </button>
-          )}
-          {/* Tag to idea */}
-          <div style={{ position: 'relative' }}>
-            <button
-              onClick={() => setShowTagMenu(!showTagMenu)}
-              className="daily-todo-action-btn"
-              title={todo.ideaId ? 'Change idea tag' : 'Tag to idea'}
-              style={todo.ideaId ? { color: 'var(--primary, #6366f1)' } : {}}
-            >
-              <Tag className="w-3.5 h-3.5" />
-            </button>
-            {showTagMenu && (
-              <div style={{
-                position: 'absolute', right: 0, top: '100%', zIndex: 50,
-                minWidth: '200px', maxHeight: '200px', overflowY: 'auto'
-              }}>
-                <IdeaPickerDropdown
-                  ideas={ideas}
-                  selectedIdeaId={todo.ideaId}
-                  onSelect={(id) => { onTagIdea(todo.id, id); setShowTagMenu(false); }}
-                  onRemove={() => { onTagIdea(todo.id, null); setShowTagMenu(false); }}
-                  showRemove={!!todo.ideaId}
-                />
-              </div>
-            )}
-          </div>
+          {hasChildren && !isSubtask && (() => {
+            const allDone = completedChildren === children.length;
+            return <span className={`wv-subtask-count ${allDone ? 'wv-subtask-count--done' : ''}`}>{completedChildren}/{children.length}</span>;
+          })()}
+
+          {todo.isUrgent && <Flame className="w-3 h-3" style={{ color: '#ef4444', flexShrink: 0 }} />}
+        </div>
+
+        {/* Row 2: time block pill + idea tag + add subtask + chevron menu */}
+        <div className="wv-task-row-2">
           {!isSubtask && (
-            <button
-              onClick={() => onToggleUrgent(todo)}
-              className={`daily-todo-action-btn ${todo.isUrgent ? 'daily-todo-action-btn--urgent' : ''}`}
-              title={todo.isUrgent ? 'Remove urgency' : 'Mark urgent'}
-            >
-              <Flame className="w-3.5 h-3.5" />
-            </button>
+            overrideDateLabel ? (
+              <span className="wv-task-block wv-task-block--morning" style={{ background: '#e5e7eb', color: '#4b5563' }}>{overrideDateLabel}</span>
+            ) : todo.dueDate ? (
+              <span className="wv-task-block wv-task-block--morning" style={{ background: '#fee2e2', color: '#991b1b' }}>Due {todo.dueDate.slice(5, 10).replace('-', '/')}</span>
+            ) : (
+              <span className={`wv-task-block wv-task-block--${(todo.timeBlock as string) || 'morning'}`}>{blockTag}</span>
+            )
           )}
-          <button
-            onClick={() => onDelete(todo.id)}
-            className="daily-todo-action-btn daily-todo-action-btn--delete"
-            title="Delete"
-          >
-            <Trash2 className="w-3.5 h-3.5" />
-          </button>
+
+          {todo.ideaId && todo.idea?.title && (
+            <Link to={`/ideas/${todo.ideaId}`} className="wv-task-idea" onClick={e => e.stopPropagation()} title={todo.idea.title} style={{ margin: 0 }}>
+              <Lightbulb className="w-2.5 h-2.5" />
+              <span>{todo.idea.title}</span>
+            </Link>
+          )}
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '30px', marginLeft: 'auto' }}>
+            {/* Add subtask button */}
+            {!isSubtask && onAddSubtask && !todo.completed && (
+              <button
+                className="wv-task-action-btn"
+                onClick={e => { e.preventDefault(); e.stopPropagation(); setShowSubtaskInput(!showSubtaskInput); }}
+                title="Add subtask"
+                style={showSubtaskInput ? { color: '#6366f1' } : {}}
+              >
+                <Plus className="w-3.5 h-3.5" />
+              </button>
+            )}
+
+            {/* Chevron dropdown menu */}
+            <div style={{ position: 'relative' }}>
+              <button
+                className="wv-task-action-btn"
+                onClick={e => {
+                  e.preventDefault(); e.stopPropagation();
+                  setMenuOpen(!menuOpen);
+                }}
+              >
+                <ChevronDown className="w-4 h-4 text-gray-600" />
+              </button>
+
+              {menuOpen && (
+                <TaskChevronMenu
+                  todo={todo}
+                  ideas={ideas}
+                  onClose={() => setMenuOpen(false)}
+                  onOpenDetail={onOpenDetail}
+                  onToggleUrgent={!isSubtask ? onToggleUrgent : undefined}
+                  onTagIdea={onTagIdea}
+                  onChangeDate={onChangeDate}
+                  onChangeTimeBlock={onChangeTimeBlock}
+                  onDelete={onDelete}
+                />
+              )}
+            </div>
+          </div>
         </div>
       </div>
 
       {/* Subtask input */}
       {showSubtaskInput && !isSubtask && (
-        <div className="daily-todo-subtask-add">
+        <div className="daily-todo-subtask-add" style={{ marginLeft: '1.5rem' }}>
           <input
             className="daily-todo-subtask-input"
             placeholder="Add a subtask..."
@@ -216,7 +238,9 @@ const DailyTodoItem: React.FC<DailyTodoItemProps> = ({
           onDelete={onDelete}
           onSaveEdit={onSaveEdit}
           onTagIdea={onTagIdea}
+          onOpenDetail={onOpenDetail}
           isSubtask
+          customContainerStyle={customContainerStyle}
         />
       ))}
     </div>

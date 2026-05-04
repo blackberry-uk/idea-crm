@@ -8,6 +8,10 @@ interface IdeaModalProps {
   isOpen: boolean;
   onClose: () => void;
   initialContactIds?: string[];
+  parentId?: string;
+  parentTitle?: string;
+  parentType?: string;
+  parentEntity?: string;
 }
 
 const parseJson = (val: any, fallback: any) => {
@@ -21,7 +25,7 @@ const parseJson = (val: any, fallback: any) => {
   return (Array.isArray(val) && val.length > 0) ? val : fallback;
 };
 
-const IdeaModal: React.FC<IdeaModalProps> = ({ isOpen, onClose, initialContactIds = [] }) => {
+const IdeaModal: React.FC<IdeaModalProps> = ({ isOpen, onClose, initialContactIds = [], parentId, parentTitle, parentType, parentEntity }) => {
   const { data, addIdea, showToast } = useStore();
 
   const entities = parseJson(data.currentUser?.personalEntities, ['Personal']);
@@ -40,8 +44,8 @@ const IdeaModal: React.FC<IdeaModalProps> = ({ isOpen, onClose, initialContactId
     if (isOpen) {
       setNewIdea({
         title: '',
-        type: ideaConfigs[0]?.type || 'Product',
-        entity: entities[0] || 'Personal',
+        type: parentId && parentType ? parentType : (ideaConfigs[0]?.type || 'Product'),
+        entity: parentId && parentEntity ? parentEntity : (entities[0] || 'Personal'),
         tags: [],
         linkedContactIds: initialContactIds
       });
@@ -66,6 +70,7 @@ const IdeaModal: React.FC<IdeaModalProps> = ({ isOpen, onClose, initialContactId
       status: initialStatus,
       priority: 3,
       linkedContactIds: JSON.stringify(newIdea.linkedContactIds ?? []),
+      ...(parentId ? { parentId } : {}),
     });
     onClose();
     setNewIdea({
@@ -83,7 +88,8 @@ const IdeaModal: React.FC<IdeaModalProps> = ({ isOpen, onClose, initialContactId
         <div className="flex items-center justify-between p-6 border-b bg-gray-50/50">
           <div className="flex items-center gap-2">
             <Lightbulb className="w-5 h-5" style={{ color: 'var(--primary)' }} />
-            <h2 className="text-xl font-bold tracking-tight">New Idea</h2>
+            <h2 className="text-xl font-bold tracking-tight">{parentId ? 'New Sub-Idea' : 'New Idea'}</h2>
+            {parentTitle && <span className="text-xs text-gray-400 font-semibold ml-1">under {parentTitle}</span>}
           </div>
           <button onClick={onClose} className="p-2 text-gray-400 hover:bg-gray-200 rounded-full"><X className="w-5 h-5" /></button>
         </div>
@@ -101,22 +107,35 @@ const IdeaModal: React.FC<IdeaModalProps> = ({ isOpen, onClose, initialContactId
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs font-bold text-gray-400 uppercase mb-2">Category</label>
-              <select className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm bg-gray-50" value={newIdea.type} onChange={e => setNewIdea({ ...newIdea, type: e.target.value })}>
-                {ideaConfigs.map(config => (
-                  <option key={config.type} value={config.type}>{config.type}</option>
-                ))}
-              </select>
+          {parentId ? (
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-bold text-gray-400 uppercase mb-2">Category</label>
+                <div className="w-full border border-gray-100 rounded-xl px-3 py-2 text-sm bg-gray-100 text-gray-500 font-semibold">{parentType || newIdea.type}</div>
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-gray-400 uppercase mb-2">Association</label>
+                <div className="w-full border border-gray-100 rounded-xl px-3 py-2 text-sm bg-gray-100 text-gray-500 font-semibold">{parentEntity || newIdea.entity}</div>
+              </div>
             </div>
-            <div>
-              <label className="block text-xs font-bold text-gray-400 uppercase mb-2">Association</label>
-              <select className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm bg-gray-50" value={newIdea.entity} onChange={e => setNewIdea({ ...newIdea, entity: e.target.value })}>
-                {entities.map(ent => <option key={ent} value={ent}>{ent}</option>)}
-              </select>
+          ) : (
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-bold text-gray-400 uppercase mb-2">Category</label>
+                <select className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm bg-gray-50" value={newIdea.type} onChange={e => setNewIdea({ ...newIdea, type: e.target.value })}>
+                  {ideaConfigs.map(config => (
+                    <option key={config.type} value={config.type}>{config.type}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-gray-400 uppercase mb-2">Association</label>
+                <select className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm bg-gray-50" value={newIdea.entity} onChange={e => setNewIdea({ ...newIdea, entity: e.target.value })}>
+                  {entities.map(ent => <option key={ent} value={ent}>{ent}</option>)}
+                </select>
+              </div>
             </div>
-          </div>
+          )}
 
           <button type="submit" className="w-full py-4 text-white font-bold rounded-2xl shadow-lg transition-all active:scale-95" style={{ backgroundColor: 'var(--primary)', boxShadow: '0 10px 15px -3px var(--primary-shadow)' }}>
             Create Idea

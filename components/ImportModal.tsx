@@ -248,7 +248,7 @@ const ImportModal: React.FC<ImportModalProps> = ({ parsedResult, onClose }) => {
                           <span className="px-1.5 py-0.5 bg-yellow-100 text-yellow-700 text-[8px] font-black rounded uppercase">Override</span>
                         )}
                       </div>
-                      <span className="text-[10px] text-gray-400 uppercase font-bold tracking-wider">{contact.org}</span>
+                      <span className="text-[10px] text-gray-400 uppercase font-bold tracking-wider">{contact.role || contact.org || '—'}</span>
                     </div>
                   </button>
                 ))}

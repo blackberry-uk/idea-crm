@@ -79,15 +79,10 @@ const ContactDetail: React.FC = () => {
   const [selectedNoteForDetail, setSelectedNoteForDetail] = useState<Note | null>(null);
   const [commentBody, setCommentBody] = useState<Record<string, string>>({});
   const [expandedNoteActionsId, setExpandedNoteActionsId] = useState<string | null>(null);
-  const [showComposer, setShowComposer] = useState(() => {
-    const saved = localStorage.getItem('hideComposer_contact');
-    return saved !== 'true';
-  });
+  const [showComposer, setShowComposer] = useState(false);
 
   const toggleComposer = () => {
-    const newVal = !showComposer;
-    setShowComposer(newVal);
-    localStorage.setItem('hideComposer_contact', (!newVal).toString());
+    setShowComposer(!showComposer);
   };
 
   const pinnedNote = data.notes.find(n => n.contactId === id && n.isPinned);
@@ -576,78 +571,96 @@ const ContactDetail: React.FC = () => {
           </div>
         </div>
 
-        <div className="bg-white rounded-[40px] border border-[var(--border)] shadow-sm overflow-hidden mb-8">
-          <div className="p-10 border-b border-[var(--border)] flex flex-col md:flex-row gap-10 items-start md:items-center">
+        <div className="bg-white rounded-3xl border border-[var(--border)] shadow-sm overflow-hidden mb-8">
+          <div className="p-8 flex flex-col md:flex-row gap-8 items-start md:items-center">
             <div
-              className="w-28 h-28 rounded-[2rem] flex items-center justify-center text-4xl font-bold border-4 shadow-inner"
+              className="w-20 h-20 rounded-2xl flex items-center justify-center text-3xl font-bold border-2 shadow-inner shrink-0"
               style={{ backgroundColor: 'var(--primary-shadow)', color: 'var(--primary)', borderColor: 'var(--primary)' }}
             >
               {contact.firstName?.[0] || contact.fullName?.[0] || '?'}
             </div>
-            <div className="flex-1 space-y-3">
-              <div className="flex items-center gap-4">
-                <h1 className="text-4xl font-extrabold text-gray-900 tracking-tight">{contact.fullName}</h1>
-              </div>
+            <div className="flex-1 space-y-2 min-w-0">
+              <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight">{contact.fullName}</h1>
 
-              <div className="flex flex-wrap items-center gap-x-8 gap-y-3">
-                <div className="flex items-center gap-2 text-gray-600 font-semibold">
-                  <Briefcase className="w-4 h-4" style={{ color: 'var(--primary)' }} />
-                  <span>{contact.role} @ {contact.org}</span>
-                </div>
-                <div className="flex items-center gap-2 text-gray-600 font-semibold">
-                  <MapPin className="w-4 h-4" style={{ color: 'var(--primary)' }} />
-                  <span>{contact.country || 'No location set'}</span>
-                </div>
+              <div className="flex flex-wrap items-center gap-3">
+                {contact.role && (
+                  <span className="text-sm font-semibold text-gray-600 flex items-center gap-1.5">
+                    <Briefcase className="w-3.5 h-3.5" style={{ color: 'var(--primary)' }} />
+                    {contact.role}
+                  </span>
+                )}
+                {contact.country && (
+                  <span className="text-sm text-gray-500 flex items-center gap-1.5">
+                    <MapPin className="w-3.5 h-3.5" style={{ color: 'var(--primary)' }} />
+                    {contact.country}
+                  </span>
+                )}
                 {contact.isWhatsApp && (
-                  <div className="flex items-center gap-2 px-3 py-1 bg-green-50 border border-green-100 text-green-700 rounded-full text-xs font-bold">
-                    <MessageCircle className="w-3.5 h-3.5" />
-                    WhatsApp Contact
-                  </div>
+                  <span className="flex items-center gap-1 px-2 py-0.5 bg-green-50 border border-green-100 text-green-700 rounded-full text-[10px] font-bold">
+                    <MessageCircle className="w-3 h-3" />
+                    WhatsApp
+                  </span>
                 )}
               </div>
-            </div>
-          </div>
 
-          <div className="bg-gray-50/50 p-8 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            <div className="space-y-4">
-              <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Contact Methods</div>
-              <div className="space-y-2">
-                <div className="flex items-center gap-3 text-sm text-gray-600 font-medium">
-                  <Mail className="w-4 h-4" style={{ color: 'var(--primary)' }} />
-                  {contact.email}
-                </div>
-                <div className="flex items-center gap-3 text-sm text-gray-600 font-medium">
-                  <Phone className="w-4 h-4" style={{ color: 'var(--primary)' }} />
-                  {contact.phone || 'No phone set'}
-                </div>
-              </div>
-            </div>
+              {/* Entity Pills */}
+              {(() => {
+                const entityIds = (() => {
+                  const raw = (contact as any).linkedEntityIds;
+                  if (!raw) return [];
+                  if (Array.isArray(raw)) return raw;
+                  if (typeof raw === 'string') { try { const p = JSON.parse(raw); return Array.isArray(p) ? p : []; } catch { return []; } }
+                  return [];
+                })();
+                return entityIds.length > 0 ? (
+                  <div className="flex flex-wrap gap-1.5 mt-1">
+                    {entityIds.map((eid: string) => {
+                      const ent = data.entities.find(e => e.id === eid);
+                      if (!ent) return null;
+                      return (
+                        <span key={eid} style={{
+                          display: 'inline-flex', alignItems: 'center',
+                          padding: '4px 10px', borderRadius: '999px', fontSize: '11px', fontWeight: 700,
+                          backgroundColor: '#fce7f3', color: '#be185d'
+                        }}>
+                          #{ent.name}
+                        </span>
+                      );
+                    })}
+                  </div>
+                ) : null;
+              })()}
 
-            <div className="space-y-4 md:col-span-1 lg:col-span-3">
-              <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Social Channels</div>
-              <div className="flex flex-wrap gap-4">
+              {/* Contact Methods - inline */}
+              <div className="flex flex-wrap items-center gap-4 pt-1">
+                {contact.email && (
+                  <a href={`mailto:${contact.email}`} className="text-xs text-gray-500 hover:text-[var(--primary)] flex items-center gap-1.5 transition-colors">
+                    <Mail className="w-3.5 h-3.5" /> {contact.email}
+                  </a>
+                )}
+                {contact.phone && (
+                  <span className="text-xs text-gray-500 flex items-center gap-1.5">
+                    <Phone className="w-3.5 h-3.5" /> {contact.phone}
+                  </span>
+                )}
                 {contact.linkedinUrl && (
-                  <a href={contact.linkedinUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 px-4 py-2 bg-white border border-[var(--border)] rounded-xl text-xs font-bold text-gray-700 hover:border-blue-400 hover:text-blue-600 transition-all shadow-sm group break-all">
-                    <Linkedin className="w-4 h-4 text-blue-600 shrink-0" />
-                    <span className="font-medium text-xs text-gray-600 group-hover:text-blue-600">{contact.linkedinUrl}</span>
+                  <a href={contact.linkedinUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-500 hover:text-blue-700 flex items-center gap-1.5 transition-colors">
+                    <Linkedin className="w-3.5 h-3.5 shrink-0" /> {contact.linkedinUrl}
                   </a>
                 )}
                 {contact.twitterUrl && (
-                  <a href={contact.twitterUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 px-3 py-2 bg-white border border-[var(--border)] rounded-xl text-xs font-bold text-gray-700 hover:border-gray-900 transition-all shadow-sm">
-                    <Twitter className="w-4 h-4 text-gray-900" />
-                    X
+                  <a href={contact.twitterUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-gray-700 hover:text-black flex items-center gap-1.5 transition-colors">
+                    <Twitter className="w-3.5 h-3.5" /> X
                   </a>
                 )}
                 {contact.instagramUrl && (
-                  <a href={contact.instagramUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 px-3 py-2 bg-white border border-[var(--border)] rounded-xl text-xs font-bold text-gray-700 hover:border-pink-400 hover:text-pink-600 transition-all shadow-sm">
-                    <Instagram className="w-4 h-4 text-pink-600" />
-                    Instagram
+                  <a href={contact.instagramUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-pink-500 hover:text-pink-700 flex items-center gap-1.5 transition-colors">
+                    <Instagram className="w-3.5 h-3.5" /> Instagram
                   </a>
                 )}
                 {contact.substackUrl && (
-                  <a href={contact.substackUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 px-3 py-2 bg-white border border-[var(--border)] rounded-xl text-xs font-bold text-gray-700 hover:border-orange-400 hover:text-orange-600 transition-all shadow-sm">
-                    <BookOpen className="w-4 h-4 text-orange-600" />
-                    Substack
+                  <a href={contact.substackUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-orange-500 hover:text-orange-700 flex items-center gap-1.5 transition-colors">
+                    <BookOpen className="w-3.5 h-3.5" /> Substack
                   </a>
                 )}
               </div>
@@ -658,10 +671,10 @@ const ContactDetail: React.FC = () => {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           <div className="lg:col-span-2 space-y-8 idea-thread">
             {/* Unified Block Strategy */}
-            <div className="bg-white rounded-[40px] border border-[var(--border)] shadow-sm overflow-hidden flex flex-col">
-              {/* Working Area (Amber) */}
+            <div className="bg-white rounded-3xl border border-[var(--border)] shadow-sm overflow-hidden flex flex-col">
+              {/* Composer - only shown on demand */}
               {showComposer && (
-                <div style={{ backgroundColor: 'var(--secondary)' }} className="border-b border-[var(--border)] animate-in fade-in transition-all">
+                <div style={{ backgroundColor: 'var(--secondary)' }} className="border-b border-[var(--border)] animate-in fade-in slide-in-from-top-2 duration-200">
                   <NoteComposer
                     defaultContactId={contact.id}
                     onComplete={() => setShowComposer(false)}
@@ -673,43 +686,39 @@ const ContactDetail: React.FC = () => {
                 </div>
               )}
 
-              {/* History Area (White) */}
-              <div className="bg-white flex flex-col min-h-[400px]">
-                {/* Simplified Activity Header */}
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 px-10 pt-8 pb-4">
-                  <div className="flex items-center gap-4">
-                    <h2 className="text-sm font-black text-gray-400 uppercase tracking-widest flex items-center gap-2">
-                      <Activity className="w-4 h-4" style={{ color: 'var(--primary)' }} />
-                      Activity
-                    </h2>
+              <div className="bg-white flex flex-col min-h-[300px]">
+                <div className="flex items-center justify-between px-8 pt-6 pb-3">
+                  <h2 className="text-[10px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-2">
+                    <Activity className="w-3.5 h-3.5" style={{ color: 'var(--primary)' }} />
+                    Activity
+                  </h2>
+                  <div className="flex items-center gap-2">
                     {!showComposer && (
                       <button
                         onClick={toggleComposer}
-                        className="text-[10px] font-black uppercase tracking-widest transition-all hover:underline"
+                        className="p-1.5 rounded-lg transition-all hover:bg-[var(--primary)]/10"
                         style={{ color: 'var(--primary)' }}
+                        title="Add Note"
                       >
-                        ( + Add Note )
+                        <Plus className="w-4 h-4" />
                       </button>
                     )}
-                  </div>
-
-                  <div className="flex items-center gap-3">
                     <button
                       onClick={() => setShowHiddenNotes(!showHiddenNotes)}
-                      className={`p-2 rounded-xl transition-all shadow-sm ${showHiddenNotes ? 'bg-amber-100 text-amber-700 border border-amber-200' : 'bg-white text-gray-400 border border-[var(--border)]'}`}
+                      className={`p-1.5 rounded-lg transition-all ${showHiddenNotes ? 'bg-amber-100 text-amber-700' : 'text-gray-400 hover:text-gray-600'}`}
                       title={showHiddenNotes ? "Mask hidden notes" : "Reveal hidden notes"}
                     >
-                      <Eye className="w-5 h-5" />
+                      <Eye className="w-4 h-4" />
                     </button>
                   </div>
                 </div>
 
-                <div className="space-y-4 pb-10">
+                <div className="space-y-4 pb-8">
                   {pinnedNote && renderNote(pinnedNote)}
                   {contactNotes.map(renderNote)}
                   {contactNotes.length === 0 && !pinnedNote && (
-                    <div className="py-20 mx-10 text-center border-2 border-dashed border-[var(--border)] rounded-[28px]">
-                      <p className="text-gray-400 font-bold text-sm tracking-tight italic">No activity logged yet. Share your first thought above.</p>
+                    <div className="py-16 mx-8 text-center border border-dashed border-gray-200 rounded-2xl">
+                      <p className="text-gray-400 text-sm italic">No activity logged yet.</p>
                     </div>
                   )}
                 </div>

@@ -87,14 +87,28 @@ export interface Contact {
   linkedinUrl: string;
   relationshipStrength: number;
   linkedIdeaIds?: string[];
+  linkedEntityIds?: string[];
   createdAt: string;
   updatedAt: string;
   // Additional social and preference fields
   isWhatsApp?: boolean;
+  tags?: string[];
   twitterUrl?: string;
   instagramUrl?: string;
   substackUrl?: string;
   notes?: string;
+}
+
+export interface Entity {
+  id: string;
+  name: string;
+  description?: string;
+  type?: string;
+  website?: string;
+  linkedinUrl?: string;
+  ownerId: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export type NoteIntent = 'follow_up' | 'acted_upon' | 'reflection' | 'memoir';
@@ -110,6 +124,7 @@ export interface Note {
   location?: string;
   taggedContactIds: string[];
   taggedUserIds: string[];
+  taggedEntityIds: string[];
   createdAt: string;
   createdBy: string; // User Name
   createdById: string; // User ID
@@ -160,6 +175,7 @@ export interface AppData {
   users: User[];
   ideas: Idea[];
   contacts: Contact[];
+  entities: Entity[];
   notes: Note[];
   interactions: Interaction[];
   invitations: Invitation[];

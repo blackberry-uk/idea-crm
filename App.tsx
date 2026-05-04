@@ -8,6 +8,7 @@ import IdeaDetail from './pages/IdeaDetail';
 import WeeklyReport from './pages/WeeklyReport';
 import ContactsPage from './pages/ContactsPage';
 import ContactDetail from './pages/ContactDetail';
+import EntitiesPage from './pages/EntitiesPage';
 import Settings from './pages/Settings';
 import Invitations from './pages/Invitations';
 import DailyTodos from './pages/DailyTodos';
@@ -253,12 +254,8 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
   );
 };
 
-// On mobile, redirect "/" to "/daily" — the mobile home is the To-Do calendar
+// Dashboard is now the checklist-first experience for all devices
 const MobileHomeRedirect: React.FC = () => {
-  const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
-  if (isMobile) {
-    return <Navigate to="/daily" replace />;
-  }
   return <Dashboard />;
 };
 
@@ -273,6 +270,7 @@ const App: React.FC = () => {
         <Route path="/reports/weekly" element={<ProtectedRoute><WeeklyReport /></ProtectedRoute>} />
         <Route path="/contacts" element={<ProtectedRoute><ContactsPage /></ProtectedRoute>} />
         <Route path="/contacts/:id" element={<ProtectedRoute><ContactDetail /></ProtectedRoute>} />
+        <Route path="/entities" element={<ProtectedRoute><EntitiesPage /></ProtectedRoute>} />
         <Route path="/daily" element={<ProtectedRoute><DailyTodos /></ProtectedRoute>} />
         <Route path="/invitations" element={<ProtectedRoute><Invitations /></ProtectedRoute>} />
         <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
