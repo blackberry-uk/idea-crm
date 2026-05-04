@@ -1,12 +1,12 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { LayoutDashboard, Lightbulb, CalendarCheck, Users, Settings } from 'lucide-react';
+import { CalendarDays, Lightbulb, CalendarCheck, Users, Settings } from 'lucide-react';
 
 const MobileBottomNav: React.FC = () => {
   const location = useLocation();
 
   const items = [
-    { path: '/', icon: LayoutDashboard, label: 'Home' },
+    { path: '/', icon: CalendarDays, label: 'Checklist' },
     { path: '/ideas', icon: Lightbulb, label: 'Ideas' },
     { path: '/daily', icon: CalendarCheck, label: 'Calendar' },
     { path: '/contacts', icon: Users, label: 'Contacts' },

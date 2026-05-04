@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import DailyTodoItem, { DailyTodoData } from '../components/DailyTodoItem';
 import IdeaPickerDropdown from '../components/IdeaPickerDropdown';
+import TaskDetailModal from '../components/TaskDetailModal';
 
 type DailyTodo = DailyTodoData;
 
@@ -22,7 +23,10 @@ function groupByDate(todos: DailyTodo[]): Map<string, DailyTodo[]> {
 }
 
 function toDateKey(d: Date): string {
-  return d.toISOString().slice(0, 10);
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
 }
 
 function addDays(d: Date, n: number): Date {
@@ -63,6 +67,7 @@ const DailyTodos: React.FC = () => {
   const [dragOverId, setDragOverId] = useState<string | null>(null);
   const [dragOverDateKey, setDragOverDateKey] = useState<string | null>(null);
   const [dragSourceDateKey, setDragSourceDateKey] = useState<string | null>(null);
+  const [detailTodo, setDetailTodo] = useState<DailyTodo | null>(null);
 
   const ideas = data.ideas || [];
 
@@ -164,6 +169,28 @@ const DailyTodos: React.FC = () => {
     }
   };
 
+  // Parse @mentions from text
+  const extractMentions = (text: string): string[] => {
+    const regex = /@([A-ZÀ-ÖØ-Þ][a-zß-öø-ÿa-zA-Z]*(?:\s+[A-ZÀ-ÖØ-Þ][a-zß-öø-ÿa-zA-Z]*)*)/g;
+    const mentions: string[] = [];
+    let match;
+    while ((match = regex.exec(text)) !== null) {
+      mentions.push(match[1].trim());
+    }
+    return mentions;
+  };
+
+  const findContactByName = (name: string) => {
+    const lower = name.toLowerCase();
+    const contacts = data.contacts || [];
+    return contacts.find(c => {
+      const full = (c.fullName || '').toLowerCase();
+      const first = (c.firstName || '').toLowerCase();
+      const last = (c.lastName || '').toLowerCase();
+      return full === lower || first === lower || `${first} ${last}`.trim() === lower;
+    });
+  };
+
   const toggleComplete = async (todo: DailyTodo) => {
     try {
       const updated = await apiClient.put(`/daily-todos/${todo.id}`, {
@@ -208,6 +235,18 @@ const DailyTodos: React.FC = () => {
   const saveEdit = async (id: string, text: string) => {
     try {
       const updated = await apiClient.put(`/daily-todos/${id}`, { text });
+      setTodos(prev => prev
+        .map(t => t.id === id ? updated : t)
+        .map(t => t.children ? { ...t, children: t.children.map(c => c.id === id ? updated : c) } : t)
+      );
+    } catch (err: any) {
+      showToast(err.message || 'Failed to update', 'error');
+    }
+  };
+
+  const updateTodo = async (id: string, updates: Record<string, any>) => {
+    try {
+      const updated = await apiClient.put(`/daily-todos/${id}`, updates);
       setTodos(prev => prev
         .map(t => t.id === id ? updated : t)
         .map(t => t.children ? { ...t, children: t.children.map(c => c.id === id ? updated : c) } : t)
@@ -567,6 +606,19 @@ const DailyTodos: React.FC = () => {
                         onTagIdea={tagTodoToIdea}
                         onAddSubtask={addSubtask}
                         isDragging={dragId === todo.id}
+                        onOpenDetail={t => setDetailTodo(t as any)}
+                        onChangeDate={async (id, newDate) => {
+                          try {
+                            const updated = await apiClient.put(`/daily-todos/${id}`, { date: newDate });
+                            setTodos(prev => prev.map(t => t.id === id ? updated : t));
+                          } catch { showToast('Failed to reschedule', 'error'); }
+                        }}
+                        onChangeTimeBlock={async (id, block) => {
+                          try {
+                            const updated = await apiClient.put(`/daily-todos/${id}`, { timeBlock: block });
+                            setTodos(prev => prev.map(t => t.id === id ? updated : t));
+                          } catch { showToast('Failed to change time block', 'error'); }
+                        }}
                       />
                     </div>
                   ))}
@@ -589,6 +641,20 @@ const DailyTodos: React.FC = () => {
           </div>
         )}
       </div>
+
+      {/* Task Detail Modal */}
+      {detailTodo && (
+        <TaskDetailModal
+          todo={detailTodo}
+          ideas={ideas}
+          onClose={() => setDetailTodo(null)}
+          onUpdate={updateTodo}
+          onDelete={async (id) => { await deleteTodo(id); setDetailTodo(null); }}
+          onToggleComplete={async (t) => { await toggleComplete(t); }}
+          onToggleUrgent={async (t) => { await toggleUrgent(t); }}
+          onTagIdea={async (todoId, ideaId) => { await tagTodoToIdea(todoId, ideaId); }}
+        />
+      )}
     </div>
   );
 };

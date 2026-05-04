@@ -34,7 +34,7 @@ const AICounselor: React.FC<AICounselorProps> = ({ ideaId }) => {
     const nextMovePrompt = "Given all the notes, todos and comments you see on this idea, what should I focus on next?";
 
     return (
-        <div className="mx-6 mb-8">
+        <div>
             <div className="bg-gradient-to-br from-indigo-600 via-violet-600 to-purple-600 rounded-[2.5rem] p-[2px] shadow-xl shadow-indigo-500/20 group transition-all duration-500 hover:shadow-2xl hover:shadow-indigo-500/30">
                 <div className="bg-white/95 backdrop-blur-sm rounded-[2.3rem] overflow-hidden">
                     <div className="p-8">

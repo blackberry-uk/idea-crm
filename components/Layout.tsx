@@ -2,7 +2,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import {
-  LayoutDashboard,
+  CalendarDays,
   Lightbulb,
   Users,
   Plus,
@@ -15,7 +15,8 @@ import {
   Trash2,
   Settings as SettingsIcon,
   Mail,
-  Brain
+  Brain,
+  Building2
 } from 'lucide-react';
 import { CalendarCheck } from 'lucide-react';
 import { useStore } from '../store/useStore.ts';
@@ -39,9 +40,10 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   ).length;
 
   const navItems = [
-    { name: 'Dashboard', path: '/', icon: LayoutDashboard },
+    { name: 'Checklist', path: '/', icon: CalendarDays },
     { name: 'Ideas', path: '/ideas', icon: Lightbulb },
     { name: 'Contacts', path: '/contacts', icon: Users },
+    { name: 'Entities', path: '/entities', icon: Building2 },
     { name: 'Calendar', path: '/daily', icon: CalendarCheck },
     { name: 'Invitations', path: '/invitations', icon: Mail, badge: pendingInvs },
     { name: 'Training', path: '/?training=true', icon: Brain },
@@ -65,12 +67,12 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           {navItems.map((item) => {
             const hasTrainingParam = new URLSearchParams(location.search).get('training') === 'true';
             const isTrainingItem = item.name === 'Training';
-            const isDashboardItem = item.name === 'Dashboard';
+            const isChecklistItem = item.name === 'Checklist';
 
             let isActive = false;
             if (isTrainingItem) {
               isActive = hasTrainingParam;
-            } else if (isDashboardItem) {
+            } else if (isChecklistItem) {
               isActive = location.pathname === '/' && !hasTrainingParam;
             } else {
               isActive = location.pathname.startsWith(item.path);

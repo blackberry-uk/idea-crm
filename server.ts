@@ -195,7 +195,7 @@ app.get('/api/data', authenticate, async (req: any, res) => {
     console.log('[API /data] Fetching ideas...');
     const rawIdeas = await prisma.idea.findMany({
       where: { OR: [{ ownerId: userId }, { collaborators: { some: { id: userId } } }] },
-      include: { owner: true, collaborators: true }
+      include: { owner: true, collaborators: true, children: { include: { owner: true, collaborators: true } } }
     });
     console.log('[API /data] Ideas fetched:', rawIdeas.length);
 
@@ -206,6 +206,12 @@ app.get('/api/data', authenticate, async (req: any, res) => {
       } as any
     });
     console.log('[API /data] Contacts fetched:', contacts.length);
+
+    console.log('[API /data] Fetching entities...');
+    const entities = await prisma.entity.findMany({
+      where: { ownerId: userId } as any
+    });
+    console.log('[API /data] Entities fetched:', entities.length);
 
     console.log('[API /data] Fetching notes...');
     const rawNotes = await prisma.note.findMany({
@@ -219,6 +225,7 @@ app.get('/api/data', authenticate, async (req: any, res) => {
       include: {
         taggedContacts: true,
         taggedUsers: true,
+        taggedEntities: true,
         comments: { include: { author: true } }
       } as any
     });
@@ -256,6 +263,7 @@ app.get('/api/data', authenticate, async (req: any, res) => {
       categories: JSON.parse(note.categories || '[]'),
       taggedContactIds: (note as any).taggedContacts.map((c: any) => c.id),
       taggedUserIds: (note as any).taggedUsers.map((u: any) => u.id),
+      taggedEntityIds: (note as any).taggedEntities?.map((e: any) => e.id) || [],
       comments: (note as any).comments?.map((comment: any) => ({
         ...comment,
         author: comment.author
@@ -276,7 +284,7 @@ app.get('/api/data', authenticate, async (req: any, res) => {
       nextActionDate: int.nextActionDate?.toISOString(),
     }));
 
-    res.json({ ideas, contacts, notes, interactions: formattedInteractions, invitations, users });
+    res.json({ ideas, contacts, entities, notes, interactions: formattedInteractions, invitations, users });
   } catch (err) {
     console.error('[API /data] Error fetching workspace data:', {
       message: err.message,
@@ -313,6 +321,7 @@ app.put('/api/ideas/:id', authenticate, async (req: any, res) => {
       tags, todos, linkedContactIds, customNoteCategories,
       ownerId, collaborators, invitations, notes, owner,
       id, createdAt, updatedAt, collaboratorIds,
+      children, parent,
       ...updates
     } = req.body;
 
@@ -512,7 +521,7 @@ app.post('/api/contacts', authenticate, async (req: any, res) => {
 
 app.put('/api/contacts/:id', authenticate, async (req: any, res) => {
   try {
-    const { id, createdAt, updatedAt, notesAssociated, taggedInNotes, associatedNotes, linkedIdeaIds, ...updates } = req.body;
+    const { id, createdAt, updatedAt, notesAssociated, taggedInNotes, associatedNotes, linkedIdeaIds, linkedEntityIds, ...updates } = req.body;
 
     // Ownership check
     const existing = await prisma.contact.findUnique({ where: { id: req.params.id } }) as any;
@@ -523,6 +532,7 @@ app.put('/api/contacts/:id', authenticate, async (req: any, res) => {
     const data: any = { ...updates };
     if (req.body.notes !== undefined) data.notes = req.body.notes;
     if (linkedIdeaIds !== undefined) data.linkedIdeaIds = Array.isArray(linkedIdeaIds) ? JSON.stringify(linkedIdeaIds) : linkedIdeaIds;
+    if (linkedEntityIds !== undefined) data.linkedEntityIds = linkedEntityIds;
 
     const fullName = updates.firstName !== undefined || updates.lastName !== undefined
       ? `${updates.firstName ?? existing.firstName ?? ''} ${updates.lastName ?? existing.lastName ?? ''} `.trim()
@@ -560,12 +570,62 @@ app.delete('/api/contacts/:id', authenticate, async (req: any, res) => {
   }
 });
 
+// --- ENTITIES ---
+app.post('/api/entities', authenticate, async (req: any, res) => {
+  try {
+    const { id, createdAt, updatedAt, taggedInNotes, ...entityData } = req.body;
+    const entity = await (prisma.entity as any).create({
+      data: {
+        ...entityData,
+        ownerId: req.userId
+      }
+    });
+    res.json(entity);
+  } catch (err: any) {
+    console.error('Create entity error:', err);
+    res.status(500).json({ error: 'Failed to create entity', details: err.message });
+  }
+});
+
+app.put('/api/entities/:id', authenticate, async (req: any, res) => {
+  try {
+    const { id, createdAt, updatedAt, taggedInNotes, ...updates } = req.body;
+    const existing = await (prisma.entity as any).findUnique({ where: { id: req.params.id } });
+    if (existing && existing.ownerId !== req.userId) {
+      return res.status(403).json({ error: 'Unauthorized' });
+    }
+    const entity = await (prisma.entity as any).update({
+      where: { id: req.params.id },
+      data: updates
+    });
+    res.json(entity);
+  } catch (err: any) {
+    console.error('Update entity error:', err);
+    res.status(500).json({ error: 'Failed to update entity', details: err.message });
+  }
+});
+
+app.delete('/api/entities/:id', authenticate, async (req: any, res) => {
+  try {
+    const existing = await (prisma.entity as any).findUnique({ where: { id: req.params.id } });
+    if (!existing) return res.status(404).json({ error: 'Entity not found' });
+    if (existing.ownerId !== req.userId) {
+      return res.status(403).json({ error: 'Unauthorized' });
+    }
+    await (prisma.entity as any).delete({ where: { id: req.params.id } });
+    res.json({ success: true });
+  } catch (err: any) {
+    console.error('Delete entity error:', err);
+    res.status(500).json({ error: 'Failed to delete entity', details: err.message });
+  }
+});
+
 // --- NOTES ---
 app.post('/api/notes', authenticate, async (req: any, res) => {
   try {
     const {
-      taggedContactIds, taggedUserIds, categories, body, ideaId, contactId,
-      id, createdAt, updatedAt, author, idea, contact, taggedContacts, taggedUsers,
+      taggedContactIds, taggedUserIds, taggedEntityIds, categories, body, ideaId, contactId,
+      id, createdAt, updatedAt, author, idea, contact, taggedContacts, taggedUsers, taggedEntities,
       ...noteData
     } = req.body;
 
@@ -589,6 +649,7 @@ app.post('/api/notes', authenticate, async (req: any, res) => {
         contactId: contactId || null,
         taggedContacts: { connect: (taggedContactIds || []).map((id: string) => ({ id })) },
         taggedUsers: { connect: (taggedUserIds || []).map((id: string) => ({ id })) },
+        taggedEntities: { connect: (taggedEntityIds || []).map((id: string) => ({ id })) },
         intent: req.body.intent || null
       }
     });
@@ -629,8 +690,8 @@ app.post('/api/notes', authenticate, async (req: any, res) => {
 
 app.put('/api/notes/:id', authenticate, async (req: any, res) => {
   const {
-    taggedContactIds, taggedUserIds, categories, body,
-    id, createdAt, updatedAt, author, idea, contact, taggedContacts, taggedUsers,
+    taggedContactIds, taggedUserIds, taggedEntityIds, categories, body,
+    id, createdAt, updatedAt, author, idea, contact, taggedContacts, taggedUsers, taggedEntities,
     ...updates
   } = req.body;
   const data: any = { ...updates };
@@ -640,6 +701,7 @@ app.put('/api/notes/:id', authenticate, async (req: any, res) => {
 
   if (taggedContactIds) data.taggedContacts = { set: taggedContactIds.map((id: string) => ({ id })) };
   if (taggedUserIds) data.taggedUsers = { set: taggedUserIds.map((id: string) => ({ id })) };
+  if (taggedEntityIds) data.taggedEntities = { set: taggedEntityIds.map((id: string) => ({ id })) };
 
   if (updates.imageUrl !== undefined) data.imageUrl = updates.imageUrl;
   if (updates.location !== undefined) data.location = updates.location;
@@ -986,13 +1048,18 @@ app.get('/api/daily-todos', authenticate, async (req: any, res) => {
     const { from, to } = req.query;
     const where: any = { userId: req.userId, parentId: null };
     if (from || to) {
-      where.date = {};
-      if (from) where.date.gte = new Date(from as string);
-      if (to) where.date.lte = new Date(to as string);
+      // Fetch date-ranged tasks OR floating (date=null) tasks
+      const dateFilter: any = {};
+      if (from) dateFilter.gte = new Date(from as string);
+      if (to) dateFilter.lte = new Date(to as string);
+      where.OR = [
+        { date: dateFilter },
+        { date: null }
+      ];
     }
     const todos = await (prisma as any).dailyTodo.findMany({
       where,
-      orderBy: [{ date: 'asc' }, { sortOrder: 'asc' }, { createdAt: 'asc' }],
+      orderBy: [{ date: { sort: 'asc', nulls: 'last' } }, { sortOrder: 'asc' }, { createdAt: 'asc' }],
       include: {
         idea: { select: { id: true, title: true } },
         children: {
@@ -1010,22 +1077,24 @@ app.get('/api/daily-todos', authenticate, async (req: any, res) => {
 
 app.post('/api/daily-todos', authenticate, async (req: any, res) => {
   try {
-    const { text, date, isUrgent, ideaId, parentId } = req.body;
-    if (!text || !date) return res.status(400).json({ error: 'text and date are required' });
-    // Auto-set sortOrder to max+1 for this user+date
+    const { text, date, isUrgent, ideaId, parentId, timeBlock } = req.body;
+    if (!text) return res.status(400).json({ error: 'text is required' });
+    // date can be null for floating/backburner tasks
+    const dateVal = date ? new Date(date + 'T12:00:00Z') : null;
     const maxOrder = await (prisma as any).dailyTodo.aggregate({
-      where: { userId: req.userId, date: new Date(date), parentId: parentId || null },
+      where: { userId: req.userId, date: dateVal, parentId: parentId || null },
       _max: { sortOrder: true }
     });
     const nextOrder = (maxOrder._max.sortOrder ?? -1) + 1;
     const todo = await (prisma as any).dailyTodo.create({
       data: {
         text,
-        date: new Date(date),
+        date: dateVal,
         isUrgent: isUrgent || false,
         sortOrder: nextOrder,
         ideaId: ideaId || null,
         parentId: parentId || null,
+        timeBlock: timeBlock || null,
         userId: req.userId
       },
       include: {
@@ -1069,7 +1138,7 @@ app.put('/api/daily-todos/:id', authenticate, async (req: any, res) => {
     if (!existing) return res.status(404).json({ error: 'Todo not found' });
     if (existing.userId !== req.userId) return res.status(403).json({ error: 'Forbidden' });
 
-    const { text, completed, isUrgent, date, ideaId, status, dueDate, assigneeId, comments, originNoteId } = req.body;
+    const { text, completed, isUrgent, date, ideaId, status, dueDate, assigneeId, comments, originNoteId, timeBlock } = req.body;
     const data: any = {};
     if (text !== undefined) data.text = text;
     if (completed !== undefined) {
@@ -1077,13 +1146,14 @@ app.put('/api/daily-todos/:id', authenticate, async (req: any, res) => {
       data.completedAt = completed ? new Date() : null;
     }
     if (isUrgent !== undefined) data.isUrgent = isUrgent;
-    if (date !== undefined) data.date = new Date(date);
+    if (date !== undefined) data.date = date ? new Date(String(date).slice(0, 10) + 'T12:00:00Z') : null;
     if (ideaId !== undefined) data.ideaId = ideaId || null;
     if (status !== undefined) data.status = status;
     if (dueDate !== undefined) data.dueDate = dueDate || null;
     if (assigneeId !== undefined) data.assigneeId = assigneeId || null;
     if (comments !== undefined) data.comments = comments || null;
     if (originNoteId !== undefined) data.originNoteId = originNoteId || null;
+    if (timeBlock !== undefined) data.timeBlock = timeBlock || null;
 
     const todo = await (prisma as any).dailyTodo.update({
       where: { id: req.params.id },
@@ -1096,6 +1166,157 @@ app.put('/api/daily-todos/:id', authenticate, async (req: any, res) => {
         }
       }
     });
+
+    // --- Activity Log Sync ---
+    // Uses a keyed object: { ideaNoteId?: string, contactNoteIds?: { [contactId]: noteId } }
+    // This ensures untagging an idea or removing a contact correctly deletes the right note.
+    try {
+      const raw = todo.activityNoteIds;
+      const existing: { ideaNoteId?: string; contactNoteIds?: Record<string, string> } = 
+        raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : {};
+
+      if (todo.completed) {
+        const taskText = todo.text || '';
+        const taskNotes = (todo.comments || '').trim();
+        const taskIdeaId = todo.ideaId || null;
+        const ideaTitle = todo.idea?.title || null;
+
+        // Extract @mentions from task text
+        const mentionRegex = /@([A-Z\u00c0-\u00d6\u00d8-\u00de][a-z\u00df-\u00f6\u00f8-\u00ffa-zA-Z]*(?:\s+[A-Z\u00c0-\u00d6\u00d8-\u00de][a-z\u00df-\u00f6\u00f8-\u00ffa-zA-Z]*)*)/g;
+        const mentionNames: string[] = [];
+        let match;
+        while ((match = mentionRegex.exec(taskText)) !== null) {
+          mentionNames.push(match[1].trim());
+        }
+
+        // Find matching contacts
+        const allContacts = await prisma.contact.findMany({ where: { ownerId: req.userId } as any });
+        const mentionedContacts = mentionNames.map(name => {
+          const lower = name.toLowerCase();
+          return allContacts.find(c => {
+            const full = (c.fullName || '').toLowerCase();
+            const first = (c.firstName || '').toLowerCase();
+            const last = (c.lastName || '').toLowerCase();
+            return full === lower || first === lower || `${first} ${last}`.trim() === lower;
+          });
+        }).filter(Boolean) as typeof allContacts;
+
+        const notesSection = taskNotes ? `\n\nNotes:\n${taskNotes}` : '';
+        const user = await prisma.user.findUnique({ where: { id: req.userId } });
+        const updated: { ideaNoteId?: string; contactNoteIds: Record<string, string> } = { contactNoteIds: {} };
+
+        // --- Idea activity note ---
+        if (taskIdeaId) {
+          const contactNames = mentionedContacts.map(c => c.fullName || `${c.firstName} ${c.lastName}`).join(', ');
+          const body = contactNames
+            ? `✅ Completed task: "${taskText}"\n\nWith: ${contactNames}${notesSection}`
+            : `✅ Completed task: "${taskText}"${notesSection}`;
+
+          if (existing.ideaNoteId) {
+            try {
+              await prisma.note.update({
+                where: { id: existing.ideaNoteId },
+                data: {
+                  content: body,
+                  ideaId: taskIdeaId,
+                  taggedContacts: { set: mentionedContacts.map(c => ({ id: c.id })) }
+                }
+              });
+              updated.ideaNoteId = existing.ideaNoteId;
+            } catch {
+              const note = await (prisma.note as any).create({
+                data: {
+                  content: body, categories: JSON.stringify(['Activity Log']),
+                  createdById: req.userId, createdBy: user?.name || 'System',
+                  ideaId: taskIdeaId,
+                  taggedContacts: { connect: mentionedContacts.map(c => ({ id: c.id })) },
+                }
+              });
+              updated.ideaNoteId = note.id;
+            }
+          } else {
+            const note = await (prisma.note as any).create({
+              data: {
+                content: body, categories: JSON.stringify(['Activity Log']),
+                createdById: req.userId, createdBy: user?.name || 'System',
+                ideaId: taskIdeaId,
+                taggedContacts: { connect: mentionedContacts.map(c => ({ id: c.id })) },
+              }
+            });
+            updated.ideaNoteId = note.id;
+          }
+        } else if (existing.ideaNoteId) {
+          // Idea was untagged — delete the orphaned idea note
+          try { await prisma.note.delete({ where: { id: existing.ideaNoteId } }); } catch {}
+        }
+
+        // --- Contact activity notes ---
+        const currentContactIds = new Set(mentionedContacts.map(c => c.id));
+        const oldContactNoteIds = existing.contactNoteIds || {};
+
+        // Create or update notes for currently mentioned contacts
+        for (const contact of mentionedContacts) {
+          const ideaRef = ideaTitle ? `\n\nIdea: ${ideaTitle}` : '';
+          const body = `✅ Completed task: "${taskText}"${ideaRef}${notesSection}`;
+
+          if (oldContactNoteIds[contact.id]) {
+            try {
+              await prisma.note.update({
+                where: { id: oldContactNoteIds[contact.id] },
+                data: { content: body }
+              });
+              updated.contactNoteIds[contact.id] = oldContactNoteIds[contact.id];
+            } catch {
+              const note = await (prisma.note as any).create({
+                data: {
+                  content: body, categories: JSON.stringify(['Activity Log']),
+                  createdById: req.userId, createdBy: user?.name || 'System',
+                  contactId: contact.id,
+                }
+              });
+              updated.contactNoteIds[contact.id] = note.id;
+            }
+          } else {
+            const note = await (prisma.note as any).create({
+              data: {
+                content: body, categories: JSON.stringify(['Activity Log']),
+                createdById: req.userId, createdBy: user?.name || 'System',
+                contactId: contact.id,
+              }
+            });
+            updated.contactNoteIds[contact.id] = note.id;
+          }
+        }
+
+        // Delete notes for contacts that were removed from text
+        for (const [oldContactId, oldNoteId] of Object.entries(oldContactNoteIds)) {
+          if (!currentContactIds.has(oldContactId)) {
+            try { await prisma.note.delete({ where: { id: oldNoteId } }); } catch {}
+          }
+        }
+
+        // Store the keyed note IDs on the todo
+        await (prisma as any).dailyTodo.update({
+          where: { id: todo.id },
+          data: { activityNoteIds: updated }
+        });
+      } else if (completed === false) {
+        // Task was un-completed — remove ALL activity notes
+        if (existing.ideaNoteId) {
+          try { await prisma.note.delete({ where: { id: existing.ideaNoteId } }); } catch {}
+        }
+        for (const noteId of Object.values(existing.contactNoteIds || {})) {
+          try { await prisma.note.delete({ where: { id: noteId } }); } catch {}
+        }
+        await (prisma as any).dailyTodo.update({
+          where: { id: todo.id },
+          data: { activityNoteIds: {} }
+        });
+      }
+    } catch (actErr: any) {
+      console.error('Activity log sync error (non-blocking):', actErr.message);
+    }
+
     res.json(todo);
   } catch (err: any) {
     console.error('Daily todo update error:', err);
@@ -1160,6 +1381,86 @@ app.post('/api/daily-todos/carry-forward', authenticate, async (req: any, res) =
 });
 
 const PORT = process.env.PORT || 3001;
+// ===== REMINDER IMAGES =====
+app.get('/api/reminder-images', authenticate, async (req: any, res) => {
+  try {
+    const images = await (prisma as any).reminderImage.findMany({
+      where: { userId: req.userId },
+      orderBy: { sortOrder: 'asc' }
+    });
+    res.json(images);
+  } catch (err: any) {
+    console.error('Get reminder images error:', err);
+    res.status(500).json({ error: 'Failed to fetch reminder images' });
+  }
+});
+
+app.post('/api/reminder-images', authenticate, async (req: any, res) => {
+  try {
+    const { imageData, caption } = req.body;
+    if (!imageData) return res.status(400).json({ error: 'imageData is required' });
+    const maxOrder = await (prisma as any).reminderImage.aggregate({
+      where: { userId: req.userId },
+      _max: { sortOrder: true }
+    });
+    const nextOrder = (maxOrder._max.sortOrder ?? -1) + 1;
+    const image = await (prisma as any).reminderImage.create({
+      data: { imageData, caption: caption || null, sortOrder: nextOrder, userId: req.userId }
+    });
+    res.json(image);
+  } catch (err: any) {
+    console.error('Create reminder image error:', err);
+    res.status(500).json({ error: 'Failed to create reminder image', details: err.message });
+  }
+});
+
+app.put('/api/reminder-images/:id', authenticate, async (req: any, res) => {
+  try {
+    const existing = await (prisma as any).reminderImage.findUnique({ where: { id: req.params.id } });
+    if (!existing || existing.userId !== req.userId) return res.status(404).json({ error: 'Not found' });
+    const { caption, sortOrder, rotation } = req.body;
+    const updated = await (prisma as any).reminderImage.update({
+      where: { id: req.params.id },
+      data: { ...(caption !== undefined ? { caption } : {}), ...(sortOrder !== undefined ? { sortOrder } : {}), ...(rotation !== undefined ? { rotation } : {}) }
+    });
+    res.json(updated);
+  } catch (err: any) {
+    console.error('Update reminder image error:', err);
+    res.status(500).json({ error: 'Failed to update', details: err.message });
+  }
+});
+
+app.put('/api/reminder-images/reorder', authenticate, async (req: any, res) => {
+  try {
+    const { orderedIds } = req.body;
+    if (!Array.isArray(orderedIds)) return res.status(400).json({ error: 'orderedIds required' });
+    await (prisma as any).$transaction(
+      orderedIds.map((id: string, index: number) =>
+        (prisma as any).reminderImage.updateMany({
+          where: { id, userId: req.userId },
+          data: { sortOrder: index }
+        })
+      )
+    );
+    res.json({ success: true });
+  } catch (err: any) {
+    console.error('Reorder reminder images error:', err);
+    res.status(500).json({ error: 'Failed to reorder' });
+  }
+});
+
+app.delete('/api/reminder-images/:id', authenticate, async (req: any, res) => {
+  try {
+    const existing = await (prisma as any).reminderImage.findUnique({ where: { id: req.params.id } });
+    if (!existing || existing.userId !== req.userId) return res.status(404).json({ error: 'Not found' });
+    await (prisma as any).reminderImage.delete({ where: { id: req.params.id } });
+    res.json({ success: true });
+  } catch (err: any) {
+    console.error('Delete reminder image error:', err);
+    res.status(500).json({ error: 'Failed to delete' });
+  }
+});
+
 if (process.env.NODE_ENV !== 'production') {
   app.listen(PORT, () => console.log(`Backend running on port ${PORT} `));
 }

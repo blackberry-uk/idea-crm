@@ -177,6 +177,7 @@ const IdeaDetail: React.FC = () => {
     const saved = localStorage.getItem('hideComposer');
     return saved !== 'true';
   });
+  const [showAICounselor, setShowAICounselor] = useState(false);
 
   const toggleComposer = () => {
     const newVal = !showComposer;
@@ -338,6 +339,14 @@ const IdeaDetail: React.FC = () => {
         html = html.split(mentionText).join(mentionHtml);
       });
 
+      // 1b. Entity mentions (#)
+      const taggedEntitiesHtml = (data.entities || []).filter(e => note.taggedEntityIds?.includes(e.id));
+      taggedEntitiesHtml.forEach(entity => {
+        const mentionText = `#${entity.name}`;
+        const mentionHtml = `<span class="bg-indigo-50 text-indigo-700 px-1.5 py-0.5 rounded-md font-bold border border-indigo-100 inline-flex items-center gap-0.5 no-underline mx-0.5 align-baseline cursor-default" title="${entity.name}">#${entity.name}</span>`;
+        html = html.split(mentionText).join(mentionHtml);
+      });
+
       // 2. Simple URL linkification in HTML (avoiding splitting existing tags)
       const urlRegex = /(?![^<]*>)(https?:\/\/[^\s]+)/g;
       html = html.replace(urlRegex, (url) => `<a href="${url}" target="_blank" rel="noopener noreferrer" class="hover:underline inline-flex items-center gap-1 font-sans" style="color: var(--primary)">${url}</a>`);
@@ -424,6 +433,32 @@ const IdeaDetail: React.FC = () => {
                 title={`${user.name} (Idea-crm user)`}
               >
                 <AtSign className="w-2.5 h-2.5" />{user.name}
+              </span>
+            );
+          }
+          return sub;
+        });
+      });
+    });
+
+    // 3. Entity mentions (#)
+    const taggedEntities = (data.entities || []).filter(e => note.taggedEntityIds?.includes(e.id));
+    taggedEntities.forEach(entity => {
+      const mentionText = `#${entity.name}`;
+      parts = parts.flatMap(part => {
+        if (typeof part !== 'string') return part;
+        if (!part.includes(mentionText)) return part;
+        const regex = new RegExp(`(${mentionText.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'g');
+        const subParts = part.split(regex);
+        return subParts.map((sub, i) => {
+          if (sub === mentionText) {
+            return (
+              <span
+                key={`me-${entity.id}-${i}`}
+                className="bg-indigo-50 text-indigo-700 px-1.5 py-0.5 rounded-md font-bold border border-indigo-100 inline-flex items-center gap-0.5 no-underline mx-0.5 align-baseline cursor-default"
+                title={entity.name}
+              >
+                #{entity.name}
               </span>
             );
           }
@@ -835,7 +870,24 @@ const IdeaDetail: React.FC = () => {
                   />
                 </div>
               ) : (
-                <h1 className="text-3xl font-extrabold text-gray-900 truncate tracking-tight mb-4">{idea.title}</h1>
+                <>
+                  {idea.parentId && (() => {
+                    const parentIdea = data.ideas.find(i => i.id === idea.parentId);
+                    return parentIdea ? (
+                      <Link
+                        to={`/ideas/${parentIdea.id}`}
+                        className="inline-flex items-center gap-1.5 text-xs font-semibold mb-1 px-2.5 py-1 rounded-lg transition-colors"
+                        style={{ color: 'var(--primary)', backgroundColor: 'var(--primary-shadow)' }}
+                      >
+                        <ChevronRight className="w-3 h-3 rotate-180" />
+                        {parentIdea.title}
+                        <span className="text-gray-300 mx-0.5">›</span>
+                        <span className="text-gray-400 font-normal">Sub-Idea</span>
+                      </Link>
+                    ) : null;
+                  })()}
+                  <h1 className="text-3xl font-extrabold text-gray-900 truncate tracking-tight mb-4">{idea.title}</h1>
+                </>
               )}
 
               <div className="flex-col flex sm:flex-row items-center gap-4 mb-2 font-sans">
@@ -977,7 +1029,6 @@ const IdeaDetail: React.FC = () => {
       </div>
 
       <div className="max-w-6xl mx-auto px-8 mt-12 animate-in fade-in slide-in-from-bottom-4 duration-500">
-        <AICounselor ideaId={idea.id} />
         <div className="grid grid-cols-1 lg:grid-cols-[1fr_350px] gap-12">
           {/* Main Content Column */}
           <div className="idea-thread space-y-6">
@@ -1019,6 +1070,14 @@ const IdeaDetail: React.FC = () => {
 
                   <div className="flex items-center gap-3">
                     <button
+                      onClick={() => setShowAICounselor(prev => !prev)}
+                      className={`p-2 rounded-xl transition-all shadow-sm border ${showAICounselor ? 'text-white' : 'bg-white text-indigo-400 border-indigo-100 hover:bg-indigo-50'}`}
+                      style={showAICounselor ? { backgroundColor: '#6366f1', borderColor: '#6366f1', boxShadow: '0 4px 6px -1px rgba(99,102,241,0.3)' } : {}}
+                      title="AI Counselor"
+                    >
+                      <Brain className="w-5 h-5" />
+                    </button>
+                    <button
                       onClick={() => setVisibilityFilter(v => v === 'visible' ? 'all' : 'visible')}
                       className={`p-2 rounded-xl transition-all shadow-sm ${visibilityFilter !== 'visible' ? 'bg-amber-100 text-amber-700 border border-amber-200' : 'bg-white text-gray-400 border border-[var(--border)]'}`}
                       title={visibilityFilter === 'visible' ? "Reveal hidden notes" : "Mask hidden notes"}
@@ -1035,6 +1094,12 @@ const IdeaDetail: React.FC = () => {
                     </button>
                   </div>
                 </div>
+
+                {showAICounselor && (
+                  <div className="mx-6 mb-4 animate-in fade-in slide-in-from-top-4 duration-300">
+                    <AICounselor ideaId={idea.id} />
+                  </div>
+                )}
 
                 {isFilterOpen && (
                   <div className="mx-10 mb-10 p-6 bg-white/50 rounded-[24px] border border-[var(--border)] animate-in fade-in slide-in-from-top-4 duration-300 shadow-sm backdrop-blur-sm">

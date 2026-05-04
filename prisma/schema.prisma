@@ -27,12 +27,14 @@ model User {
   ideasOwned         Idea[]        @relation("IdeasOwned")
   ideasCollaborating Idea[]        @relation("IdeaCollaborators")
   contactsOwned      Contact[]     @relation("ContactsOwned")
+  entitiesOwned      Entity[]      @relation("EntitiesOwned")
   interactions       Interaction[]
   invitationsSent    Invitation[]  @relation("InvitationsSent")
   notesCreated       Note[]        @relation("NotesCreated")
   taggedInNotes      Note[]        @relation("TaggedUsers")
   comments           Comment[]
   dailyTodos         DailyTodo[]
+  reminderImages     ReminderImage[]
 }
 
 model DailyTodo {
@@ -41,7 +43,7 @@ model DailyTodo {
   completed   Boolean   @default(false)
   isUrgent    Boolean   @default(false)
   sortOrder   Int       @default(0)
-  date        DateTime  // The calendar day this todo belongs to
+  date        DateTime? // null = floating/backburner task
   completedAt DateTime?
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
@@ -52,6 +54,8 @@ model DailyTodo {
   assigneeId   String?
   comments     String?
   originNoteId String?
+  timeBlock    String?   // morning, afternoon, evening
+  activityNoteIds Json?  // IDs of auto-created activity log notes
 
   userId String
   user   User   @relation(fields: [userId], references: [id])
@@ -99,6 +103,10 @@ model Idea {
   invitations Invitation[]
   notes       Note[]
   dailyTodos  DailyTodo[]
+
+  parentId String?
+  parent   Idea?   @relation("IdeaSubIdeas", fields: [parentId], references: [id], onDelete: SetNull)
+  children Idea[]  @relation("IdeaSubIdeas")
 }
 
 model Contact {
@@ -120,6 +128,8 @@ model Contact {
   twitterUrl   String?
   substackUrl  String?
   isWhatsApp   Boolean @default(false)
+  tags         Json?
+  linkedEntityIds Json?
   notes        String?
   relationshipStrength Int @default(1)
   linkedIdeaIds String @default("[]")
@@ -153,6 +163,7 @@ model Note {
 
   taggedContacts Contact[] @relation("TaggedContacts")
   taggedUsers    User[]    @relation("TaggedUsers")
+  taggedEntities Entity[]  @relation("TaggedEntities")
   imageUrl    String?
   intent      String?
   comments    Comment[]
@@ -201,4 +212,35 @@ model Invitation {
   ideaId String?
   idea   Idea?   @relation(fields: [ideaId], references: [id])
   message String?
+}
+
+model ReminderImage {
+  id        String   @id @default(cuid())
+  imageData String   // base64 data URL
+  caption   String?
+  rotation  Int      @default(0)
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  userId String
+  user   User @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+}
+
+model Entity {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  type        String?
+  website     String?
+  linkedinUrl String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  ownerId String
+  owner   User @relation("EntitiesOwned", fields: [ownerId], references: [id])
+
+  taggedInNotes Note[] @relation("TaggedEntities")
 }

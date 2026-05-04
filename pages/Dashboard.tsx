@@ -1,499 +1,1675 @@
 
-import React from 'react';
-import { useStore } from '../store/useStore.ts';
-import { format } from 'date-fns';
-import { Link, useLocation } from 'react-router-dom';
-import { MessageSquare, TrendingUp, Info, Cloud, RotateCcw, CheckCheck, Brain, Mountain, CalendarCheck, ChevronRight, Circle, Check, Flame, AlertTriangle, Plus, Lightbulb, ClipboardList, Tag, Send } from 'lucide-react';
-import { Note } from '../types';
-import { getNoteExcerpt } from '../lib/utils';
-import OnboardingGuide from '../components/OnboardingGuide';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { useStore } from '../store/useStore';
+import { format, startOfWeek, addDays as dateAddDays, isSameDay, isToday, isBefore, startOfDay, startOfMonth, endOfMonth, getDay, addMonths, subMonths } from 'date-fns';
+import { Link } from 'react-router-dom';
+import {
+  CalendarDays, Calendar, Loader2, Plus, Send, Tag, ArrowDownToLine,
+  ChevronLeft, ChevronRight, Flame, AlertTriangle, ChevronDown, ChevronUp,
+  Lightbulb, Check, Circle, ClipboardList, Clock, ImagePlus, Trash2, GripVertical, RotateCw, X
+} from 'lucide-react';
 import { apiClient } from '../lib/api/client';
-import DailyTodoItem from '../components/DailyTodoItem';
+import DailyTodoItem, { DailyTodoData } from '../components/DailyTodoItem';
 import IdeaPickerDropdown from '../components/IdeaPickerDropdown';
+import TaskDetailModal from '../components/TaskDetailModal';
+
+type DailyTodo = DailyTodoData;
+
+function toDateKey(d: Date): string {
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+const TIME_BLOCKS = ['morning', 'afternoon', 'evening'] as const;
+type TimeBlock = typeof TIME_BLOCKS[number];
+
+const BLOCK_LABELS: Record<TimeBlock, string> = {
+  morning: 'Morning',
+  afternoon: 'Afternoon',
+  evening: 'Evening',
+};
+
+const BLOCK_TIMES: Record<TimeBlock, string> = {
+  morning: '6am – 12:59pm',
+  afternoon: '1pm – 6:59pm',
+  evening: '7pm onwards',
+};
+
+const BLOCK_SHORT: Record<TimeBlock, string> = {
+  morning: 'AM',
+  afternoon: 'PM',
+  evening: 'EVE',
+};
+
+function getCurrentBlock(): TimeBlock {
+  const h = new Date().getHours();
+  if (h < 13) return 'morning';
+  if (h < 19) return 'afternoon';
+  return 'evening';
+}
+
+function sortTodos(todos: DailyTodo[]): DailyTodo[] {
+  return [...todos].sort((a, b) => {
+    if (a.completed !== b.completed) return a.completed ? 1 : -1;
+    if (a.isUrgent !== b.isUrgent) return a.isUrgent ? -1 : 1;
+    return 0;
+  });
+}
+
+type ViewMode = 'day' | 'week';
 
 const Dashboard: React.FC = () => {
-  const { data, updateIdea } = useStore();
-  const { search } = useLocation();
-  const showTrainingParam = new URLSearchParams(search).get('training') === 'true';
+  const { data, showToast, updateIdea, addContact, addEntity } = useStore();
+  const [viewMode, setViewMode] = useState<ViewMode>(() => {
+    return (localStorage.getItem('ideaCrm_viewMode') as ViewMode) || 'day';
+  });
 
-  // Daily todos state
-  const [todayTodos, setTodayTodos] = React.useState<any[]>([]);
-  const [overdueTodos, setOverdueTodos] = React.useState<any[]>([]);
-  const [todosLoading, setTodosLoading] = React.useState(true);
-  const [newTodayText, setNewTodayText] = React.useState('');
-  const [newTodayIdeaId, setNewTodayIdeaId] = React.useState('');
-  const [showDashboardTagPicker, setShowDashboardTagPicker] = React.useState(false);
+  useEffect(() => {
+    localStorage.setItem('ideaCrm_viewMode', viewMode);
+  }, [viewMode]);
+  const [selectedDate, setSelectedDate] = useState(() => {
+    const d = new Date(); d.setHours(0, 0, 0, 0); return d;
+  });
+  const [allTodos, setAllTodos] = useState<DailyTodo[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [carrying, setCarrying] = useState(false);
+
+  // Live clock
+  const [clockTime, setClockTime] = useState(new Date());
+  useEffect(() => {
+    const timer = setInterval(() => setClockTime(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  // Quick capture state
+  const [newText, setNewText] = useState('');
+  const [newIdeaId, setNewIdeaId] = useState('');
+  const [newBlock, setNewBlock] = useState<TimeBlock>(getCurrentBlock());
+  const [showTagPicker, setShowTagPicker] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const submittingRef = useRef(false);
+
+  // Inline add state — stores block name (day view) or date key (week view)
+  const [inlineAddTarget, setInlineAddTarget] = useState<string | null>(null);
+
+  // Week view drag state
+  const [wvDragId, setWvDragId] = useState<string | null>(null);
+  const [wvDragSourceDay, setWvDragSourceDay] = useState<string | null>(null);
+  const [wvDragOverDay, setWvDragOverDay] = useState<string | null>(null);
+  const [wvActionMenuId, setWvActionMenuId] = useState<string | null>(null);
+  const [wvActionSubmenu, setWvActionSubmenu] = useState<'idea' | 'date' | 'time' | null>(null);
+  const wvSubmenuTimer = useRef<number | null>(null);
+  const openWvSubmenu = (menu: 'idea' | 'date' | 'time') => {
+    if (wvSubmenuTimer.current) window.clearTimeout(wvSubmenuTimer.current);
+    wvSubmenuTimer.current = window.setTimeout(() => setWvActionSubmenu(menu), 200);
+  };
+  const cancelWvSubmenuTimer = () => {
+    if (wvSubmenuTimer.current) window.clearTimeout(wvSubmenuTimer.current);
+  };
+  const [wvCalMonth, setWvCalMonth] = useState(() => new Date());
+  const [wvSubmenuSide, setWvSubmenuSide] = useState<'right' | 'left'>('right');
+  const wvDropdownRef = useRef<HTMLDivElement>(null);
+  const [wvSubtaskInputId, setWvSubtaskInputId] = useState<string | null>(null);
+  const [wvSubtaskText, setWvSubtaskText] = useState('');
+
+  // @mention state
+  const [mentionQuery, setMentionQuery] = useState<string | null>(null);
+  const [mentionCursorPos, setMentionCursorPos] = useState(0);
+  const [mentionIdx, setMentionIdx] = useState(0);
+  const contacts = data.contacts || [];
+
+  // #entity mention state
+  const [entityQuery, setEntityQuery] = useState<string | null>(null);
+  const [entityCursorPos, setEntityCursorPos] = useState(0);
+  const [entityIdx, setEntityIdx] = useState(0);
+  const entities = data.entities || [];
+
+  // Filtered contacts for the @mention dropdown
+  const mentionFilteredContacts = React.useMemo(() => {
+    if (mentionQuery === null) return [];
+    const q = mentionQuery.toLowerCase();
+    return contacts
+      .filter(c => {
+        const name = (c.fullName || `${c.firstName || ''} ${c.lastName || ''}`).toLowerCase();
+        return name.includes(q);
+      })
+      .slice(0, 6);
+  }, [mentionQuery, contacts]);
+
+  // Reset selected index when filter results change
+  React.useEffect(() => { setMentionIdx(0); }, [mentionFilteredContacts.length]);
+
+  // Filtered entities for #entity dropdown
+  const entityFilteredList = React.useMemo(() => {
+    if (entityQuery === null) return [];
+    const q = entityQuery.toLowerCase();
+    return entities
+      .filter(e => e.name.toLowerCase().includes(q))
+      .slice(0, 6);
+  }, [entityQuery, entities]);
+
+  React.useEffect(() => { setEntityIdx(0); }, [entityFilteredList.length]);
+
+  // Insert a selected contact name into the text
+  const insertMention = (contact: { fullName?: string; firstName?: string; lastName?: string }) => {
+    const name = contact.fullName || `${contact.firstName || ''} ${contact.lastName || ''}`.trim();
+    const textBeforeCursor = newText.slice(0, mentionCursorPos);
+    const atPos = textBeforeCursor.lastIndexOf('@');
+    const before = newText.slice(0, atPos);
+    const after = newText.slice(mentionCursorPos);
+    setNewText(`${before}@${name}${after} `);
+    setMentionQuery(null);
+    inputRef.current?.focus();
+  };
+
+  // Insert a selected entity name into the text
+  const insertEntityMention = (entity: { name: string }) => {
+    const textBeforeCursor = newText.slice(0, entityCursorPos);
+    const hashPos = textBeforeCursor.lastIndexOf('#');
+    const before = newText.slice(0, hashPos);
+    const after = newText.slice(entityCursorPos);
+    setNewText(`${before}#${entity.name}${after} `);
+    setEntityQuery(null);
+    inputRef.current?.focus();
+  };
+
+  // Detected @mentions in current text
+  const detectedMentions = React.useMemo(() => {
+    if (!newText.includes('@')) return [];
+    const regex = /@([A-ZÀ-ÖØ-Þ][a-zß-öø-ÿa-zA-Z]*(?:\s+[A-ZÀ-ÖØ-Þ][a-zß-öø-ÿa-zA-Z]*)*)/g;
+    const mentions: { name: string; isExisting: boolean }[] = [];
+    let match;
+    while ((match = regex.exec(newText)) !== null) {
+      const name = match[1].trim();
+      const lower = name.toLowerCase();
+      const isExisting = contacts.some(c => {
+        const full = (c.fullName || '').toLowerCase();
+        const first = (c.firstName || '').toLowerCase();
+        const last = (c.lastName || '').toLowerCase();
+        return full === lower || first === lower || `${first} ${last}`.trim() === lower;
+      });
+      mentions.push({ name, isExisting });
+    }
+    return mentions;
+  }, [newText, contacts]);
+
+  // Detected #entity mentions in current text
+  const detectedEntityMentions = React.useMemo(() => {
+    if (!newText.includes('#')) return [];
+    const regex = /#(\w+(?:\s+\w+)*)/g;
+    const mentions: { name: string; isExisting: boolean }[] = [];
+    let match;
+    while ((match = regex.exec(newText)) !== null) {
+      const name = match[1].trim();
+      const isExisting = entities.some(e => e.name.toLowerCase() === name.toLowerCase());
+      mentions.push({ name, isExisting });
+    }
+    return mentions;
+  }, [newText, entities]);
+
+  // Backlog
+  const [backlogOpen, setBacklogOpen] = useState(false);
+  const [backburnerOpen, setBackburnerOpen] = useState(false);
+
+  // Idea tasks backlog
+  const [ideaBacklogOpen, setIdeaBacklogOpen] = useState(false);
+
+  // Task detail modal
+  const [detailTodo, setDetailTodo] = useState<DailyTodo | null>(null);
+
+  // Reminder gallery
+  type ReminderImage = { id: string; imageData: string; caption: string | null; rotation: number; sortOrder: number };
+  const [reminderImages, setReminderImages] = useState<ReminderImage[]>([]);
+  const [galleryDragId, setGalleryDragId] = useState<string | null>(null);
+  const galleryFileRef = useRef<HTMLInputElement>(null);
+
+  const fetchReminderImages = useCallback(async () => {
+    try {
+      const imgs = await apiClient.get('/reminder-images');
+      setReminderImages(imgs);
+    } catch (err) { console.error('Failed to load reminder images', err); }
+  }, []);
+
+  useEffect(() => { fetchReminderImages(); }, []);
+
+  // removed global click listener
+
+  const uploadReminderImage = async (file: File) => {
+    return new Promise<void>((resolve) => {
+      const reader = new FileReader();
+      reader.onload = async () => {
+        try {
+          const img = await apiClient.post('/reminder-images', { imageData: reader.result as string });
+          setReminderImages(prev => [...prev, img]);
+          showToast('Image added', 'success');
+        } catch (err) { showToast('Failed to upload', 'error'); }
+        resolve();
+      };
+      reader.readAsDataURL(file);
+    });
+  };
+
+  const deleteReminderImage = async (id: string) => {
+    try {
+      await apiClient.delete(`/reminder-images/${id}`);
+      setReminderImages(prev => prev.filter(i => i.id !== id));
+      showToast('Image removed', 'success');
+    } catch (err) { showToast('Failed to delete', 'error'); }
+  };
+
+  const reorderReminderImages = async (fromId: string, toId: string) => {
+    const imgs = [...reminderImages];
+    const fromIdx = imgs.findIndex(i => i.id === fromId);
+    const toIdx = imgs.findIndex(i => i.id === toId);
+    if (fromIdx === -1 || toIdx === -1) return;
+    const [moved] = imgs.splice(fromIdx, 1);
+    imgs.splice(toIdx, 0, moved);
+    setReminderImages(imgs);
+    try {
+      await apiClient.put('/reminder-images/reorder', { orderedIds: imgs.map(i => i.id) });
+    } catch (err) { console.error('Failed to reorder', err); }
+  };
+
+  const updateReminderCaption = async (id: string, caption: string) => {
+    try {
+      await apiClient.put(`/reminder-images/${id}`, { caption });
+      setReminderImages(prev => prev.map(i => i.id === id ? { ...i, caption } : i));
+    } catch (err) { console.error('Failed to update caption', err); }
+  };
+
+  const rotateReminderImage = async (id: string) => {
+    const img = reminderImages.find(i => i.id === id);
+    if (!img) return;
+    const newRotation = ((img.rotation || 0) + 90) % 360;
+    setReminderImages(prev => prev.map(i => i.id === id ? { ...i, rotation: newRotation } : i));
+    try {
+      await apiClient.put(`/reminder-images/${id}`, { rotation: newRotation });
+    } catch (err) { console.error('Failed to rotate', err); }
+  };
 
   const ideas = data.ideas || [];
 
-  const fetchDailyTodos = React.useCallback(async () => {
+  // Full week (Mon-Sun) for week view
+  const weekStart = startOfWeek(selectedDate, { weekStartsOn: 1 });
+  const weekDays = Array.from({ length: 7 }, (_, i) => dateAddDays(weekStart, i));
+
+  const selectedDateKey = toDateKey(selectedDate);
+
+  // Fetch range that covers both views
+  const fetchTodos = useCallback(async () => {
     try {
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      const todayStr = today.toISOString().slice(0, 10);
-
-      // Fetch a wide range to catch overdue items
-      const pastStart = new Date(today);
-      pastStart.setDate(pastStart.getDate() - 90);
-      const todayEnd = new Date(today);
-      todayEnd.setHours(23, 59, 59, 999);
-
-      const allTodos = await apiClient.get(
-        `/daily-todos?from=${pastStart.toISOString()}&to=${todayEnd.toISOString()}`
+      setLoading(true);
+      const rangeStart = dateAddDays(selectedDate, -90);
+      const rangeEnd = dateAddDays(selectedDate, 14);
+      const data = await apiClient.get(
+        `/daily-todos?from=${rangeStart.toISOString()}&to=${rangeEnd.toISOString()}`
       );
-
-      const todayItems = allTodos.filter((t: any) => t.date.slice(0, 10) === todayStr);
-      const overdueItems = allTodos.filter((t: any) =>
-        t.date.slice(0, 10) < todayStr && !t.completed
-      );
-
-      setTodayTodos(todayItems);
-      setOverdueTodos(overdueItems);
+      setAllTodos(data as DailyTodo[]);
     } catch (err) {
-      console.error('Failed to fetch daily todos for dashboard:', err);
+      console.error('Failed to fetch todos:', err);
     } finally {
-      setTodosLoading(false);
+      setLoading(false);
     }
+  }, [selectedDateKey]);
+
+  useEffect(() => {
+    fetchTodos();
+  }, [fetchTodos]);
+
+  useEffect(() => {
+    document.title = 'Checklist | Idea-CRM';
+    return () => { document.title = 'IdeaCRM Tracker'; };
   }, []);
 
-  React.useEffect(() => {
-    fetchDailyTodos();
-  }, [fetchDailyTodos]);
+  // Get todos for a specific date
+  const todosForDate = (date: Date): DailyTodo[] => {
+    const key = toDateKey(date);
+    return allTodos.filter(t => t.date && t.date.slice(0, 10) === key);
+  };
 
-  const toggleTodoComplete = async (todo: any) => {
+  // Get overdue (past incomplete) todos
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const todayKey = toDateKey(today);
+  const overdueTodos = allTodos.filter(t =>
+    t.date && t.date.slice(0, 10) < todayKey && !t.completed
+  );
+
+  // Floating/Backburner tasks
+  const backburnerTodos = allTodos.filter(t => !t.date && !t.completed);
+
+  // --- CRUD ---
+  // Parse @mentions from text
+  const extractMentions = (text: string): string[] => {
+    const regex = /@([A-ZÀ-ÖØ-Þ][a-zß-öø-ÿa-zA-Z]*(?:\s+[A-ZÀ-ÖØ-Þ][a-zß-öø-ÿa-zA-Z]*)*)/g;
+    const mentions: string[] = [];
+    let match;
+    while ((match = regex.exec(text)) !== null) {
+      mentions.push(match[1].trim());
+    }
+    return mentions;
+  };
+
+  const findContactByName = (name: string) => {
+    const lower = name.toLowerCase();
+    return contacts.find(c => {
+      const full = (c.fullName || '').toLowerCase();
+      const first = (c.firstName || '').toLowerCase();
+      const last = (c.lastName || '').toLowerCase();
+      return full === lower || first === lower || `${first} ${last}`.trim() === lower;
+    });
+  };
+
+  const extractEntityMentions = (text: string): string[] => {
+    const regex = /#(\w+(?:\s+\w+)*)/g;
+    const mentions: string[] = [];
+    let match;
+    while ((match = regex.exec(text)) !== null) {
+      mentions.push(match[1].trim());
+    }
+    return mentions;
+  };
+
+  const addTodo = async (dateKey?: string | null, block?: string) => {
+    const text = newText.trim();
+    if (!text || submittingRef.current) return;
+    submittingRef.current = true;
+    const targetDate = dateKey !== undefined ? dateKey : toDateKey(selectedDate);
+
+    // Clear input immediately to prevent double-submit
+    setNewText('');
+    setNewIdeaId('');
+    setShowTagPicker(false);
+    setMentionQuery(null);
+    setEntityQuery(null);
+
+    // Auto-create contacts from @mentions
+    const mentions = extractMentions(text);
+    for (const name of mentions) {
+      const existing = findContactByName(name);
+      if (!existing) {
+        const parts = name.split(/\s+/);
+        const firstName = parts[0];
+        const lastName = parts.slice(1).join(' ') || undefined;
+        try {
+          await addContact({
+            firstName,
+            lastName,
+            fullName: name,
+          });
+          showToast(`Contact "${name}" created`, 'success');
+        } catch (err) {
+          console.error('Failed to auto-create contact:', err);
+        }
+      }
+    }
+
+    // Auto-create entities from #mentions
+    const entityMentionNames = extractEntityMentions(text);
+    for (const name of entityMentionNames) {
+      const existing = entities.find(e => e.name.toLowerCase() === name.toLowerCase());
+      if (!existing) {
+        try {
+          await addEntity({ name });
+          showToast(`Entity "${name}" created`, 'success');
+        } catch (err) {
+          console.error('Failed to auto-create entity:', err);
+        }
+      }
+    }
+
     try {
-      const updated = await apiClient.put(`/daily-todos/${todo.id}`, {
-        completed: !todo.completed
+      const todo = await apiClient.post('/daily-todos', {
+        text,
+        date: targetDate,
+        ideaId: newIdeaId || null,
+        timeBlock: block || getCurrentBlock(),
       });
-      setOverdueTodos(prev => prev.map(t => t.id === todo.id ? updated : t).filter(t => !t.completed));
-      setTodayTodos(prev => prev.map(t => t.id === todo.id ? updated : t));
-    } catch (err) {
-      console.error('Failed to toggle todo:', err);
+      setAllTodos(prev => [...prev, todo]);
+    } catch (err: any) {
+      showToast(err.message || 'Failed to add todo', 'error');
+    } finally {
+      submittingRef.current = false;
     }
   };
 
-  const toggleTodoUrgent = async (todo: any) => {
+  const inlineAddTodo = async (text: string, dateKey: string, block?: string) => {
+    const trimmed = text.trim();
+    if (!trimmed || submittingRef.current) return;
+    submittingRef.current = true;
+
+    // Auto-create contacts from @mentions
+    const mentions = extractMentions(trimmed);
+    for (const name of mentions) {
+      const existing = findContactByName(name);
+      if (!existing) {
+        const parts = name.split(/\s+/);
+        const firstName = parts[0];
+        const lastName = parts.slice(1).join(' ') || undefined;
+        try {
+          await addContact({ firstName, lastName, fullName: name });
+          showToast(`Contact "${name}" created`, 'success');
+        } catch (err) { console.error('Failed to auto-create contact:', err); }
+      }
+    }
+
+    // Auto-create entities from #mentions
+    const entityMentionNames = extractEntityMentions(trimmed);
+    for (const name of entityMentionNames) {
+      const existing = entities.find(e => e.name.toLowerCase() === name.toLowerCase());
+      if (!existing) {
+        try {
+          await addEntity({ name });
+          showToast(`Entity "${name}" created`, 'success');
+        } catch (err) { console.error('Failed to auto-create entity:', err); }
+      }
+    }
+
     try {
-      const updated = await apiClient.put(`/daily-todos/${todo.id}`, {
-        isUrgent: !todo.isUrgent
+      const todo = await apiClient.post('/daily-todos', {
+        text: trimmed,
+        date: dateKey,
+        timeBlock: block || getCurrentBlock(),
       });
-      setOverdueTodos(prev => prev.map(t => t.id === todo.id ? updated : t));
-      setTodayTodos(prev => prev.map(t => t.id === todo.id ? updated : t));
-    } catch (err) {
-      console.error('Failed to toggle urgency:', err);
+      setAllTodos(prev => [...prev, todo]);
+    } catch (err: any) {
+      showToast(err.message || 'Failed to add todo', 'error');
+    } finally {
+      submittingRef.current = false;
+    }
+  };
+
+  // Shared onChange for inline inputs — detects @mentions and #entities
+  const handleInlineChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    setNewText(val);
+    const cursor = e.target.selectionStart || 0;
+    const textBeforeCursor = val.slice(0, cursor);
+    const atMatch = textBeforeCursor.match(/@([A-Za-z\u00c0-\u00d6\u00d8-\u00f6\u00f8-\u00ff\s]*)$/);
+    if (atMatch) {
+      setMentionQuery(atMatch[1]);
+      setMentionCursorPos(cursor);
+      setEntityQuery(null);
+    } else {
+      setMentionQuery(null);
+    }
+    const hashMatch = textBeforeCursor.match(/#(\w*)$/);
+    if (hashMatch) {
+      setEntityQuery(hashMatch[1]);
+      setEntityCursorPos(cursor);
+      setMentionQuery(null);
+    } else {
+      setEntityQuery(null);
+    }
+  };
+
+  // Shared onKeyDown for inline inputs
+  const handleInlineKeyDown = (e: React.KeyboardEvent<HTMLInputElement>, submitFn: () => Promise<void>) => {
+    if (mentionQuery !== null) {
+      if (mentionFilteredContacts.length > 0) {
+        if (e.key === 'ArrowDown') { e.preventDefault(); setMentionIdx(i => Math.min(i + 1, mentionFilteredContacts.length - 1)); return; }
+        if (e.key === 'ArrowUp') { e.preventDefault(); setMentionIdx(i => Math.max(i - 1, 0)); return; }
+        if (e.key === 'Enter') { e.preventDefault(); insertMention(mentionFilteredContacts[mentionIdx]); return; }
+      } else if (mentionQuery.length > 0) {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          const parts = mentionQuery.trim().split(/\s+/);
+          insertMention({ fullName: mentionQuery.trim(), firstName: parts[0], lastName: parts.slice(1).join(' ') });
+          return;
+        }
+      }
+      if (e.key === 'Escape') { setMentionQuery(null); return; }
+    }
+    
+    if (entityQuery !== null) {
+      if (entityFilteredList.length > 0) {
+        if (e.key === 'ArrowDown') { e.preventDefault(); setEntityIdx(i => Math.min(i + 1, entityFilteredList.length - 1)); return; }
+        if (e.key === 'ArrowUp') { e.preventDefault(); setEntityIdx(i => Math.max(i - 1, 0)); return; }
+        if (e.key === 'Enter') { e.preventDefault(); insertEntityMention(entityFilteredList[entityIdx]); return; }
+      } else if (entityQuery.length >= 2) {
+        if (e.key === 'Enter') { e.preventDefault(); insertEntityMention({ name: entityQuery.trim() }); return; }
+      }
+      if (e.key === 'Escape') { setEntityQuery(null); return; }
+    }
+    
+    if (e.key === 'Enter' && newText.trim()) { e.preventDefault(); submitFn(); }
+    if (e.key === 'Escape') { setInlineAddTarget(null); setNewText(''); setMentionQuery(null); setEntityQuery(null); }
+  };
+
+  // Renders @mention and #entity dropdowns
+  const renderMentionDropdowns = () => (
+    <>
+      {mentionQuery !== null && (
+        <div className="cl-mention-dropdown" style={{ position: 'absolute', left: 0, top: '100%', zIndex: 100 }}>
+          {mentionFilteredContacts.length > 0 ? (
+            mentionFilteredContacts.map((c, i) => (
+              <button key={c.id} className={`cl-mention-option ${i === mentionIdx ? 'cl-mention-option--active' : ''}`}
+                onMouseDown={e => { e.preventDefault(); insertMention(c); }}>
+                <span className="cl-mention-avatar">{(c.firstName || c.fullName || '?')[0].toUpperCase()}</span>
+                <span className="cl-mention-name">{c.fullName || `${c.firstName || ''} ${c.lastName || ''}`.trim()}</span>
+                {c.company && <span className="cl-mention-company">{c.company}</span>}
+              </button>
+            ))
+          ) : mentionQuery.length > 0 ? (
+            <button className="cl-mention-option cl-mention-option--create"
+              onMouseDown={e => { e.preventDefault(); const parts = mentionQuery.trim().split(/\s+/); insertMention({ fullName: mentionQuery.trim(), firstName: parts[0], lastName: parts.slice(1).join(' ') }); }}>
+              <span className="cl-mention-avatar cl-mention-avatar--new">+</span>
+              <span className="cl-mention-name">Create &quot;{mentionQuery.trim()}&quot;</span>
+            </button>
+          ) : (
+            <div className="cl-mention-hint">Type a name…</div>
+          )}
+        </div>
+      )}
+      {entityQuery !== null && (
+        <div className="cl-mention-dropdown" style={{ position: 'absolute', left: 0, top: '100%', zIndex: 100 }}>
+          {entityFilteredList.length > 0 ? entityFilteredList.map((ent, i) => (
+            <button key={ent.id} className={`cl-mention-option ${i === entityIdx ? 'cl-mention-option--active' : ''}`}
+              onMouseDown={e => { e.preventDefault(); insertEntityMention(ent); }}>
+              <span className="cl-mention-avatar" style={{ backgroundColor: '#eef2ff', color: '#6366f1' }}>#</span>
+              <span className="cl-mention-name">{ent.name}</span>
+            </button>
+          )) : null}
+          {entityQuery.length >= 2 && !entityFilteredList.some(en => en.name.toLowerCase() === entityQuery.toLowerCase()) && (
+            <button className="cl-mention-option cl-mention-option--create"
+              onMouseDown={e => { e.preventDefault(); insertEntityMention({ name: entityQuery.trim() }); }}>
+              <span className="cl-mention-avatar cl-mention-avatar--new" style={{ backgroundColor: '#e0e7ff', color: '#4f46e5' }}>+</span>
+              <span className="cl-mention-name">Create &quot;{entityQuery.trim()}&quot;</span>
+            </button>
+          )}
+        </div>
+      )}
+    </>
+  );
+
+  const toggleComplete = async (todo: DailyTodo) => {
+    // Optimistic update — flip the UI immediately
+    const optimistic = { ...todo, completed: !todo.completed };
+    setAllTodos(prev => prev
+      .map(t => t.id === todo.id ? optimistic : t)
+      .map(t => t.children ? { ...t, children: t.children.map(c => c.id === todo.id ? optimistic : c) } : t)
+    );
+    if (detailTodo?.id === todo.id) setDetailTodo(optimistic);
+    try {
+      const updated = await apiClient.put(`/daily-todos/${todo.id}`, { completed: !todo.completed });
+      // Reconcile with server response
+      setAllTodos(prev => prev
+        .map(t => t.id === todo.id ? updated : t)
+        .map(t => t.children ? { ...t, children: t.children.map(c => c.id === todo.id ? updated : c) } : t)
+      );
+      if (detailTodo?.id === todo.id) setDetailTodo(updated);
+    } catch (err: any) {
+      // Revert on failure
+      setAllTodos(prev => prev
+        .map(t => t.id === todo.id ? todo : t)
+        .map(t => t.children ? { ...t, children: t.children.map(c => c.id === todo.id ? todo : c) } : t)
+      );
+      if (detailTodo?.id === todo.id) setDetailTodo(todo);
+      showToast(err.message || 'Failed to update', 'error');
+    }
+  };
+
+  const toggleUrgent = async (todo: DailyTodo) => {
+    // Optimistic update — flip the UI immediately
+    const optimistic = { ...todo, isUrgent: !todo.isUrgent };
+    setAllTodos(prev => prev
+      .map(t => t.id === todo.id ? optimistic : t)
+      .map(t => t.children ? { ...t, children: t.children.map(c => c.id === todo.id ? optimistic : c) } : t)
+    );
+    if (detailTodo?.id === todo.id) setDetailTodo(optimistic);
+    try {
+      const updated = await apiClient.put(`/daily-todos/${todo.id}`, { isUrgent: !todo.isUrgent });
+      setAllTodos(prev => prev
+        .map(t => t.id === todo.id ? updated : t)
+        .map(t => t.children ? { ...t, children: t.children.map(c => c.id === todo.id ? updated : c) } : t)
+      );
+      if (detailTodo?.id === todo.id) setDetailTodo(updated);
+    } catch (err: any) {
+      // Revert on failure
+      setAllTodos(prev => prev
+        .map(t => t.id === todo.id ? todo : t)
+        .map(t => t.children ? { ...t, children: t.children.map(c => c.id === todo.id ? todo : c) } : t)
+      );
+      if (detailTodo?.id === todo.id) setDetailTodo(todo);
+      showToast(err.message || 'Failed to update', 'error');
     }
   };
 
   const deleteTodo = async (id: string) => {
     try {
       await apiClient.delete(`/daily-todos/${id}`);
-      setTodayTodos(prev => prev.filter(t => t.id !== id));
-      setOverdueTodos(prev => prev.filter(t => t.id !== id));
-    } catch (err) {
-      console.error('Failed to delete todo:', err);
+      setAllTodos(prev => prev
+        .filter(t => t.id !== id)
+        .map(t => t.children ? { ...t, children: t.children.filter(c => c.id !== id) } : t)
+      );
+    } catch (err: any) {
+      showToast(err.message || 'Failed to delete', 'error');
     }
   };
 
-  const saveTodoEdit = async (id: string, text: string) => {
+  const saveEdit = async (id: string, text: string) => {
     try {
       const updated = await apiClient.put(`/daily-todos/${id}`, { text });
-      setTodayTodos(prev => prev.map(t => t.id === id ? updated : t));
-      setOverdueTodos(prev => prev.map(t => t.id === id ? updated : t));
-    } catch (err) {
-      console.error('Failed to save edit:', err);
+      setAllTodos(prev => prev
+        .map(t => t.id === id ? updated : t)
+        .map(t => t.children ? { ...t, children: t.children.map(c => c.id === id ? updated : c) } : t)
+      );
+    } catch (err: any) {
+      showToast(err.message || 'Failed to update', 'error');
     }
   };
 
   const tagTodoToIdea = async (todoId: string, ideaId: string | null) => {
     try {
       const updated = await apiClient.put(`/daily-todos/${todoId}`, { ideaId });
-      setTodayTodos(prev => prev.map(t => t.id === todoId ? updated : t));
-      setOverdueTodos(prev => prev.map(t => t.id === todoId ? updated : t));
-    } catch (err) {
-      console.error('Failed to tag todo:', err);
+      setAllTodos(prev => prev
+        .map(t => t.id === todoId ? updated : t)
+        .map(t => t.children ? { ...t, children: t.children.map(c => c.id === todoId ? updated : c) } : t)
+      );
+      if (detailTodo?.id === todoId) setDetailTodo(updated);
+    } catch (err: any) {
+      showToast(err.message || 'Failed to tag todo', 'error');
     }
   };
 
   const addSubtask = async (parentId: string, text: string) => {
-    const parent = todayTodos.find(t => t.id === parentId) || overdueTodos.find(t => t.id === parentId);
+    const parent = allTodos.find(t => t.id === parentId);
     if (!parent) return;
+    const dateKey = parent.date.slice(0, 10);
     try {
       const subtask = await apiClient.post('/daily-todos', {
-        text,
-        date: new Date(parent.date).toISOString().split('T')[0],
-        parentId,
-        ideaId: parent.ideaId || null
+        text, date: dateKey, parentId, ideaId: parent.ideaId || null,
       });
-      setTodayTodos(prev => prev.map(t =>
-        t.id === parentId ? { ...t, children: [...(t.children || []), subtask] } : t
+      setAllTodos(prev => prev.map(t =>
+        t.id === parentId
+          ? { ...t, children: [...(t.children || []), subtask] }
+          : t
       ));
-      setOverdueTodos(prev => prev.map(t =>
-        t.id === parentId ? { ...t, children: [...(t.children || []), subtask] } : t
-      ));
-    } catch (err) {
-      console.error('Failed to add subtask:', err);
+    } catch (err: any) {
+      showToast(err.message || 'Failed to add subtask', 'error');
     }
   };
 
-  React.useEffect(() => {
-    document.title = 'Dashboard | Idea-CRM';
-    return () => { document.title = 'IdeaCRM Tracker'; };
-  }, []);
-
-  const INTENT_CONFIG: Record<string, { icon: any, label: string, color: string }> = {
-    follow_up: { icon: RotateCcw, label: 'Follow up', color: 'text-green-600' },
-    acted_upon: { icon: CheckCheck, label: 'Acted upon', color: 'text-emerald-500' },
-    reflection: { icon: Brain, label: 'Reflection', color: 'text-gray-400' },
-    memoir: { icon: Mountain, label: 'Memoir', color: 'text-yellow-600' },
+  const carryForward = async () => {
+    setCarrying(true);
+    try {
+      const result = await apiClient.post('/daily-todos/carry-forward', {});
+      if (result.carried > 0) {
+        showToast(`Carried forward ${result.carried} todo${result.carried > 1 ? 's' : ''} to today`, 'success');
+        await fetchTodos();
+      } else {
+        showToast('Nothing to carry forward — all caught up! ✨', 'info');
+      }
+    } catch (err: any) {
+      showToast(err.message || 'Carry forward failed', 'error');
+    }
+    setCarrying(false);
   };
 
-  const recentNotes = [...(data.notes || [])]
-    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-    .slice(0, 5);
+  // Generic update for the detail modal
+  const updateTodo = async (id: string, updates: Record<string, any>) => {
+    try {
+      const updated = await apiClient.put(`/daily-todos/${id}`, updates);
+      setAllTodos(prev => prev
+        .map(t => t.id === id ? updated : t)
+        .map(t => t.children ? { ...t, children: t.children.map(c => c.id === id ? updated : c) } : t)
+      );
+      // Keep modal in sync
+      if (detailTodo?.id === id) setDetailTodo(updated);
+    } catch (err: any) {
+      showToast(err.message || 'Failed to update', 'error');
+    }
+  };
 
-  const isEmpty = (data.ideas?.length || 0) === 0 && (data.contacts?.length || 0) === 0;
+  const openDetail = (todo: DailyTodo) => setDetailTodo(todo);
+  const closeDetail = () => setDetailTodo(null);
+
+  // Drag-and-drop between time blocks
+  const [draggingTodoId, setDraggingTodoId] = useState<string | null>(null);
+  const [dragOverBlock, setDragOverBlock] = useState<string | null>(null);
+
+  const handleDragStart = (e: React.DragEvent, todoId: string) => {
+    setDraggingTodoId(todoId);
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', todoId);
+    // Make the drag image slightly transparent
+    if (e.currentTarget instanceof HTMLElement) {
+      e.currentTarget.style.opacity = '0.5';
+    }
+  };
+
+  const handleDragEnd = (e: React.DragEvent) => {
+    setDraggingTodoId(null);
+    setDragOverBlock(null);
+    if (e.currentTarget instanceof HTMLElement) {
+      e.currentTarget.style.opacity = '1';
+    }
+  };
+
+  const handleDragOver = (e: React.DragEvent, block: string) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    setDragOverBlock(block);
+  };
+
+  const handleDragLeave = () => {
+    setDragOverBlock(null);
+  };
+
+  const handleDrop = async (e: React.DragEvent, targetBlock: string) => {
+    e.preventDefault();
+    setDragOverBlock(null);
+    const todoId = e.dataTransfer.getData('text/plain');
+    if (!todoId) return;
+    const todo = allTodos.find(t => t.id === todoId);
+    if (!todo) return;
+    const currentBlock = todo.timeBlock || 'morning';
+    if (currentBlock === targetBlock) return;
+    await updateTodo(todoId, { timeBlock: targetBlock });
+    setDraggingTodoId(null);
+  };
+
+  // Navigate dates
+  const goToday = () => { const d = new Date(); d.setHours(0, 0, 0, 0); setSelectedDate(d); };
+  const goPrev = () => setSelectedDate(prev => dateAddDays(prev, viewMode === 'week' ? -7 : -1));
+  const goNext = () => setSelectedDate(prev => dateAddDays(prev, viewMode === 'week' ? 7 : 1));
+
+  // Idea tasks (pending across all ideas)
+  const todayStr = toDateKey(today);
+  const pendingIdeaTodos = (data.ideas || []).flatMap(idea =>
+    (idea.todos || []).filter(t => {
+      if (!t.completed) return true;
+      if (t.completedAt && t.completedAt.slice(0, 10) === todayStr) return true;
+      return false;
+    }).map(t => ({ ...t, ideaId: idea.id, ideaTitle: idea.title }))
+  );
+  pendingIdeaTodos.sort((a, b) => {
+    if (a.completed !== b.completed) return a.completed ? 1 : -1;
+    if (a.isUrgent && !b.isUrgent) return -1;
+    if (!a.isUrgent && b.isUrgent) return 1;
+    return 0;
+  });
+  const pendingIdeaCount = pendingIdeaTodos.filter(t => !t.completed).length;
+
+  if (loading) {
+    return (
+      <div className="cl-loading">
+        <Loader2 className="cl-loading-spinner" />
+        <p>Loading your checklist…</p>
+      </div>
+    );
+  }
+
+  const selectedDayTodos = sortTodos(todosForDate(selectedDate));
+  const completedCount = selectedDayTodos.filter(t => t.completed).length;
+  const totalCount = selectedDayTodos.length;
+  const isSelectedToday = isToday(selectedDate);
+
+  const weekTodos = allTodos.filter(t => t.date && weekDays.some(wd => toDateKey(wd) === String(t.date).slice(0, 10)) && t.status !== 'Archived');
+  const weekCompletedCount = weekTodos.filter(t => t.completed).length;
+  const weekTotalCount = weekTodos.length;
+
+  const activeTotal = viewMode === 'day' ? totalCount : weekTotalCount;
+  const activeCompleted = viewMode === 'day' ? completedCount : weekCompletedCount;
 
   return (
-    <div className="space-y-8 animate-in fade-in duration-500 px-6 py-8">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight">Dashboard</h1>
-          <div className="mt-1 flex items-center gap-2">
-            <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold border uppercase transition-colors duration-500" style={{ color: 'var(--primary)', backgroundColor: 'var(--primary-shadow)', borderColor: 'var(--primary)' }}>
-              <Cloud className="w-3 h-3" />
-              Cloud Synced (PostgreSQL)
-            </div>
+    <>
+    <div className="cl-container">
+      {wvActionMenuId && (
+        <div 
+          style={{ position: 'fixed', inset: 0, zIndex: 40 }}
+          onMouseDown={() => { setWvActionMenuId(null); setWvActionSubmenu(null); }}
+          onContextMenu={e => { e.preventDefault(); setWvActionMenuId(null); setWvActionSubmenu(null); }}
+        />
+      )}
+      {/* Top bar */}
+      <div className="cl-topbar">
+        <div className="cl-topbar-left">
+          <div className="cl-topbar-title">
+            <CalendarDays className="cl-topbar-icon" />
+            <h1>Checklist</h1>
+          </div>
+
+          {/* View toggle */}
+          <div className="cl-view-toggle">
+            <button
+              className={`cl-view-btn ${viewMode === 'day' ? 'cl-view-btn--active' : ''}`}
+              onClick={() => setViewMode('day')}
+            >
+              <CalendarDays className="w-3.5 h-3.5" />
+              Day
+            </button>
+            <button
+              className={`cl-view-btn ${viewMode === 'week' ? 'cl-view-btn--active' : ''}`}
+              onClick={() => setViewMode('week')}
+            >
+              <Calendar className="w-3.5 h-3.5" />
+              Week
+            </button>
           </div>
         </div>
-        <div className="hidden sm:flex items-center gap-2 px-4 py-2 rounded-xl text-white transition-colors duration-500 shadow-sm" style={{ backgroundColor: 'var(--primary)' }}>
-          <TrendingUp className="w-5 h-5" />
-          <span className="font-semibold text-sm">{(data.ideas || []).filter(i => i.status === 'Launched').length} Ideas Launched</span>
+
+        <div className="cl-topbar-right">
+          {/* Dynamic Progress Bar */}
+          {activeTotal > 0 && (
+            <div className="cl-progress-bar-wrap" style={{ width: '90px', margin: '0 8px 0 0' }}>
+              <div className="cl-progress-bar" style={{ height: '4px' }}>
+                <div className="cl-progress-bar-fill" style={{ width: `${(activeCompleted / activeTotal) * 100}%` }} />
+              </div>
+              <span className="cl-progress-label" style={{ fontSize: '0.65rem', fontWeight: 700, color: '#6b7280' }}>
+                {activeCompleted} / {activeTotal}
+              </span>
+            </div>
+          )}
+
+          {/* Live clock */}
+          <div className="cl-clock">
+            <Clock className="w-3.5 h-3.5" />
+            <span>{clockTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</span>
+            <span className="cl-clock-tz">{Intl.DateTimeFormat().resolvedOptions().timeZone.split('/').pop()?.replace(/_/g, ' ')}</span>
+          </div>
+
+          {/* Date nav */}
+          <div className="cl-date-nav">
+            <button onClick={goPrev} className="cl-date-nav-btn"><ChevronLeft className="w-4 h-4" /></button>
+            <span className="cl-date-nav-label">
+              {viewMode === 'day'
+                ? (isSelectedToday ? `Today — ${format(selectedDate, 'EEEE, do MMMM yyyy')}` : format(selectedDate, 'EEEE, do MMMM yyyy'))
+                : `${format(weekDays[0], 'MMM d')} – ${format(weekDays[weekDays.length - 1], 'MMM d')}`
+              }
+            </span>
+            <button onClick={goNext} className="cl-date-nav-btn"><ChevronRight className="w-4 h-4" /></button>
+          </div>
+
+          {!isSelectedToday && (
+            <button onClick={goToday} className="cl-today-btn">Today</button>
+          )}
         </div>
       </div>
 
-      <OnboardingGuide hideIfCompleted={!showTrainingParam} />
-
-      {isEmpty ? (
-        <div className="bg-white border-2 border-dashed border-gray-200 rounded-3xl p-12 text-center max-w-2xl mx-auto space-y-6">
-          <div className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto" style={{ backgroundColor: 'var(--primary-shadow)', color: 'var(--primary)' }}>
-            <Info className="w-8 h-8" />
-          </div>
-          <div className="space-y-2">
-            <h2 className="text-xl font-bold text-gray-900">Your Workspace is Ready</h2>
-            <p className="text-gray-500">
-              Your data is securely stored in Supabase PostgreSQL and is available on all your devices.
-            </p>
-          </div>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
-            <Link to="/ideas" className="w-full sm:w-auto px-6 py-3 text-white font-bold rounded-xl shadow-lg transition-all" style={{ backgroundColor: 'var(--primary)', boxShadow: '0 10px 15px -3px var(--primary-shadow)' }}>Create First Idea</Link>
-          </div>
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          {/* Left column — Today's Todos + Overdue */}
-          <div className="space-y-6">
-            {/* Today's Todos — Full List */}
-            <section className="bg-white rounded-2xl border p-6 shadow-sm space-y-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl flex items-center justify-center text-white shadow-md" style={{ backgroundColor: 'var(--primary)' }}>
-                    <CalendarCheck className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <h2 className="font-bold text-lg text-gray-900">Today's To-Dos</h2>
-                    <p className="text-[10px] text-gray-400 uppercase font-bold tracking-widest">
-                      {format(new Date(), 'EEEE, MMMM d')}
-                    </p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-3">
-                  {!todosLoading && todayTodos.length > 0 && (
-                    <span className={`px-2.5 py-1 text-[10px] font-black rounded-full border ${todayTodos.every(t => t.completed) ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-gray-50 text-gray-500 border-gray-100'}`}>
-                      {todayTodos.filter(t => t.completed).length}/{todayTodos.length}
-                    </span>
-                  )}
-                  <Link to="/daily" className="text-xs font-bold hover:underline" style={{ color: 'var(--primary)' }}>Full Calendar</Link>
-                </div>
-              </div>
-
-              {/* Todo items */}
-              {!todosLoading && (
-                <div className="space-y-1">
-                  {todayTodos.map(todo => (
-                    <DailyTodoItem
-                      key={todo.id}
-                      todo={todo}
-                      ideas={ideas}
-                      onToggleComplete={toggleTodoComplete}
-                      onToggleUrgent={toggleTodoUrgent}
-                      onDelete={deleteTodo}
-                      onSaveEdit={saveTodoEdit}
-                      onTagIdea={tagTodoToIdea}
-                      onAddSubtask={addSubtask}
-                    />
-                  ))}
-
-                  {/* Inline add */}
-                  <div className="daily-todo-add-mobile">
-                    <div className="daily-todo-add-input-row">
-                      <textarea
-                        className="daily-todo-add-input-big"
-                        placeholder="What needs to be done?"
-                        rows={2}
-                        value={newTodayText}
-                        onChange={e => setNewTodayText(e.target.value)}
-                        onKeyDown={async e => {
-                          if (e.key === 'Enter' && !e.shiftKey && newTodayText.trim()) {
-                            e.preventDefault();
-                            try {
-                              const today = new Date();
-                              today.setHours(0, 0, 0, 0);
-                              const todo = await apiClient.post('/daily-todos', {
-                                text: newTodayText.trim(),
-                                date: today.toISOString().slice(0, 10),
-                                ideaId: newTodayIdeaId || null
-                              });
-                              setTodayTodos(prev => [...prev, todo]);
-                              setNewTodayText('');
-                              setNewTodayIdeaId('');
-                            } catch (err) {
-                              console.error('Failed to add todo:', err);
-                            }
-                          }
-                        }}
-                      />
-                      <button
-                        className={`daily-todo-add-tag-btn ${newTodayIdeaId ? 'daily-todo-add-tag-btn--active' : ''}`}
-                        onClick={() => setShowDashboardTagPicker(!showDashboardTagPicker)}
-                        title="Tag to idea"
-                      >
-                        <Tag className="w-4 h-4" />
-                      </button>
-                      <button
-                        className="daily-todo-add-send-btn"
-                        onClick={async () => {
-                          if (!newTodayText.trim()) return;
-                          try {
-                            const today = new Date();
-                            today.setHours(0, 0, 0, 0);
-                            const todo = await apiClient.post('/daily-todos', {
-                              text: newTodayText.trim(),
-                              date: today.toISOString().slice(0, 10),
-                              ideaId: newTodayIdeaId || null
-                            });
-                            setTodayTodos(prev => [...prev, todo]);
-                            setNewTodayText('');
-                            setNewTodayIdeaId('');
-                          } catch (err) {
-                            console.error('Failed to add todo:', err);
-                          }
-                        }}
-                        disabled={!newTodayText.trim()}
-                        title="Add to-do"
-                      >
-                        <Send className="w-4 h-4" />
-                      </button>
-                    </div>
-                    {newTodayIdeaId && (() => {
-                      const taggedIdea = ideas.find(i => i.id === newTodayIdeaId);
-                      return taggedIdea ? (
-                        <div className="daily-todo-add-tagged">
-                          <span className="daily-todo-add-tagged-badge">
-                            💡 {taggedIdea.title}
-                            <button onClick={() => setNewTodayIdeaId('')} className="daily-todo-add-tagged-remove">×</button>
-                          </span>
-                        </div>
-                      ) : null;
-                    })()}
-                    {showDashboardTagPicker && (
-                      <IdeaPickerDropdown
-                        ideas={ideas}
-                        selectedIdeaId={newTodayIdeaId}
-                        onSelect={(id) => { setNewTodayIdeaId(id); setShowDashboardTagPicker(false); }}
-                        onRemove={() => { setNewTodayIdeaId(''); setShowDashboardTagPicker(false); }}
-                        showRemove={!!newTodayIdeaId}
-                      />
-                    )}
-                  </div>
-
-                  {todayTodos.length === 0 && (
-                    <p className="text-center text-xs text-gray-400 py-4 font-medium italic">No to-dos for today yet. Add one above!</p>
-                  )}
-                </div>
-              )}
-            </section>
-
-            {/* Pending Idea Tasks */}
-            {(() => {
-              const todayStart = new Date();
-              todayStart.setHours(0, 0, 0, 0);
-              const todayStr = todayStart.toISOString().slice(0, 10);
-
-              const pendingIdeaTodos = (data.ideas || []).flatMap(idea =>
-                (idea.todos || []).filter(t => {
-                  if (!t.completed) return true;
-                  // Include if completed today
-                  if (t.completedAt && t.completedAt.slice(0, 10) === todayStr) return true;
-                  return false;
-                }).map(t => ({
-                  ...t,
-                  ideaId: idea.id,
-                  ideaTitle: idea.title
-                }))
-              );
-              // Sort: pending first, then within pending: urgent > dueDate > rest, completed-today at bottom
-              pendingIdeaTodos.sort((a, b) => {
-                if (a.completed !== b.completed) return a.completed ? 1 : -1;
-                if (a.isUrgent && !b.isUrgent) return -1;
-                if (!a.isUrgent && b.isUrgent) return 1;
-                if (a.dueDate && b.dueDate) return new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime();
-                if (a.dueDate && !b.dueDate) return -1;
-                if (!a.dueDate && b.dueDate) return 1;
-                return 0;
-              });
-              const pendingCount = pendingIdeaTodos.filter(t => !t.completed).length;
-              if (pendingIdeaTodos.length === 0) return null;
+      {/* ======= DAY VIEW — 3 columns ======= */}
+      {viewMode === 'day' && (
+        <div className="cl-day-scroll">
+          <div className="cl-day-grid">
+            {TIME_BLOCKS.map(block => {
+              const blockTodos = sortTodos(selectedDayTodos.filter(t => (t.timeBlock || 'morning') === block));
               return (
-                <section className="bg-white rounded-2xl border border-amber-100 p-6 shadow-sm space-y-4">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <ClipboardList className="w-4 h-4 text-amber-500" />
-                      <h2 className="font-bold text-lg text-gray-900">Pending Idea Tasks</h2>
-                      {pendingCount > 0 && (
-                        <span className="px-2 py-0.5 bg-amber-50 text-amber-600 text-[10px] font-black rounded-full border border-amber-100">
-                          {pendingCount}
-                        </span>
-                      )}
+                <div
+                  key={block}
+                  className={`cl-day-col ${dragOverBlock === block ? 'cl-day-col--dragover' : ''}`}
+                  onDragOver={(e) => handleDragOver(e, block)}
+                  onDragLeave={handleDragLeave}
+                  onDrop={(e) => handleDrop(e, block)}
+                >
+                  <div className="cl-day-col-header">
+                    <div className="cl-day-col-header-text">
+                      <span className={`cl-day-col-label cl-day-col-label--${block}`}>
+                        <span className={`cl-block-dot cl-block-dot--${block}`}></span>
+                        {BLOCK_LABELS[block]}
+                      </span>
+                      <span className="cl-day-col-time">{BLOCK_TIMES[block]}</span>
                     </div>
-                    <Link to="/ideas" className="text-xs font-bold hover:underline" style={{ color: 'var(--primary)' }}>View Ideas</Link>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <button
+                        onClick={() => { setInlineAddTarget(inlineAddTarget === block ? null : block); setNewText(''); setMentionQuery(null); setEntityQuery(null); setTimeout(() => inputRef.current?.focus(), 50); }}
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '1rem', padding: '2px', borderRadius: '6px', lineHeight: 1, opacity: inlineAddTarget === block ? 1 : 0.5, transition: 'opacity 0.15s' }}
+                        title="Add task"
+                      >➕</button>
+                      <span className="cl-day-col-count">{blockTodos.filter(t => !t.completed).length}</span>
+                    </div>
                   </div>
-                  <div className="space-y-1">
-                    {pendingIdeaTodos.map(todo => (
+                  {/* Inline add input */}
+                  {inlineAddTarget === block && (
+                    <div style={{ padding: '0 8px 8px', position: 'relative' }}>
+                      <input
+                        ref={inputRef}
+                        value={newText}
+                        onChange={handleInlineChange}
+                        onKeyDown={e => handleInlineKeyDown(e, async () => {
+                          await inlineAddTodo(newText, toDateKey(selectedDate), block);
+                          setNewText('');
+                          setInlineAddTarget(null);
+                        })}
+                        placeholder="New task… (@ contact, # entity)"
+                        style={{ width: '100%', padding: '6px 10px', borderRadius: '8px', border: '1px solid #e5e7eb', fontSize: '0.8rem', outline: 'none' }}
+                        autoFocus
+                      />
+                      {renderMentionDropdowns()}
+                    </div>
+                  )}
+                  <div className="cl-day-col-list">
+                    {blockTodos.length === 0 && <div className="cl-day-col-empty">{draggingTodoId ? 'Drop here' : 'No tasks'}</div>}
+                    {blockTodos.map(todo => (
                       <div
                         key={todo.id}
-                        className={`flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all ${todo.completed ? 'opacity-50' : ''} ${!todo.completed ? 'hover:bg-amber-50/50' : ''} ${todo.isUrgent && !todo.completed ? 'bg-red-50/40' : ''}`}
+                        draggable
+                        onDragStart={(e) => handleDragStart(e, todo.id)}
+                        onDragEnd={handleDragEnd}
+                        className={draggingTodoId === todo.id ? 'cl-todo-dragging' : ''}
                       >
-                        <button
-                          onClick={async () => {
-                            if (todo.completed) return; // Already done
-                            const idea = (data.ideas || []).find(i => i.id === todo.ideaId);
-                            if (!idea) return;
-                            const updatedTodos = idea.todos.map(t =>
-                              t.id === todo.id ? { ...t, completed: true, completedAt: new Date().toISOString() } : t
-                            );
+                        <DailyTodoItem todo={todo} ideas={ideas}
+                          onToggleComplete={toggleComplete} onToggleUrgent={toggleUrgent}
+                          onDelete={deleteTodo} onSaveEdit={saveEdit} onTagIdea={tagTodoToIdea}
+                          onAddSubtask={addSubtask} onOpenDetail={openDetail}
+                          onChangeDate={async (id, newDate) => {
                             try {
-                              await updateIdea(todo.ideaId, { todos: updatedTodos });
-                            } catch (err) {
-                              console.error('Failed to complete idea todo:', err);
-                            }
+                              const updated = await apiClient.put(`/daily-todos/${id}`, { date: newDate });
+                              setAllTodos(prev => prev.map(t => t.id === id ? updated : t));
+                            } catch { showToast('Failed to reschedule', 'error'); }
                           }}
-                          className={`flex-shrink-0 w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all ${todo.completed ? 'border-emerald-500 bg-emerald-500 text-white' : 'border-amber-300 hover:border-emerald-500 hover:bg-emerald-50 bg-white'}`}
-                          title={todo.completed ? 'Completed today' : 'Mark as completed'}
-                          disabled={todo.completed}
-                        >
-                          {todo.completed ? <Check className="w-3.5 h-3.5" /> : <Circle className="w-3.5 h-3.5 text-transparent" />}
-                        </button>
-                        <div className="flex-1 min-w-0">
-                          <p className={`text-sm font-medium truncate ${todo.completed ? 'line-through text-gray-400' : 'text-gray-700'}`}>{todo.text}</p>
-                          <div className="flex items-center gap-2 mt-0.5">
-                            <Link
-                              to={`/ideas/${todo.ideaId}`}
-                              className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[9px] font-bold uppercase tracking-wider hover:opacity-80 transition-opacity"
-                              style={{ backgroundColor: 'var(--primary-shadow, #eef2ff)', color: 'var(--primary, #6366f1)' }}
-                            >
-                              <Lightbulb className="w-2.5 h-2.5" />
-                              {todo.ideaTitle.length > 18 ? todo.ideaTitle.slice(0, 18) + '\u2026' : todo.ideaTitle}
-                            </Link>
-                            {todo.dueDate && !todo.completed && (
-                              <span className={`text-[9px] font-bold uppercase tracking-widest ${new Date(todo.dueDate) < new Date() ? 'text-red-400' : 'text-gray-400'}`}>
-                                Due {format(new Date(todo.dueDate), 'MMM d')}
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                        {todo.isUrgent && !todo.completed && (
-                          <Flame className="w-3.5 h-3.5 text-red-500 flex-shrink-0" />
-                        )}
-                        <Link to={`/ideas/${todo.ideaId}`} className="flex-shrink-0">
-                          <ChevronRight className="w-3.5 h-3.5 text-gray-300 hover:text-gray-500 transition-colors" />
-                        </Link>
+                          onChangeTimeBlock={async (id, block) => {
+                            try {
+                              const updated = await apiClient.put(`/daily-todos/${id}`, { timeBlock: block });
+                              setAllTodos(prev => prev.map(t => t.id === id ? updated : t));
+                            } catch { showToast('Failed to change time block', 'error'); }
+                          }}
+                        />
                       </div>
                     ))}
                   </div>
-                </section>
-              );
-            })()}
-
-            {/* Overdue Todos */}
-            {!todosLoading && overdueTodos.length > 0 && (
-              <section className="bg-white rounded-2xl border border-red-100 p-6 shadow-sm space-y-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <AlertTriangle className="w-4 h-4 text-red-500" />
-                    <h2 className="font-bold text-lg text-gray-900">Overdue</h2>
-                    <span className="px-2 py-0.5 bg-red-50 text-red-600 text-[10px] font-black rounded-full border border-red-100">
-                      {overdueTodos.length}
-                    </span>
-                  </div>
-                  <Link to="/daily" className="text-xs font-bold hover:underline" style={{ color: 'var(--primary)' }}>View All</Link>
                 </div>
-                <div className="space-y-1">
-                  {overdueTodos.map(todo => (
-                    <DailyTodoItem
-                      key={todo.id}
-                      todo={todo}
-                      ideas={ideas}
-                      onToggleComplete={toggleTodoComplete}
-                      onToggleUrgent={toggleTodoUrgent}
-                      onDelete={deleteTodo}
-                      onSaveEdit={saveTodoEdit}
-                      onTagIdea={tagTodoToIdea}
-                      onAddSubtask={addSubtask}
-                    />
+              );
+            })}
+          </div>
+
+          {totalCount > 0 && completedCount === totalCount && overdueTodos.length === 0 && (
+            <div className="cl-caught-up">✨ All caught up! Great work.</div>
+          )}
+
+          {/* Bottom 3-column: Idea Tasks | Overdue | Backburner */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: '12px', marginTop: '1rem', alignItems: 'start' }}>
+            {/* Pending tasks by idea */}
+            <div style={{ background: '#fef9e7', borderRadius: '12px', padding: '10px', minHeight: '60px' }}>
+              <button className="cl-backlog-toggle" onClick={() => setIdeaBacklogOpen(!ideaBacklogOpen)} style={{ background: 'transparent', marginBottom: ideaBacklogOpen ? '8px' : 0 }}>
+                <ClipboardList className="w-3.5 h-3.5" /><span style={{ fontSize: '0.75rem' }}>Pending tasks by idea</span>
+                {pendingIdeaCount > 0 && <span className="cl-backlog-badge cl-backlog-badge--amber">{pendingIdeaCount}</span>}
+                {ideaBacklogOpen ? <ChevronUp className="w-3.5 h-3.5 ml-auto" /> : <ChevronDown className="w-3.5 h-3.5 ml-auto" />}
+              </button>
+              {ideaBacklogOpen && pendingIdeaTodos.length > 0 && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  {Object.entries(
+                    pendingIdeaTodos.reduce((acc, todo) => {
+                      if (!acc[todo.ideaId]) acc[todo.ideaId] = { title: todo.ideaTitle || 'Unknown Idea', todos: [] };
+                      acc[todo.ideaId].todos.push(todo);
+                      return acc;
+                    }, {} as Record<string, { title: string, todos: typeof pendingIdeaTodos }>)
+                  ).map(([ideaId, group]: [string, any]) => (
+                    <div key={ideaId} style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                      <div style={{ fontSize: '0.7rem', fontWeight: 600, color: '#9ca3af', display: 'flex', alignItems: 'center', gap: '4px', textTransform: 'uppercase', letterSpacing: '0.05em', paddingLeft: '4px', marginTop: '4px' }}>
+                        <Lightbulb className="w-3 h-3" /> {group.title}
+                      </div>
+                      {group.todos.map((todo: any) => (
+                        <DailyTodoItem key={todo.id} todo={{ ...todo, idea: null } as any} ideas={ideas}
+                          customContainerStyle={{ background: '#fef3c7', borderColor: '#fef3c7' }}
+                          overrideDateLabel={todo.dueDate ? `Due ${todo.dueDate.slice(5, 10).replace('-', '/')}` : 'No due date'}
+                          onToggleComplete={async () => {
+                            if (todo.completed) return;
+                            const idea = (data.ideas || []).find(i => i.id === todo.ideaId);
+                            if (!idea) return;
+                            const ut = idea.todos.map(t => t.id === todo.id ? { ...t, completed: true, completedAt: new Date().toISOString() } : t);
+                            try { await updateIdea(todo.ideaId, { todos: ut }); } catch (err) {}
+                          }}
+                          onToggleUrgent={async () => {
+                            const idea = (data.ideas || []).find(i => i.id === todo.ideaId);
+                            if (!idea) return;
+                            const ut = idea.todos.map(t => t.id === todo.id ? { ...t, isUrgent: !t.isUrgent } : t);
+                            try { await updateIdea(todo.ideaId, { todos: ut }); } catch (err) {}
+                          }}
+                          onDelete={async (id) => {
+                            const idea = (data.ideas || []).find(i => i.id === todo.ideaId);
+                            if (!idea) return;
+                            const ut = idea.todos.filter(t => t.id !== id);
+                            try { await updateIdea(todo.ideaId, { todos: ut }); } catch (err) {}
+                          }}
+                          onSaveEdit={async (id, text) => {
+                            const idea = (data.ideas || []).find(i => i.id === todo.ideaId);
+                            if (!idea) return;
+                            const ut = idea.todos.map(t => t.id === id ? { ...t, text } : t);
+                            try { await updateIdea(todo.ideaId, { todos: ut }); } catch (err) {}
+                          }}
+                          onTagIdea={async () => {}} // Idea tasks are already tagged
+                          onChangeDate={async (id, newDate) => {
+                            // If an idea task gets a date, it should probably become a DailyTodo
+                            // But for now, we'll just ignore it or we'd need to migrate it to daily-todos table
+                            showToast('Idea tasks must be moved via drag and drop', 'info');
+                          }}
+                          onChangeTimeBlock={async () => { showToast('Idea tasks do not have time blocks', 'info'); }}
+                        />
+                      ))}
+                    </div>
                   ))}
                 </div>
-              </section>
-            )}
+              )}
+              {ideaBacklogOpen && pendingIdeaTodos.length === 0 && (
+                <div style={{ fontSize: '0.7rem', color: '#9ca3af', textAlign: 'center', padding: '8px 0' }}>No pending tasks</div>
+              )}
+            </div>
 
-            {/* All caught up state */}
-            {!todosLoading && overdueTodos.length === 0 && todayTodos.length > 0 && todayTodos.every(t => t.completed) && (
-              <div className="bg-emerald-50 rounded-2xl border border-emerald-100 p-6 text-center">
-                <p className="text-emerald-600 font-bold text-sm">✨ All caught up! Great work today.</p>
+            {/* Overdue */}
+            <div style={{ background: '#fef2f2', borderRadius: '12px', padding: '10px', minHeight: '60px' }}>
+              <button className="cl-backlog-toggle" onClick={() => setBacklogOpen(!backlogOpen)} style={{ background: 'transparent', marginBottom: backlogOpen ? '8px' : 0 }}>
+                <AlertTriangle className="w-3.5 h-3.5" /><span style={{ fontSize: '0.75rem' }}>Overdue</span>
+                <span className="cl-backlog-badge">{overdueTodos.length}</span>
+                {backlogOpen ? <ChevronUp className="w-3.5 h-3.5 ml-auto" /> : <ChevronDown className="w-3.5 h-3.5 ml-auto" />}
+              </button>
+              {backlogOpen && overdueTodos.length > 0 && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  {Object.entries(
+                    sortTodos(overdueTodos).reduce((acc, todo) => {
+                      const d = todo.date || 'No Date';
+                      if (!acc[d]) acc[d] = [];
+                      acc[d].push(todo);
+                      return acc;
+                    }, {} as Record<string, DailyTodo[]>)
+                  ).sort((a, b) => a[0].localeCompare(b[0])).map(([dateKey, todos]) => (
+                    <div key={dateKey} style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                      <div style={{ fontSize: '0.7rem', fontWeight: 600, color: '#ef4444', textTransform: 'uppercase', letterSpacing: '0.05em', paddingLeft: '4px', marginTop: '4px' }}>
+                        {dateKey === 'No Date' ? dateKey : format(new Date(dateKey), 'EEE, MMM d')}
+                      </div>
+                      {todos.map(todo => (
+                        <DailyTodoItem key={todo.id} todo={todo} ideas={ideas}
+                          customContainerStyle={{ background: '#fee2e2', borderColor: '#fee2e2' }}
+                          onToggleComplete={toggleComplete} onToggleUrgent={toggleUrgent}
+                          onDelete={deleteTodo} onSaveEdit={saveEdit} onTagIdea={tagTodoToIdea}
+                          onAddSubtask={addSubtask} onOpenDetail={openDetail}
+                          onChangeDate={async (id, newDate) => {
+                            try {
+                              const updated = await apiClient.put(`/daily-todos/${id}`, { date: newDate });
+                              setAllTodos(prev => prev.map(t => t.id === id ? updated : t));
+                            } catch { showToast('Failed to reschedule', 'error'); }
+                          }}
+                          onChangeTimeBlock={async (id, block) => {
+                            try {
+                              const updated = await apiClient.put(`/daily-todos/${id}`, { timeBlock: block });
+                              setAllTodos(prev => prev.map(t => t.id === id ? updated : t));
+                            } catch { showToast('Failed to change time block', 'error'); }
+                          }}
+                        />
+                      ))}
+                    </div>
+                  ))}
+                </div>
+              )}
+              {backlogOpen && overdueTodos.length === 0 && (
+                <div style={{ fontSize: '0.7rem', color: '#9ca3af', textAlign: 'center', padding: '8px 0' }}>Nothing overdue 🎉</div>
+              )}
+            </div>
+
+            {/* Backburner */}
+            <div style={{ background: '#f3f4f6', borderRadius: '12px', padding: '10px', minHeight: '60px' }}
+              onDragOver={e => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; }}
+              onDrop={async e => {
+                e.preventDefault();
+                const droppedId = e.dataTransfer.getData('text/plain');
+                if (droppedId) {
+                  try {
+                    const updated = await apiClient.put(`/daily-todos/${droppedId}`, { date: null });
+                    setAllTodos(prev => prev.map(t => t.id === droppedId ? updated : t));
+                  } catch { /* silent */ }
+                }
+              }}
+            >
+              <button className="cl-backlog-toggle" onClick={() => setBackburnerOpen(!backburnerOpen)} style={{ background: 'transparent', color: '#6b7280', marginBottom: backburnerOpen ? '8px' : 0 }}>
+                <Circle className="w-3.5 h-3.5" /><span style={{ fontSize: '0.75rem' }}>Backburner</span>
+                <span className="cl-backlog-badge" style={{ background: '#e5e7eb', color: '#374151' }}>{backburnerTodos.length}</span>
+                {backburnerOpen ? <ChevronUp className="w-3.5 h-3.5 ml-auto" /> : <ChevronDown className="w-3.5 h-3.5 ml-auto" />}
+              </button>
+              {backburnerOpen && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  {sortTodos(backburnerTodos).map(todo => (
+                    <DailyTodoItem key={todo.id} todo={todo} ideas={ideas}
+                      onToggleComplete={toggleComplete} onToggleUrgent={toggleUrgent}
+                      onDelete={deleteTodo} onSaveEdit={saveEdit} onTagIdea={tagTodoToIdea}
+                      onAddSubtask={addSubtask} onOpenDetail={openDetail}
+                      onChangeDate={async (id, newDate) => {
+                        try {
+                          const updated = await apiClient.put(`/daily-todos/${id}`, { date: newDate });
+                          setAllTodos(prev => prev.map(t => t.id === id ? updated : t));
+                        } catch { showToast('Failed to reschedule', 'error'); }
+                      }}
+                      onChangeTimeBlock={async (id, block) => {
+                        try {
+                          const updated = await apiClient.put(`/daily-todos/${id}`, { timeBlock: block });
+                          setAllTodos(prev => prev.map(t => t.id === id ? updated : t));
+                        } catch { showToast('Failed to change time block', 'error'); }
+                      }}
+                    />
+                  ))}
+                  {backburnerTodos.length === 0 && (
+                    <div style={{ fontSize: '0.7rem', color: '#9ca3af', textAlign: 'center', padding: '8px 0' }}>Drop tasks here</div>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+          {/* ===== REMINDER GALLERY ===== */}
+          <div className="cl-gallery-section">
+            <div className="cl-gallery-header">
+              <div className="cl-gallery-title">
+                <ImagePlus className="w-4 h-4" />
+                <span>Daily Reminders</span>
+                <span className="cl-gallery-count">{reminderImages.length}</span>
+              </div>
+              <button className="cl-gallery-upload-btn" onClick={() => galleryFileRef.current?.click()}>
+                <Plus className="w-3.5 h-3.5" />
+                Add Image
+              </button>
+              <input
+                ref={galleryFileRef}
+                type="file"
+                accept="image/*"
+                multiple
+                style={{ display: 'none' }}
+                onChange={async (e) => {
+                  const files = e.target.files;
+                  if (!files) return;
+                  for (let i = 0; i < files.length; i++) {
+                    await uploadReminderImage(files[i]);
+                  }
+                  e.target.value = '';
+                }}
+              />
+            </div>
+
+            {reminderImages.length > 0 && (
+              <div className="cl-gallery-layout">
+                {/* Pinned (first) image — large */}
+                <div className="cl-gallery-pinned">
+                  <div
+                    className="cl-gallery-card cl-gallery-card--pinned"
+                    onDragOver={(e) => e.preventDefault()}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      if (galleryDragId && galleryDragId !== reminderImages[0].id) {
+                        reorderReminderImages(galleryDragId, reminderImages[0].id);
+                      }
+                      setGalleryDragId(null);
+                    }}
+                  >
+                    <img
+                      src={reminderImages[0].imageData}
+                      alt={reminderImages[0].caption || 'Reminder'}
+                      className="cl-gallery-img cl-gallery-img--pinned"
+                      style={{ transform: `rotate(${reminderImages[0].rotation || 0}deg)` }}
+                    />
+                    <div className="cl-gallery-card-footer">
+                      <input
+                        className="cl-gallery-caption"
+                        placeholder="Add caption…"
+                        value={reminderImages[0].caption || ''}
+                        onChange={(e) => setReminderImages(prev => prev.map((i, idx) => idx === 0 ? { ...i, caption: e.target.value } : i))}
+                        onBlur={(e) => updateReminderCaption(reminderImages[0].id, e.target.value)}
+                      />
+                      <button
+                        className="cl-gallery-rotate"
+                        onClick={() => rotateReminderImage(reminderImages[0].id)}
+                        title="Rotate 90°"
+                      >
+                        <RotateCw className="w-3 h-3" />
+                      </button>
+                      <button
+                        className="cl-gallery-delete"
+                        onClick={() => {
+                          if (window.confirm('Remove this image?')) deleteReminderImage(reminderImages[0].id);
+                        }}
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Thumbnails — rest of images */}
+                {reminderImages.length > 1 && (
+                  <div className="cl-gallery-thumbs">
+                    {reminderImages.slice(1).map(img => (
+                      <div
+                        key={img.id}
+                        className={`cl-gallery-card cl-gallery-card--thumb ${galleryDragId === img.id ? 'cl-gallery-card--dragging' : ''}`}
+                        draggable
+                        onDragStart={() => setGalleryDragId(img.id)}
+                        onDragEnd={() => setGalleryDragId(null)}
+                        onDragOver={(e) => e.preventDefault()}
+                        onDrop={(e) => {
+                          e.preventDefault();
+                          if (galleryDragId && galleryDragId !== img.id) {
+                            reorderReminderImages(galleryDragId, img.id);
+                          }
+                          setGalleryDragId(null);
+                        }}
+                      >
+                        <div className="cl-gallery-card-grip">
+                          <GripVertical className="w-3 h-3" />
+                        </div>
+                        <img
+                          src={img.imageData}
+                          alt={img.caption || 'Reminder'}
+                          className="cl-gallery-img cl-gallery-img--clickable"
+                          style={{ transform: `rotate(${img.rotation || 0}deg)` }}
+                          onClick={() => reorderReminderImages(img.id, reminderImages[0].id)}
+                        />
+                        <div className="cl-gallery-card-footer">
+                          <input
+                            className="cl-gallery-caption"
+                            placeholder="Caption…"
+                            value={img.caption || ''}
+                            onChange={(e) => setReminderImages(prev => prev.map(i => i.id === img.id ? { ...i, caption: e.target.value } : i))}
+                            onBlur={(e) => updateReminderCaption(img.id, e.target.value)}
+                          />
+                          <button
+                            className="cl-gallery-delete"
+                            onClick={() => {
+                              if (window.confirm('Remove this image?')) deleteReminderImage(img.id);
+                            }}
+                          >
+                            <Trash2 className="w-3 h-3" />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
           </div>
-
-          <section className="bg-white rounded-2xl border p-6 shadow-sm space-y-4">
-            <div className="flex items-center justify-between">
-              <h2 className="font-bold text-lg text-gray-900">Recent Activity</h2>
-              <Link to="/reports/weekly" className="text-xs font-bold hover:underline" style={{ color: 'var(--primary)' }}>Full Report</Link>
-            </div>
-            <div className="space-y-4">
-              {recentNotes.map(note => (
-                <div key={note.id} className="flex gap-4">
-                  <div className={`mt-1 w-8 h-8 rounded-lg bg-gray-50 flex items-center justify-center shrink-0 ${INTENT_CONFIG[note.intent || 'memoir']?.color || ''}`} style={(!note.intent) ? { color: 'var(--primary)' } : {}}>
-                    {note.intent ? (
-                      React.createElement(INTENT_CONFIG[note.intent].icon, { className: "w-4 h-4" })
-                    ) : (
-                      <MessageSquare className="w-4 h-4" />
-                    )}
-                  </div>
-                  <div className="min-w-0">
-                    <p className="text-xs text-gray-700 line-clamp-2 font-medium mb-1">
-                      {getNoteExcerpt(note.body)}
-                    </p>
-                    <p className="text-[9px] text-gray-400 font-bold uppercase tracking-widest">
-                      {format(new Date(note.createdAt), 'EEE, MMM d, h:mm a')}
-                    </p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </section>
         </div>
       )}
 
+      {/* ======= WEEK VIEW — 3-day sliding ======= */}
+      {viewMode === 'week' && (
+        <div className="wv-container">
+          <div className="wv-grid">
+            {weekDays.map(day => {
+              const dayKey = toDateKey(day);
+              const dayTodos = sortTodos(todosForDate(day));
+              const dayCompleted = dayTodos.filter(t => t.completed).length;
+              const dayTotal = dayTodos.length;
+              const dayIsToday = isToday(day);
+
+              return (
+                <div
+                  key={dayKey}
+                  className={`wv-day ${dayIsToday ? 'wv-day--today' : ''} ${wvDragOverDay === dayKey && wvDragId ? 'wv-day--drop-target' : ''}`}
+                  onDragOver={e => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; setWvDragOverDay(dayKey); }}
+                  onDragLeave={e => {
+                    if (!(e.currentTarget as HTMLElement).contains(e.relatedTarget as HTMLElement)) setWvDragOverDay(null);
+                  }}
+                  onDrop={async e => {
+                    e.preventDefault();
+                    const droppedId = e.dataTransfer.getData('text/plain');
+                    if (droppedId && wvDragSourceDay !== dayKey) {
+                      try {
+                        const updated = await apiClient.put(`/daily-todos/${droppedId}`, { date: dayKey });
+                        setAllTodos(prev => prev.map(t => t.id === droppedId ? updated : t));
+                      } catch { /* silent */ }
+                    }
+                    setWvDragId(null); setWvDragSourceDay(null); setWvDragOverDay(null);
+                  }}
+                >
+                  <div className="wv-day-header">
+                    <span className={`wv-day-name ${dayIsToday ? 'wv-day-name--today' : ''}`}>
+                      {dayIsToday ? 'Today' : format(day, 'EEE')}
+                    </span>
+                    <span className="wv-day-date">{format(day, 'd')}</span>
+                    <button
+                      onClick={() => { setInlineAddTarget(inlineAddTarget === `wk-${dayKey}` ? null : `wk-${dayKey}`); setNewText(''); setMentionQuery(null); setEntityQuery(null); setTimeout(() => inputRef.current?.focus(), 50); }}
+                      style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.85rem', padding: '2px', borderRadius: '6px', lineHeight: 1, opacity: inlineAddTarget === `wk-${dayKey}` ? 1 : 0.5, transition: 'opacity 0.15s', marginLeft: '2px' }}
+                      title="Add task"
+                    >➕</button>
+                    {dayTotal > 0 && (
+                      <span className={`wv-day-count ${dayCompleted === dayTotal ? 'wv-day-count--done' : ''}`}>
+                        {dayCompleted}/{dayTotal}
+                      </span>
+                    )}
+                  </div>
+                  {inlineAddTarget === `wk-${dayKey}` && (
+                    <div style={{ padding: '0 8px 6px', position: 'relative' }}>
+                      <input
+                        ref={inputRef}
+                        value={newText}
+                        onChange={handleInlineChange}
+                        onKeyDown={e => handleInlineKeyDown(e, async () => {
+                          await inlineAddTodo(newText, dayKey);
+                          setNewText('');
+                          setInlineAddTarget(null);
+                        })}
+                        placeholder="New task… (@ contact, # entity)"
+                        style={{ width: '100%', padding: '6px 10px', borderRadius: '8px', border: '1px solid #e5e7eb', fontSize: '0.78rem', outline: 'none' }}
+                        autoFocus
+                      />
+                      {renderMentionDropdowns()}
+                    </div>
+                  )}
+                  <div className="wv-day-list">
+                    {dayTodos.length === 0 && <div className="wv-empty">—</div>}
+                    {dayTodos.map(todo => {
+                      const blockTag = BLOCK_SHORT[(todo.timeBlock as TimeBlock) || 'morning'];
+                      // Parse @mentions and #entities for hover cards
+                      const mentionNames = extractMentions(todo.text);
+                      const entityNames = extractEntityMentions(todo.text);
+                      const matchedContacts = mentionNames.map(n => findContactByName(n)).filter(Boolean);
+                      const matchedEntities = entityNames.map(n => entities.find(e => e.name.toLowerCase() === n.toLowerCase())).filter(Boolean);
+
+
+
+                      return (
+                        <div key={todo.id} style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                          <div
+                            className={`wv-task ${todo.completed ? 'wv-task--done' : ''} ${todo.isUrgent ? 'wv-task--urgent' : ''}`}
+                            draggable
+                            onDragStart={e => {
+                              e.dataTransfer.setData('text/plain', todo.id);
+                              e.dataTransfer.effectAllowed = 'move';
+                              setWvDragId(todo.id); setWvDragSourceDay(dayKey);
+                            }}
+                            onDragEnd={() => { setWvDragId(null); setWvDragSourceDay(null); setWvDragOverDay(null); }}
+                          >
+                            <div className="wv-task-row-1">
+                              <button
+                                className={`wv-task-check ${todo.completed ? 'wv-task-check--done' : ''}`}
+                                onClick={e => { e.stopPropagation(); toggleComplete(todo); }}
+                              >
+                                {todo.completed && <Check className="w-2.5 h-2.5" />}
+                              </button>
+                              <div className="wv-task-text-container" onClick={() => openDetail(todo)}>
+                                <span className="wv-task-text" title={todo.text}>{todo.text}</span>
+                              </div>
+                              {(todo.children || []).length > 0 && (() => {
+                                const children = todo.children || [];
+                                const doneCount = children.filter(c => c.completed).length;
+                                const allDone = doneCount === children.length;
+                                return <span className={`wv-subtask-count ${allDone ? 'wv-subtask-count--done' : ''}`}>{doneCount}/{children.length}</span>;
+                              })()}
+                              {todo.isUrgent && <Flame className="w-3 h-3" style={{ color: '#ef4444', flexShrink: 0 }} />}
+                            </div>
+
+                            <div className="wv-task-row-2">
+                              <span className={`wv-task-block wv-task-block--${(todo.timeBlock as TimeBlock) || 'morning'}`}>{blockTag}</span>
+                              
+                              {todo.ideaId && todo.idea?.title && (
+                                <Link to={`/ideas/${todo.ideaId}`} className="wv-task-idea" onClick={e => e.stopPropagation()} title={todo.idea.title} style={{ margin: 0 }}>
+                                  <Lightbulb className="w-2.5 h-2.5" />
+                                  <span>
+                                    {todo.idea.title}
+                                  </span>
+                                </Link>
+                              )}
+
+                              {/* Hover cards for contacts */}
+                              {(matchedContacts.length > 0 || matchedEntities.length > 0) && (
+                                <div className="wv-task-badges">
+                                  {matchedContacts.map((c: any) => (
+                                    <span key={c.id} className="wv-hover-anchor">
+                                      <span className="wv-badge wv-badge--contact">@</span>
+                                      <div className="wv-hover-card">
+                                        <strong>{c.fullName || `${c.firstName} ${c.lastName}`}</strong>
+                                        {c.role && <span className="wv-hover-role">{c.role}</span>}
+                                        {c.email && <span className="wv-hover-detail">{c.email}</span>}
+                                        {c.linkedinUrl && <a href={c.linkedinUrl} target="_blank" rel="noopener noreferrer" className="wv-hover-link">LinkedIn →</a>}
+                                      </div>
+                                    </span>
+                                  ))}
+                                  {matchedEntities.map((ent: any) => (
+                                    <span key={ent.id} className="wv-hover-anchor">
+                                      <span className="wv-badge wv-badge--entity">#</span>
+                                      <div className="wv-hover-card">
+                                        <strong>{ent.name}</strong>
+                                        {ent.type && <span className="wv-hover-role">{ent.type}</span>}
+                                        {ent.description && <span className="wv-hover-detail">{ent.description.slice(0, 100)}</span>}
+                                        {ent.website && <a href={ent.website} target="_blank" rel="noopener noreferrer" className="wv-hover-link">{ent.website.replace(/^https?:\/\//, '').slice(0, 30)}</a>}
+                                      </div>
+                                    </span>
+                                  ))}
+                                </div>
+                              )}
+
+                              {/* Chevron menu + Subtask */}
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '30px', marginLeft: 'auto' }}>
+                                <button
+                                  className="wv-task-action-btn"
+                                  onClick={e => { e.preventDefault(); e.stopPropagation(); setWvSubtaskInputId(wvSubtaskInputId === todo.id ? null : todo.id); }}
+                                  onPointerDown={e => e.stopPropagation()}
+                                  title="Add subtask"
+                                  style={wvSubtaskInputId === todo.id ? { color: '#6366f1' } : {}}
+                                >
+                                  <Plus className="w-3.5 h-3.5" />
+                                </button>
+                                <div style={{ position: 'relative' }} ref={wvActionMenuId === todo.id ? wvDropdownRef : undefined}>
+                                  <button
+                                    className="wv-task-action-btn"
+                                    onClick={e => {
+                                      e.preventDefault(); e.stopPropagation();
+                                      if (wvActionMenuId === todo.id) {
+                                        setWvActionMenuId(null); setWvActionSubmenu(null);
+                                      } else {
+                                        // Detect which side to open submenus
+                                        const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                                        const screenMid = window.innerWidth / 2;
+                                        setWvSubmenuSide(rect.left < screenMid ? 'right' : 'left');
+                                        setWvActionMenuId(todo.id);
+                                        setWvActionSubmenu(null);
+                                        setWvCalMonth(todo.date ? new Date(todo.date) : new Date());
+                                      }
+                                    }}
+                                    onPointerDown={e => e.stopPropagation()}
+                                  >
+                                    <ChevronDown className="w-4 h-4 text-gray-600" />
+                                  </button>
+                                  {wvActionMenuId === todo.id && (
+                                  <div className="wv-task-dropdown" onMouseDown={e => e.stopPropagation()} onClick={e => e.stopPropagation()}>
+                                    <button className="wv-task-dropdown-item" onMouseDown={e => { e.preventDefault(); e.stopPropagation(); updateTodo(todo.id, { date: null }); setWvActionMenuId(null); }}>
+                                      📥 Move to Backburner
+                                    </button>
+                                    <button className="wv-task-dropdown-item" onMouseDown={e => { e.preventDefault(); e.stopPropagation(); openDetail(todo); setWvActionMenuId(null); }}>
+                                      ✏️ Edit task details
+                                    </button>
+                                    <button className="wv-task-dropdown-item" onMouseDown={e => { e.preventDefault(); e.stopPropagation(); updateTodo(todo.id, { isUrgent: !todo.isUrgent }); setWvActionMenuId(null); }}>
+                                      🔥 Toggle priority
+                                    </button>
+                                    <div className="wv-task-dropdown-has-sub" onMouseEnter={() => openWvSubmenu('idea')} onMouseLeave={cancelWvSubmenuTimer}>
+                                      <button className="wv-task-dropdown-item" style={{ justifyContent: 'space-between' }} onMouseDown={e => { e.preventDefault(); e.stopPropagation(); setWvActionSubmenu(wvActionSubmenu === 'idea' ? null : 'idea'); }}>
+                                        <span>🏷️ Tag to idea</span>
+                                        <span style={{ color: '#9ca3af', fontSize: '1rem' }}>›</span>
+                                      </button>
+                                      {wvActionSubmenu === 'idea' && (
+                                        <div className={`wv-task-submenu wv-task-submenu--${wvSubmenuSide}`} onMouseDown={e => e.stopPropagation()}>
+                                          <div style={{ padding: '4px 8px', fontSize: '0.65rem', fontWeight: 700, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Select idea</div>
+                                          <div style={{ maxHeight: '200px', overflowY: 'auto' }}>
+                                            {[...ideas].filter(i => i.status !== 'Archived').sort((a, b) => a.title.localeCompare(b.title)).map(idea => (
+                                              <button key={idea.id} className="wv-task-dropdown-item" onMouseDown={async (e) => { e.preventDefault(); e.stopPropagation(); await tagTodoToIdea(todo.id, idea.id); setWvActionMenuId(null); setWvActionSubmenu(null); }}>
+                                                💡 {idea.title}
+                                              </button>
+                                            ))}
+                                            {ideas.filter(i => i.status !== 'Archived').length === 0 && <div style={{ padding: '8px', fontSize: '0.7rem', color: '#9ca3af', textAlign: 'center' }}>No ideas yet</div>}
+                                          </div>
+                                        </div>
+                                      )}
+                                    </div>
+                                    <div className="wv-task-dropdown-has-sub" onMouseEnter={() => openWvSubmenu('date')} onMouseLeave={cancelWvSubmenuTimer}>
+                                      <button className="wv-task-dropdown-item" style={{ justifyContent: 'space-between' }} onMouseDown={e => { e.preventDefault(); e.stopPropagation(); setWvActionSubmenu(wvActionSubmenu === 'date' ? null : 'date'); setWvCalMonth(todo.date ? new Date(todo.date) : new Date()); }}>
+                                        <span>📅 Move to different date</span>
+                                        <span style={{ color: '#9ca3af', fontSize: '1rem' }}>›</span>
+                                      </button>
+                                      {wvActionSubmenu === 'date' && (() => {
+                                        const monthStart = startOfMonth(wvCalMonth);
+                                        const monthEnd = endOfMonth(wvCalMonth);
+                                        const startDow = getDay(monthStart); // 0=Sun
+                                        const daysInMonth = monthEnd.getDate();
+                                        const calDays: (Date | null)[] = [];
+                                        for (let i = 0; i < startDow; i++) calDays.push(null);
+                                        for (let d = 1; d <= daysInMonth; d++) calDays.push(new Date(wvCalMonth.getFullYear(), wvCalMonth.getMonth(), d));
+                                        const selectedDateKey = todo.date ? String(todo.date).slice(0, 10) : '';
+                                        return (
+                                          <div className={`wv-task-submenu wv-task-submenu--${wvSubmenuSide}`} onMouseDown={e => e.stopPropagation()} style={{ minWidth: '220px', padding: '8px' }}>
+                                            <div className="wv-cal-header">
+                                              <button className="wv-cal-nav" onMouseDown={e => { e.preventDefault(); e.stopPropagation(); setWvCalMonth(prev => subMonths(prev, 1)); }}><ChevronLeft className="w-3.5 h-3.5" /></button>
+                                              <span className="wv-cal-title">{format(wvCalMonth, 'MMMM yyyy')}</span>
+                                              <button className="wv-cal-nav" onMouseDown={e => { e.preventDefault(); e.stopPropagation(); setWvCalMonth(prev => addMonths(prev, 1)); }}><ChevronRight className="w-3.5 h-3.5" /></button>
+                                            </div>
+                                            <div className="wv-cal-weekdays">
+                                              {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map(d => <span key={d} className="wv-cal-wd">{d}</span>)}
+                                            </div>
+                                            <div className="wv-cal-grid">
+                                              {calDays.map((cd, i) => {
+                                                if (!cd) return <span key={`e-${i}`} className="wv-cal-cell wv-cal-cell--empty" />;
+                                                const dk = toDateKey(cd);
+                                                const isSelected = dk === selectedDateKey;
+                                                const isTod = isToday(cd);
+                                                return (
+                                                  <button
+                                                    key={dk}
+                                                    className={`wv-cal-cell ${isSelected ? 'wv-cal-cell--selected' : ''} ${isTod ? 'wv-cal-cell--today' : ''}`}
+                                                    onMouseDown={async (e) => {
+                                                      e.preventDefault(); e.stopPropagation();
+                                                      try {
+                                                        const updated = await apiClient.put(`/daily-todos/${todo.id}`, { date: dk });
+                                                        setAllTodos(prev => prev.map(t => t.id === todo.id ? updated : t));
+                                                      } catch { /* silent */ }
+                                                      setWvActionMenuId(null);
+                                                      setWvActionSubmenu(null);
+                                                    }}
+                                                  >
+                                                    {cd.getDate()}
+                                                  </button>
+                                                );
+                                              })}
+                                            </div>
+                                          </div>
+                                        );
+                                      })()}
+                                    </div>
+                                    <div className="wv-task-dropdown-has-sub" onMouseEnter={() => setWvActionSubmenu('time')}>
+                                      <button className="wv-task-dropdown-item" style={{ justifyContent: 'space-between' }} onMouseDown={e => { e.preventDefault(); e.stopPropagation(); setWvActionSubmenu(wvActionSubmenu === 'time' ? null : 'time'); }}>
+                                        <span>⏰ Move to different time of day</span>
+                                        <span style={{ color: '#9ca3af', fontSize: '1rem' }}>›</span>
+                                      </button>
+                                      {wvActionSubmenu === 'time' && (
+                                        <div className={`wv-task-submenu wv-task-submenu--${wvSubmenuSide}`} onMouseDown={e => e.stopPropagation()} style={{ minWidth: '140px' }}>
+                                          <button className={`wv-task-dropdown-item ${todo.timeBlock === 'morning' ? 'wv-task-dropdown-item--active' : ''}`} onMouseDown={e => { e.preventDefault(); e.stopPropagation(); updateTodo(todo.id, { timeBlock: 'morning' }); setWvActionMenuId(null); setWvActionSubmenu(null); }}>
+                                            🌅 Morning
+                                          </button>
+                                          <button className={`wv-task-dropdown-item ${todo.timeBlock === 'afternoon' ? 'wv-task-dropdown-item--active' : ''}`} onMouseDown={e => { e.preventDefault(); e.stopPropagation(); updateTodo(todo.id, { timeBlock: 'afternoon' }); setWvActionMenuId(null); setWvActionSubmenu(null); }}>
+                                            ☀️ Afternoon
+                                          </button>
+                                          <button className={`wv-task-dropdown-item ${todo.timeBlock === 'evening' ? 'wv-task-dropdown-item--active' : ''}`} onMouseDown={e => { e.preventDefault(); e.stopPropagation(); updateTodo(todo.id, { timeBlock: 'evening' }); setWvActionMenuId(null); setWvActionSubmenu(null); }}>
+                                            🌙 Evening
+                                          </button>
+                                        </div>
+                                      )}
+                                    </div>
+                                    <button className="wv-task-dropdown-item wv-task-dropdown-item--danger" onMouseDown={e => { e.preventDefault(); e.stopPropagation(); deleteTodo(todo.id); setWvActionMenuId(null); }}>
+                                      🗑️ Delete task
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
+                              <input
+                                type="date"
+                                id={`resched-${todo.id}`}
+                                style={{ position: 'absolute', width: 0, height: 0, opacity: 0, pointerEvents: 'none' }}
+                                value={todo.date ? String(todo.date).slice(0, 10) : ''}
+                                onClick={e => e.stopPropagation()}
+                                onChange={async e => {
+                                  const newDate = e.target.value;
+                                  try {
+                                    const updated = await apiClient.put(`/daily-todos/${todo.id}`, { date: newDate || null });
+                                    setAllTodos(prev => prev.map(t => t.id === todo.id ? updated : t));
+                                  } catch { /* silent */ }
+                                }}
+                              />
+                            </div>
+                            </div>
+                          </div>
+
+                          {/* Subtask tree — separate bubbles with connector lines */}
+                          {(todo.children || []).length > 0 && (
+                            <div className="wv-subtask-tree">
+                              {(todo.children || []).map(child => (
+                                <div key={child.id} className="wv-subtask-bubble-wrap">
+                                  <div className={`wv-subtask-bubble ${child.completed ? 'wv-subtask-bubble--done' : ''}`}>
+                                    <button
+                                      className={`wv-task-check ${child.completed ? 'wv-task-check--done' : ''}`}
+                                      onClick={e => { e.stopPropagation(); toggleComplete(child); }}
+                                      style={{ width: '0.9rem', height: '0.9rem' }}
+                                    >
+                                      {child.completed && <Check className="w-2.5 h-2.5" />}
+                                    </button>
+                                    <span className="wv-task-text" style={{ cursor: 'pointer', flex: 1 }} title={child.text} onClick={() => openDetail(child)}>{child.text}</span>
+                                    <button
+                                      className="wv-task-action-btn"
+                                      style={{ padding: '1px', opacity: 0.4 }}
+                                      title="Detach as independent task"
+                                      onClick={e => { e.stopPropagation(); updateTodo(child.id, { parentId: null }); }}
+                                    >
+                                      <ArrowDownToLine className="w-2.5 h-2.5" />
+                                    </button>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                          
+                          {/* Subtask Input */}
+                          {wvSubtaskInputId === todo.id && (
+                            <div className="daily-todo-subtask-add" style={{ margin: '0 8px 4px 20px', padding: '0', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                              <input
+                                className="daily-todo-subtask-input"
+                                placeholder="Add a subtask..."
+                                value={wvSubtaskText}
+                                onChange={e => setWvSubtaskText(e.target.value)}
+                                onKeyDown={e => {
+                                  if (e.key === 'Enter') {
+                                    if (wvSubtaskText.trim()) {
+                                      addSubtask(todo.id, wvSubtaskText.trim());
+                                      setWvSubtaskText('');
+                                      setWvSubtaskInputId(null);
+                                    }
+                                  }
+                                  if (e.key === 'Escape') { setWvSubtaskInputId(null); setWvSubtaskText(''); }
+                                }}
+                                autoFocus
+                                style={{ flex: 1 }}
+                              />
+                              <button
+                                onClick={e => { e.stopPropagation(); setWvSubtaskInputId(null); setWvSubtaskText(''); }}
+                                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px', color: '#9ca3af', flexShrink: 0, display: 'flex', alignItems: 'center' }}
+                                title="Cancel"
+                              >
+                                <X className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+
+        </div>
+      )}
     </div>
+
+
+
+    {/* Task Detail Modal */}
+    {detailTodo && (
+      <TaskDetailModal
+        todo={detailTodo}
+        ideas={ideas}
+        onClose={closeDetail}
+        onUpdate={updateTodo}
+        onDelete={async (id) => { await deleteTodo(id); closeDetail(); }}
+        onToggleComplete={async (t) => { await toggleComplete(t); }}
+        onToggleUrgent={async (t) => { await toggleUrgent(t); }}
+        onTagIdea={async (todoId, ideaId) => { await tagTodoToIdea(todoId, ideaId); }}
+      />
+    )}
+    </>
   );
 };
 
