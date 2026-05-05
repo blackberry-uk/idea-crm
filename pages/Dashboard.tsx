@@ -13,6 +13,7 @@ import DailyTodoItem, { DailyTodoData } from '../components/DailyTodoItem';
 import IdeaPickerDropdown from '../components/IdeaPickerDropdown';
 import TaskDetailModal from '../components/TaskDetailModal';
 import ContactModal from '../components/ContactModal';
+import EntityModal from '../components/EntityModal';
 
 type DailyTodo = DailyTodoData;
 
@@ -177,8 +178,15 @@ const Dashboard: React.FC = () => {
     }
   };
 
+  const [showEntityModal, setShowEntityModal] = useState(false);
+  const [entityToEdit, setEntityToEdit] = useState<any>(null);
+
   const handleOpenEntityByName = (name: string) => {
-    navigate(`/entities?q=${encodeURIComponent(name)}`);
+    const existing = entities.find(e => e.name.toLowerCase() === name.toLowerCase());
+    if (existing) {
+      setEntityToEdit(existing);
+      setShowEntityModal(true);
+    }
   };
 
   const insertEntityMention = (entity: { name: string }) => {
@@ -366,6 +374,16 @@ const Dashboard: React.FC = () => {
     }
     return mentions;
   };
+  
+  const extractEntityMentions = (text: string): string[] => {
+    const regex = /#(\w+(?:\s+\w+)*)/g;
+    const mentions: string[] = [];
+    let match;
+    while ((match = regex.exec(text)) !== null) {
+      mentions.push(match[1].trim());
+    }
+    return mentions;
+  };
 
   const findContactByName = (name: string) => {
     const lower = name.toLowerCase();
@@ -375,16 +393,6 @@ const Dashboard: React.FC = () => {
       const last = (c.lastName || '').toLowerCase();
       return full === lower || first === lower || `${first} ${last}`.trim() === lower;
     });
-  };
-
-  const extractEntityMentions = (text: string): string[] => {
-    const regex = /#(\w+(?:\s+\w+)*)/g;
-    const mentions: string[] = [];
-    let match;
-    while ((match = regex.exec(text)) !== null) {
-      mentions.push(match[1].trim());
-    }
-    return mentions;
   };
 
   const addTodo = async (dateKey?: string | null, block?: string) => {
@@ -411,17 +419,6 @@ const Dashboard: React.FC = () => {
         addContact({ firstName, lastName, fullName: name })
           .then(() => showToast(`Contact "${name}" created`, 'success'))
           .catch(err => console.error('Failed to auto-create contact:', err));
-      }
-    });
-
-    // Auto-create entities from #mentions in background
-    const entityMentionNames = extractEntityMentions(text);
-    entityMentionNames.forEach(name => {
-      const existing = entities.find(e => e.name.toLowerCase() === name.toLowerCase());
-      if (!existing) {
-        addEntity({ name })
-          .then(() => showToast(`Entity "${name}" created`, 'success'))
-          .catch(err => console.error('Failed to auto-create entity:', err));
       }
     });
 
@@ -461,17 +458,6 @@ const Dashboard: React.FC = () => {
       }
     });
 
-    // Auto-create entities from #mentions in background
-    const entityMentionNames = extractEntityMentions(trimmed);
-    entityMentionNames.forEach(name => {
-      const existing = entities.find(e => e.name.toLowerCase() === name.toLowerCase());
-      if (!existing) {
-        addEntity({ name })
-          .then(() => showToast(`Entity "${name}" created`, 'success'))
-          .catch(err => console.error('Failed to auto-create entity:', err));
-      }
-    });
-
     try {
       const todo = await apiClient.post('/daily-todos', {
         text: trimmed,
@@ -500,7 +486,7 @@ const Dashboard: React.FC = () => {
     } else {
       setMentionQuery(null);
     }
-    const hashMatch = textBeforeCursor.match(/#(\w*)$/);
+    const hashMatch = textBeforeCursor.match(/(?:^|\s)#([A-Za-z0-9][A-Za-z0-9\s]*)$/);
     if (hashMatch) {
       setEntityQuery(hashMatch[1]);
       setEntityCursorPos(cursor);
@@ -534,7 +520,13 @@ const Dashboard: React.FC = () => {
         if (e.key === 'ArrowUp') { e.preventDefault(); setEntityIdx(i => Math.max(i - 1, 0)); return; }
         if (e.key === 'Enter') { e.preventDefault(); insertEntityMention(entityFilteredList[entityIdx]); return; }
       } else if (entityQuery.length >= 2) {
-        if (e.key === 'Enter') { e.preventDefault(); insertEntityMention({ name: entityQuery.trim() }); return; }
+        if (e.key === 'Enter') { 
+          e.preventDefault(); 
+          const name = entityQuery.trim();
+          addEntity({ name }).catch(() => {});
+          insertEntityMention({ name }); 
+          return; 
+        }
       }
       if (e.key === 'Escape') { setEntityQuery(null); return; }
     }
@@ -579,7 +571,12 @@ const Dashboard: React.FC = () => {
           )) : null}
           {entityQuery.length >= 2 && !entityFilteredList.some(en => en.name.toLowerCase() === entityQuery.toLowerCase()) && (
             <button className="cl-mention-option cl-mention-option--create"
-              onMouseDown={e => { e.preventDefault(); insertEntityMention({ name: entityQuery.trim() }); }}>
+              onMouseDown={e => { 
+                e.preventDefault(); 
+                const name = entityQuery.trim();
+                addEntity({ name }).catch(() => {});
+                insertEntityMention({ name }); 
+              }}>
               <span className="cl-mention-avatar cl-mention-avatar--new" style={{ backgroundColor: '#e0e7ff', color: '#4f46e5' }}>+</span>
               <span className="cl-mention-name">Create &quot;{entityQuery.trim()}&quot;</span>
             </button>
@@ -1399,8 +1396,6 @@ const Dashboard: React.FC = () => {
                       const matchedContacts = mentionNames.map(n => findContactByName(n)).filter(Boolean);
                       const matchedEntities = entityNames.map(n => entities.find(e => e.name.toLowerCase() === n.toLowerCase())).filter(Boolean);
 
-
-
                       return (
                         <div key={todo.id} style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                           <div
@@ -1467,7 +1462,14 @@ const Dashboard: React.FC = () => {
                                   ))}
                                   {matchedEntities.map((ent: any) => (
                                     <span key={ent.id} className="wv-hover-anchor">
-                                      <span className="wv-badge wv-badge--entity">#</span>
+                                      <span 
+                                        className="wv-badge wv-badge--entity"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setEntityToEdit(ent);
+                                          setShowEntityModal(true);
+                                        }}
+                                      >#</span>
                                       <div className="wv-hover-card">
                                         <strong>{ent.name}</strong>
                                         {ent.type && <span className="wv-hover-role">{ent.type}</span>}
@@ -1619,20 +1621,6 @@ const Dashboard: React.FC = () => {
                                   </div>
                                 )}
                               </div>
-                              <input
-                                type="date"
-                                id={`resched-${todo.id}`}
-                                style={{ position: 'absolute', width: 0, height: 0, opacity: 0, pointerEvents: 'none' }}
-                                value={todo.date ? String(todo.date).slice(0, 10) : ''}
-                                onClick={e => e.stopPropagation()}
-                                onChange={async e => {
-                                  const newDate = e.target.value;
-                                  try {
-                                    const updated = await apiClient.put(`/daily-todos/${todo.id}`, { date: newDate || null });
-                                    setAllTodos(prev => prev.map(t => t.id === todo.id ? updated : t));
-                                  } catch { /* silent */ }
-                                }}
-                              />
                             </div>
                             </div>
                           </div>
@@ -1672,7 +1660,7 @@ const Dashboard: React.FC = () => {
                                 className="daily-todo-subtask-input"
                                 placeholder="Add a subtask..."
                                 value={wvSubtaskText}
-                                onChange={e => setWvSubtaskText(e.target.value)}
+                                onChange={e => setwvSubtaskText(e.target.value)}
                                 onKeyDown={e => {
                                   if (e.key === 'Enter') {
                                     if (wvSubtaskText.trim()) {
@@ -1725,11 +1713,23 @@ const Dashboard: React.FC = () => {
       />
     )}
 
-    {/* Contact Unified Modal */}
+    {/* Unified Modals */}
     <ContactModal
       isOpen={showContactModal}
-      onClose={() => { setShowContactModal(false); setContactToEdit(null); }}
+      onClose={() => {
+        setShowContactModal(false);
+        setContactToEdit(null);
+      }}
       contactToEdit={contactToEdit}
+    />
+
+    <EntityModal
+      isOpen={showEntityModal}
+      onClose={() => {
+        setShowEntityModal(false);
+        setEntityToEdit(null);
+      }}
+      entityToEdit={entityToEdit}
     />
     </>
   );
