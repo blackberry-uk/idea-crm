@@ -169,7 +169,7 @@ const DailyTodoItem: React.FC<DailyTodoItemProps> = ({
       }
       
       // Fallback for remaining text to find unmatched temporary pills
-      const fallbackRegex = /(@\[[^\]]+\]|@"[^"]+"|@[A-ZÀ-ÖØ-Þ][a-zß-öø-ÿa-zA-Z]*(?:\s+[A-ZÀ-ÖØ-Þ][a-zß-öø-ÿa-zA-Z]*)*|#\[[^\]]+\]|#"[^"]+"|#\w+(?:\s+\w+)*)/g;
+      const fallbackRegex = /(@\[[^\]]+\]|@"[^"]+"|@[a-zA-ZÀ-ÖØ-Þß-öø-ÿ0-9]+(?:\s+[a-zA-ZÀ-ÖØ-Þß-öø-ÿ0-9]+)*|#\[[^\]]+\]|#"[^"]+"|#[a-zA-ZÀ-ÖØ-Þß-öø-ÿ0-9]+(?:\s+[a-zA-ZÀ-ÖØ-Þß-öø-ÿ0-9]+)*)/g;
       const subParts = part.split(fallbackRegex);
       if (subParts.length === 1) return part;
       
