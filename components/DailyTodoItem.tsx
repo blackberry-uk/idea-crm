@@ -92,7 +92,7 @@ const DailyTodoItem: React.FC<DailyTodoItemProps> = ({
         return (
           <span 
             key={i} 
-            style={{ color: '#3b82f6', fontWeight: 800, cursor: onOpenContact ? 'pointer' : 'inherit' }}
+            style={{ color: '#3b82f6', cursor: onOpenContact ? 'pointer' : 'inherit' }}
             onClick={(e) => { 
               if (onOpenContact) { 
                 e.stopPropagation(); 
@@ -108,7 +108,7 @@ const DailyTodoItem: React.FC<DailyTodoItemProps> = ({
         return (
           <span 
             key={i} 
-            style={{ color: '#8b5cf6', fontWeight: 800, cursor: onOpenEntity ? 'pointer' : 'inherit' }}
+            style={{ color: '#8b5cf6', cursor: onOpenEntity ? 'pointer' : 'inherit' }}
             onClick={(e) => { 
               if (onOpenEntity) { 
                 e.stopPropagation(); 

@@ -704,7 +704,7 @@ const NoteComposer: React.FC<NoteComposerProps> = ({ onComplete, defaultIdeaId, 
               {mentionCandidates.map((candidate) => (
                 <button
                   key={`${candidate.type}-${candidate.id}`}
-                  onClick={() => insertMention(candidate.id, candidate.name, candidate.type)}
+                  onMouseDown={(e) => { e.preventDefault(); insertMention(candidate.id, candidate.name, candidate.type); }}
                   className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 transition-colors border-b border-gray-50 last:border-0"
                 >
                   <div
@@ -731,7 +731,7 @@ const NoteComposer: React.FC<NoteComposerProps> = ({ onComplete, defaultIdeaId, 
               {entityCandidates.map((entity) => (
                 <button
                   key={entity.id}
-                  onClick={() => insertEntityMention(entity.id, entity.name)}
+                  onMouseDown={(e) => { e.preventDefault(); insertEntityMention(entity.id, entity.name); }}
                   className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 transition-colors border-b border-gray-50 last:border-0"
                 >
                   <div className="w-8 h-8 rounded-lg flex items-center justify-center text-[10px] font-bold bg-indigo-50 text-indigo-600">
@@ -742,7 +742,7 @@ const NoteComposer: React.FC<NoteComposerProps> = ({ onComplete, defaultIdeaId, 
               ))}
               {showCreateEntity && (
                 <button
-                  onClick={() => createAndInsertEntity(entityQuery)}
+                  onMouseDown={(e) => { e.preventDefault(); createAndInsertEntity(entityQuery); }}
                   className="w-full flex items-center gap-3 px-4 py-3 hover:bg-indigo-50 transition-colors border-t border-gray-100"
                 >
                   <div className="w-8 h-8 rounded-lg flex items-center justify-center text-[10px] font-bold bg-indigo-100 text-indigo-700">
