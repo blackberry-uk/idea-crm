@@ -67,7 +67,9 @@ export interface Invitation {
   id: string;
   email: string;
   senderId: string;
+  sender?: User;
   ideaId?: string; // Optional: share a specific idea
+  idea?: Idea;
   status: 'Pending' | 'Accepted' | 'Declined';
   type: 'IdeaAccess' | 'SystemJoin';
   message?: string;

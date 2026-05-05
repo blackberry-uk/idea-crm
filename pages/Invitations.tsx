@@ -35,8 +35,8 @@ const Invitations: React.FC = () => {
       ) : (
         <div className="space-y-4">
           {myInvs.map(inv => {
-            const sender = data.users.find(u => u.id === inv.senderId);
-            const idea = data.ideas.find(i => i.id === inv.ideaId);
+            const sender = data.users.find(u => u.id === inv.senderId) || inv.sender;
+            const idea = data.ideas.find(i => i.id === inv.ideaId) || inv.idea;
             return (
               <div key={inv.id} className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm flex flex-col md:flex-row items-center justify-between gap-6 hover:bg-[var(--primary)]/5 transition-all" style={{ borderColor: 'var(--primary-shadow)' }}>
                 <div className="flex items-center gap-5">

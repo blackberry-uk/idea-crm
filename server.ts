@@ -242,6 +242,10 @@ app.get('/api/data', authenticate, async (req: any, res) => {
           { email: userEmail },
           { senderId: userId }
         ]
+      },
+      include: {
+        sender: true,
+        idea: true
       }
     });
     console.log('[API /data] Invitations fetched:', invitations.length);
