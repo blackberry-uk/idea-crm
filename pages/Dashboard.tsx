@@ -377,47 +377,37 @@ const Dashboard: React.FC = () => {
     submittingRef.current = true;
     const targetDate = dateKey !== undefined ? dateKey : toDateKey(selectedDate);
 
-    // Clear input immediately to prevent double-submit
+    // Clear input immediately to prevent double-submit and UI freeze
     setNewText('');
     setNewIdeaId('');
     setShowTagPicker(false);
     setMentionQuery(null);
     setEntityQuery(null);
 
-    // Auto-create contacts from @mentions
+    // Auto-create contacts from @mentions in background
     const mentions = extractMentions(text);
-    for (const name of mentions) {
+    mentions.forEach(name => {
       const existing = findContactByName(name);
       if (!existing) {
         const parts = name.split(/\s+/);
         const firstName = parts[0];
         const lastName = parts.slice(1).join(' ') || undefined;
-        try {
-          await addContact({
-            firstName,
-            lastName,
-            fullName: name,
-          });
-          showToast(`Contact "${name}" created`, 'success');
-        } catch (err) {
-          console.error('Failed to auto-create contact:', err);
-        }
+        addContact({ firstName, lastName, fullName: name })
+          .then(() => showToast(`Contact "${name}" created`, 'success'))
+          .catch(err => console.error('Failed to auto-create contact:', err));
       }
-    }
+    });
 
-    // Auto-create entities from #mentions
+    // Auto-create entities from #mentions in background
     const entityMentionNames = extractEntityMentions(text);
-    for (const name of entityMentionNames) {
+    entityMentionNames.forEach(name => {
       const existing = entities.find(e => e.name.toLowerCase() === name.toLowerCase());
       if (!existing) {
-        try {
-          await addEntity({ name });
-          showToast(`Entity "${name}" created`, 'success');
-        } catch (err) {
-          console.error('Failed to auto-create entity:', err);
-        }
+        addEntity({ name })
+          .then(() => showToast(`Entity "${name}" created`, 'success'))
+          .catch(err => console.error('Failed to auto-create entity:', err));
       }
-    }
+    });
 
     try {
       const todo = await apiClient.post('/daily-todos', {
@@ -429,6 +419,8 @@ const Dashboard: React.FC = () => {
       setAllTodos(prev => [...prev, todo]);
     } catch (err: any) {
       showToast(err.message || 'Failed to add todo', 'error');
+      // If it fails, restore input
+      setNewText(text);
     } finally {
       submittingRef.current = false;
     }
@@ -439,32 +431,30 @@ const Dashboard: React.FC = () => {
     if (!trimmed || submittingRef.current) return;
     submittingRef.current = true;
 
-    // Auto-create contacts from @mentions
+    // Auto-create contacts from @mentions in background
     const mentions = extractMentions(trimmed);
-    for (const name of mentions) {
+    mentions.forEach(name => {
       const existing = findContactByName(name);
       if (!existing) {
         const parts = name.split(/\s+/);
         const firstName = parts[0];
         const lastName = parts.slice(1).join(' ') || undefined;
-        try {
-          await addContact({ firstName, lastName, fullName: name });
-          showToast(`Contact "${name}" created`, 'success');
-        } catch (err) { console.error('Failed to auto-create contact:', err); }
+        addContact({ firstName, lastName, fullName: name })
+          .then(() => showToast(`Contact "${name}" created`, 'success'))
+          .catch(err => console.error('Failed to auto-create contact:', err));
       }
-    }
+    });
 
-    // Auto-create entities from #mentions
+    // Auto-create entities from #mentions in background
     const entityMentionNames = extractEntityMentions(trimmed);
-    for (const name of entityMentionNames) {
+    entityMentionNames.forEach(name => {
       const existing = entities.find(e => e.name.toLowerCase() === name.toLowerCase());
       if (!existing) {
-        try {
-          await addEntity({ name });
-          showToast(`Entity "${name}" created`, 'success');
-        } catch (err) { console.error('Failed to auto-create entity:', err); }
+        addEntity({ name })
+          .then(() => showToast(`Entity "${name}" created`, 'success'))
+          .catch(err => console.error('Failed to auto-create entity:', err));
       }
-    }
+    });
 
     try {
       const todo = await apiClient.post('/daily-todos', {
