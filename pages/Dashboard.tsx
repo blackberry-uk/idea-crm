@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useStore } from '../store/useStore';
 import { format, startOfWeek, addDays as dateAddDays, isSameDay, isToday, isBefore, startOfDay, startOfMonth, endOfMonth, getDay, addMonths, subMonths } from 'date-fns';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import {
   CalendarDays, Calendar, Loader2, Plus, Send, Tag, ArrowDownToLine,
   ChevronLeft, ChevronRight, Flame, AlertTriangle, ChevronDown, ChevronUp,
@@ -62,6 +62,7 @@ function sortTodos(todos: DailyTodo[]): DailyTodo[] {
 type ViewMode = 'day' | 'week';
 
 const Dashboard: React.FC = () => {
+  const navigate = useNavigate();
   const { data, showToast, updateIdea, addContact, addEntity } = useStore();
   const [viewMode, setViewMode] = useState<ViewMode>(() => {
     return (localStorage.getItem('ideaCrm_viewMode') as ViewMode) || 'day';
@@ -174,6 +175,10 @@ const Dashboard: React.FC = () => {
       setContactToEdit(existing);
       setShowContactModal(true);
     }
+  };
+
+  const handleOpenEntityByName = (name: string) => {
+    navigate(`/entities?q=${encodeURIComponent(name)}`);
   };
 
   const insertEntityMention = (entity: { name: string }) => {
@@ -970,7 +975,7 @@ const Dashboard: React.FC = () => {
                         onDragEnd={handleDragEnd}
                         className={draggingTodoId === todo.id ? 'cl-todo-dragging' : ''}
                       >
-                        <DailyTodoItem todo={todo} ideas={ideas} onOpenContact={handleOpenContactByName}
+                        <DailyTodoItem todo={todo} ideas={ideas} onOpenContact={handleOpenContactByName} onOpenEntity={handleOpenEntityByName}
                           onToggleComplete={toggleComplete} onToggleUrgent={toggleUrgent}
                           onDelete={deleteTodo} onSaveEdit={saveEdit} onTagIdea={tagTodoToIdea}
                           onAddSubtask={addSubtask} onOpenDetail={openDetail}
@@ -1004,7 +1009,7 @@ const Dashboard: React.FC = () => {
             {/* Pending tasks by idea */}
             <div style={{ background: '#fef9e7', borderRadius: '12px', padding: '10px', minHeight: '60px' }}>
               <button className="cl-backlog-toggle" onClick={() => setIdeaBacklogOpen(!ideaBacklogOpen)} style={{ background: 'transparent', marginBottom: ideaBacklogOpen ? '8px' : 0 }}>
-                <ClipboardList className="w-3.5 h-3.5" /><span style={{ fontSize: '0.75rem' }}>Pending tasks by idea</span>
+                <span style={{ fontSize: '14px', marginRight: '4px' }}>📋</span><span style={{ fontSize: '0.75rem' }}>Pending tasks by idea</span>
                 {pendingIdeaCount > 0 && <span className="cl-backlog-badge cl-backlog-badge--amber">{pendingIdeaCount}</span>}
                 {ideaBacklogOpen ? <ChevronUp className="w-3.5 h-3.5 ml-auto" /> : <ChevronDown className="w-3.5 h-3.5 ml-auto" />}
               </button>
@@ -1022,7 +1027,7 @@ const Dashboard: React.FC = () => {
                         <Lightbulb className="w-3 h-3" /> {group.title}
                       </div>
                       {group.todos.map((todo: any) => (
-                        <DailyTodoItem key={todo.id} todo={{ ...todo, idea: null } as any} ideas={ideas} onOpenContact={handleOpenContactByName}
+                        <DailyTodoItem key={todo.id} todo={{ ...todo, idea: null } as any} ideas={ideas} onOpenContact={handleOpenContactByName} onOpenEntity={handleOpenEntityByName}
                           customContainerStyle={{ background: '#fef3c7', borderColor: '#fef3c7' }}
                           overrideDateLabel={todo.dueDate ? `Due ${todo.dueDate.slice(5, 10).replace('-', '/')}` : 'No due date'}
                           onToggleComplete={async () => {
@@ -1071,7 +1076,7 @@ const Dashboard: React.FC = () => {
             {/* Overdue */}
             <div style={{ background: '#fef2f2', borderRadius: '12px', padding: '10px', minHeight: '60px' }}>
               <button className="cl-backlog-toggle" onClick={() => setBacklogOpen(!backlogOpen)} style={{ background: 'transparent', marginBottom: backlogOpen ? '8px' : 0 }}>
-                <AlertTriangle className="w-3.5 h-3.5" /><span style={{ fontSize: '0.75rem' }}>Overdue</span>
+                <span style={{ fontSize: '14px', marginRight: '4px' }}>⚠️</span><span style={{ fontSize: '0.75rem' }}>Overdue</span>
                 <span className="cl-backlog-badge">{overdueTodos.length}</span>
                 {backlogOpen ? <ChevronUp className="w-3.5 h-3.5 ml-auto" /> : <ChevronDown className="w-3.5 h-3.5 ml-auto" />}
               </button>
@@ -1090,7 +1095,7 @@ const Dashboard: React.FC = () => {
                         {dateKey === 'No Date' ? dateKey : format(new Date(dateKey), 'EEE, MMM d')}
                       </div>
                       {todos.map(todo => (
-                        <DailyTodoItem key={todo.id} todo={todo} ideas={ideas} onOpenContact={handleOpenContactByName}
+                        <DailyTodoItem key={todo.id} todo={todo} ideas={ideas} onOpenContact={handleOpenContactByName} onOpenEntity={handleOpenEntityByName}
                           customContainerStyle={{ background: '#fee2e2', borderColor: '#fee2e2' }}
                           onToggleComplete={toggleComplete} onToggleUrgent={toggleUrgent}
                           onDelete={deleteTodo} onSaveEdit={saveEdit} onTagIdea={tagTodoToIdea}
@@ -1133,14 +1138,14 @@ const Dashboard: React.FC = () => {
               }}
             >
               <button className="cl-backlog-toggle" onClick={() => setBackburnerOpen(!backburnerOpen)} style={{ background: 'transparent', color: '#6b7280', marginBottom: backburnerOpen ? '8px' : 0 }}>
-                <Circle className="w-3.5 h-3.5" /><span style={{ fontSize: '0.75rem' }}>Backburner</span>
+                <span style={{ fontSize: '14px', marginRight: '4px' }}>🧊</span><span style={{ fontSize: '0.75rem' }}>Backburner</span>
                 <span className="cl-backlog-badge" style={{ background: '#e5e7eb', color: '#374151' }}>{backburnerTodos.length}</span>
                 {backburnerOpen ? <ChevronUp className="w-3.5 h-3.5 ml-auto" /> : <ChevronDown className="w-3.5 h-3.5 ml-auto" />}
               </button>
               {backburnerOpen && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                   {sortTodos(backburnerTodos).map(todo => (
-                    <DailyTodoItem key={todo.id} todo={todo} ideas={ideas} onOpenContact={handleOpenContactByName}
+                    <DailyTodoItem key={todo.id} todo={todo} ideas={ideas} onOpenContact={handleOpenContactByName} onOpenEntity={handleOpenEntityByName}
                       onToggleComplete={toggleComplete} onToggleUrgent={toggleUrgent}
                       onDelete={deleteTodo} onSaveEdit={saveEdit} onTagIdea={tagTodoToIdea}
                       onAddSubtask={addSubtask} onOpenDetail={openDetail}
@@ -1169,7 +1174,7 @@ const Dashboard: React.FC = () => {
           <div className="cl-gallery-section">
             <div className="cl-gallery-header">
               <div className="cl-gallery-title">
-                <ImagePlus className="w-4 h-4" />
+                <span style={{ fontSize: '14px', marginRight: '4px' }}>🖼️</span>
                 <span>Daily Reminders</span>
                 <span className="cl-gallery-count">{reminderImages.length}</span>
               </div>
