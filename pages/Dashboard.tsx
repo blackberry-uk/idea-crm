@@ -12,6 +12,7 @@ import { apiClient } from '../lib/api/client';
 import DailyTodoItem, { DailyTodoData } from '../components/DailyTodoItem';
 import IdeaPickerDropdown from '../components/IdeaPickerDropdown';
 import TaskDetailModal from '../components/TaskDetailModal';
+import ContactModal from '../components/ContactModal';
 
 type DailyTodo = DailyTodoData;
 
@@ -100,6 +101,8 @@ const Dashboard: React.FC = () => {
   const [wvDragOverDay, setWvDragOverDay] = useState<string | null>(null);
   const [wvActionMenuId, setWvActionMenuId] = useState<string | null>(null);
   const [wvActionSubmenu, setWvActionSubmenu] = useState<'idea' | 'date' | 'time' | null>(null);
+  const [contactToEdit, setContactToEdit] = useState<any>(null);
+  const [showContactModal, setShowContactModal] = useState(false);
   const wvSubmenuTimer = useRef<number | null>(null);
   const openWvSubmenu = (menu: 'idea' | 'date' | 'time') => {
     if (wvSubmenuTimer.current) window.clearTimeout(wvSubmenuTimer.current);
@@ -1433,7 +1436,14 @@ const Dashboard: React.FC = () => {
                                 <div className="wv-task-badges">
                                   {matchedContacts.map((c: any) => (
                                     <span key={c.id} className="wv-hover-anchor">
-                                      <span className="wv-badge wv-badge--contact">@</span>
+                                      <span 
+                                        className="wv-badge wv-badge--contact"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setContactToEdit(c);
+                                          setShowContactModal(true);
+                                        }}
+                                      >@</span>
                                       <div className="wv-hover-card">
                                         <strong>{c.fullName || `${c.firstName} ${c.lastName}`}</strong>
                                         {c.role && <span className="wv-hover-role">{c.role}</span>}
@@ -1701,6 +1711,13 @@ const Dashboard: React.FC = () => {
         onTagIdea={async (todoId, ideaId) => { await tagTodoToIdea(todoId, ideaId); }}
       />
     )}
+
+    {/* Contact Unified Modal */}
+    <ContactModal
+      isOpen={showContactModal}
+      onClose={() => { setShowContactModal(false); setContactToEdit(null); }}
+      contactToEdit={contactToEdit}
+    />
     </>
   );
 };
