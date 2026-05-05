@@ -19,6 +19,10 @@ export interface DailyTodoData {
   comments?: string | null;
   dueDate?: string | null;
   timeBlock?: string | null;
+  assigneeId?: string | null;
+  assignee?: { id: string; name: string; avatarColor: string; email: string } | null;
+  completedById?: string | null;
+  completedBy?: { id: string; name: string; avatarColor: string; email: string } | null;
 }
 
 const BLOCK_SHORT: Record<string, string> = {
@@ -132,11 +136,25 @@ const DailyTodoItem: React.FC<DailyTodoItemProps> = ({
               style={{ flex: 1 }}
             />
           ) : (
-            <div className="wv-task-text-container" onClick={startEdit}>
+            <div className="wv-task-text-container" onClick={startEdit} style={{ display: 'flex', alignItems: 'center' }}>
               <span className="wv-task-text" title={todo.text}>
                 {todo.text}
                 {todo.comments && !isSubtask && <span style={{ marginLeft: '4px', opacity: 0.5 }}>📝</span>}
               </span>
+              {todo.assignee && (
+                <div
+                  title={`Assigned to ${todo.assignee.name}`}
+                  style={{
+                    width: '16px', height: '16px', borderRadius: '50%',
+                    backgroundColor: todo.assignee.avatarColor || '#6b7280',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: '9px', fontWeight: 800, color: '#fff', marginLeft: '6px',
+                    flexShrink: 0
+                  }}
+                >
+                  {todo.assignee.name.charAt(0).toUpperCase()}
+                </div>
+              )}
             </div>
           )}
 
@@ -165,6 +183,12 @@ const DailyTodoItem: React.FC<DailyTodoItemProps> = ({
               <Lightbulb className="w-2.5 h-2.5" />
               <span>{todo.idea.title}</span>
             </Link>
+          )}
+
+          {todo.completed && todo.completedBy && (
+            <span style={{ fontSize: '10px', fontWeight: 600, color: '#9ca3af', display: 'flex', alignItems: 'center', gap: '3px' }}>
+              ✓ Completed by {todo.completedBy.name.split(' ')[0]}
+            </span>
           )}
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '30px', marginLeft: 'auto' }}>
