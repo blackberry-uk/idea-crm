@@ -81,7 +81,7 @@ const IdeaPickerDropdown: React.FC<IdeaPickerDropdownProps> = ({
           ref={searchRef}
           type="text"
           className="idea-picker-search-input"
-          placeholder="Search ideas…"
+          placeholder="Search projects…"
           value={search}
           onChange={e => setSearch(e.target.value)}
           onKeyDown={e => {
@@ -133,7 +133,7 @@ const IdeaPickerDropdown: React.FC<IdeaPickerDropdownProps> = ({
 
       {/* Count footer */}
       <div className="idea-picker-footer">
-        {items.length} of {activeIdeas.length} ideas
+        {items.length} of {activeIdeas.length} projects
       </div>
     </div>
   );

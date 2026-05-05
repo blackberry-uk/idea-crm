@@ -155,7 +155,7 @@ const IdeasPage: React.FC = () => {
     });
 
   React.useEffect(() => {
-    document.title = 'Idea Pipeline | Idea-CRM';
+    document.title = 'Project Pipeline | Idea-CRM';
     return () => { document.title = 'IdeaCRM Tracker'; };
   }, []);
 
@@ -297,8 +297,8 @@ const IdeasPage: React.FC = () => {
 
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Idea Pipeline</h1>
-          <p className="text-sm text-gray-400">{sortedIdeas.length} Ideas</p>
+          <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Project Pipeline</h1>
+          <p className="text-sm text-gray-400">{sortedIdeas.length} Projects</p>
         </div>
         <button
           onClick={() => setShowAddForm(true)}
@@ -306,7 +306,7 @@ const IdeasPage: React.FC = () => {
           style={{ backgroundColor: 'var(--primary)', boxShadow: '0 10px 15px -3px var(--primary-shadow)' }}
         >
           <Plus className="w-4 h-4" />
-          New Idea
+          New Project
         </button>
       </div>
 
@@ -344,7 +344,7 @@ const IdeasPage: React.FC = () => {
           <thead>
             <tr>
               <th className="ideas-th ideas-th--sortable" onClick={() => handleSort('title')}>
-                Idea <SortIcon col="title" />
+                Project <SortIcon col="title" />
               </th>
               <th className="ideas-th ideas-th--hide-mobile">Entity</th>
               <th className="ideas-th ideas-th--sortable ideas-th--center" onClick={() => handleSort('lastUpdate')}>

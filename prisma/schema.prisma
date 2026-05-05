@@ -34,6 +34,8 @@ model User {
   taggedInNotes      Note[]        @relation("TaggedUsers")
   comments           Comment[]
   dailyTodos         DailyTodo[]
+  assignedTasks      DailyTodo[] @relation("TaskAssignee")
+  completedTasks     DailyTodo[] @relation("TaskCompleter")
   reminderImages     ReminderImage[]
 }
 
@@ -52,10 +54,14 @@ model DailyTodo {
   status       String?   // Not Started, Working, Done, Archived
   dueDate      String?
   assigneeId   String?
+  assignee     User?   @relation("TaskAssignee", fields: [assigneeId], references: [id])
   comments     String?
   originNoteId String?
   timeBlock    String?   // morning, afternoon, evening
   activityNoteIds Json?  // IDs of auto-created activity log notes
+
+  completedById String?
+  completedBy   User?   @relation("TaskCompleter", fields: [completedById], references: [id])
 
   userId String
   user   User   @relation(fields: [userId], references: [id])

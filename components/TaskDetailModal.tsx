@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import {
   X, Check, Flame, Tag, Lightbulb, Calendar, CalendarDays, ArrowDownToLine,
-  Clock, AlignLeft, Trash2, ChevronDown, ChevronLeft, ChevronRight, Save
+  Clock, AlignLeft, Trash2, ChevronDown, ChevronLeft, ChevronRight, Save, User
 } from 'lucide-react';
 import IdeaPickerDropdown from './IdeaPickerDropdown';
 import ContactEditPanel from './ContactEditPanel';
@@ -636,7 +636,7 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                   ) : (
                     <>
                       <Tag className="w-3.5 h-3.5" />
-                      Tag to Idea
+                      Tag to Project
                     </>
                   )}
                   <ChevronDown className="w-3 h-3" />
@@ -661,9 +661,32 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                   className="tdm-meta-chip tdm-meta-chip--link"
                   onClick={e => e.stopPropagation()}
                 >
-                  Go to Idea →
+                  Go to Project →
                 </Link>
               )}
+            </div>
+
+            {/* Assignee selector */}
+            <div className="tdm-field">
+              <label className="tdm-field-label">
+                <User className="w-3.5 h-3.5" />
+                Assignee
+              </label>
+              <select
+                value={todo.assigneeId || ''}
+                onChange={async e => {
+                  setSaving(true);
+                  await onUpdate(todo.id, { assigneeId: e.target.value || null });
+                  setSaving(false);
+                }}
+                className="tdm-field-date"
+                style={{ appearance: 'auto', background: '#fff', maxWidth: '200px' }}
+              >
+                <option value="">Unassigned</option>
+                {data.users.map(u => (
+                  <option key={u.id} value={u.id}>{u.name}</option>
+                ))}
+              </select>
             </div>
 
             {/* Time block selector */}

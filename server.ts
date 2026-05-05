@@ -1050,25 +1050,39 @@ app.get('/api/health', (req, res) => res.json({ status: 'ok', cloud: true }));
 app.get('/api/daily-todos', authenticate, async (req: any, res) => {
   try {
     const { from, to } = req.query;
-    const where: any = { userId: req.userId, parentId: null };
+    const baseWhere = {
+      parentId: null,
+      OR: [
+        { userId: req.userId },
+        { assigneeId: req.userId },
+        { idea: { OR: [{ ownerId: req.userId }, { collaborators: { some: { id: req.userId } } }] } }
+      ]
+    };
+    const where: any = { ...baseWhere };
     if (from || to) {
       // Fetch date-ranged tasks OR floating (date=null) tasks
       const dateFilter: any = {};
       if (from) dateFilter.gte = new Date(from as string);
       if (to) dateFilter.lte = new Date(to as string);
-      where.OR = [
-        { date: dateFilter },
-        { date: null }
+      where.AND = [
+        { OR: [{ date: dateFilter }, { date: null }] }
       ];
     }
+    const userSelect = { id: true, name: true, email: true, avatarColor: true };
     const todos = await (prisma as any).dailyTodo.findMany({
       where,
       orderBy: [{ date: { sort: 'asc', nulls: 'last' } }, { sortOrder: 'asc' }, { createdAt: 'asc' }],
       include: {
         idea: { select: { id: true, title: true } },
+        assignee: { select: userSelect },
+        completedBy: { select: userSelect },
         children: {
           orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
-          include: { idea: { select: { id: true, title: true } } }
+          include: { 
+            idea: { select: { id: true, title: true } },
+            assignee: { select: userSelect },
+            completedBy: { select: userSelect }
+          }
         }
       }
     });
@@ -1090,6 +1104,7 @@ app.post('/api/daily-todos', authenticate, async (req: any, res) => {
       _max: { sortOrder: true }
     });
     const nextOrder = (maxOrder._max.sortOrder ?? -1) + 1;
+    const userSelect = { id: true, name: true, email: true, avatarColor: true };
     const todo = await (prisma as any).dailyTodo.create({
       data: {
         text,
@@ -1099,13 +1114,20 @@ app.post('/api/daily-todos', authenticate, async (req: any, res) => {
         ideaId: ideaId || null,
         parentId: parentId || null,
         timeBlock: timeBlock || null,
-        userId: req.userId
+        userId: req.userId,
+        assigneeId: req.userId // Automatically assign to creator
       },
       include: {
         idea: { select: { id: true, title: true } },
+        assignee: { select: userSelect },
+        completedBy: { select: userSelect },
         children: {
           orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
-          include: { idea: { select: { id: true, title: true } } }
+          include: { 
+            idea: { select: { id: true, title: true } },
+            assignee: { select: userSelect },
+            completedBy: { select: userSelect }
+          }
         }
       }
     });
@@ -1138,9 +1160,16 @@ app.put('/api/daily-todos/reorder', authenticate, async (req: any, res) => {
 
 app.put('/api/daily-todos/:id', authenticate, async (req: any, res) => {
   try {
-    const existing = await (prisma as any).dailyTodo.findUnique({ where: { id: req.params.id } });
+    const existing = await (prisma as any).dailyTodo.findUnique({ 
+      where: { id: req.params.id },
+      include: { idea: { select: { ownerId: true, collaborators: { select: { id: true } } } } }
+    });
     if (!existing) return res.status(404).json({ error: 'Todo not found' });
-    if (existing.userId !== req.userId) return res.status(403).json({ error: 'Forbidden' });
+    
+    const hasProjectAccess = existing.idea && (existing.idea.ownerId === req.userId || existing.idea.collaborators.some((c: any) => c.id === req.userId));
+    if (existing.userId !== req.userId && existing.assigneeId !== req.userId && !hasProjectAccess) {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
 
     const { text, completed, isUrgent, date, ideaId, status, dueDate, assigneeId, comments, originNoteId, timeBlock } = req.body;
     const data: any = {};
@@ -1148,6 +1177,7 @@ app.put('/api/daily-todos/:id', authenticate, async (req: any, res) => {
     if (completed !== undefined) {
       data.completed = completed;
       data.completedAt = completed ? new Date() : null;
+      data.completedById = completed ? req.userId : null;
     }
     if (isUrgent !== undefined) data.isUrgent = isUrgent;
     if (date !== undefined) data.date = date ? new Date(String(date).slice(0, 10) + 'T12:00:00Z') : null;
@@ -1159,14 +1189,21 @@ app.put('/api/daily-todos/:id', authenticate, async (req: any, res) => {
     if (originNoteId !== undefined) data.originNoteId = originNoteId || null;
     if (timeBlock !== undefined) data.timeBlock = timeBlock || null;
 
+    const userSelect = { id: true, name: true, email: true, avatarColor: true };
     const todo = await (prisma as any).dailyTodo.update({
       where: { id: req.params.id },
       data,
       include: {
         idea: { select: { id: true, title: true } },
+        assignee: { select: userSelect },
+        completedBy: { select: userSelect },
         children: {
           orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
-          include: { idea: { select: { id: true, title: true } } }
+          include: { 
+            idea: { select: { id: true, title: true } },
+            assignee: { select: userSelect },
+            completedBy: { select: userSelect }
+          }
         }
       }
     });
@@ -1330,9 +1367,16 @@ app.put('/api/daily-todos/:id', authenticate, async (req: any, res) => {
 
 app.delete('/api/daily-todos/:id', authenticate, async (req: any, res) => {
   try {
-    const existing = await (prisma as any).dailyTodo.findUnique({ where: { id: req.params.id } });
+    const existing = await (prisma as any).dailyTodo.findUnique({ 
+      where: { id: req.params.id },
+      include: { idea: { select: { ownerId: true, collaborators: { select: { id: true } } } } }
+    });
     if (!existing) return res.status(404).json({ error: 'Todo not found' });
-    if (existing.userId !== req.userId) return res.status(403).json({ error: 'Forbidden' });
+    
+    const hasProjectAccess = existing.idea && (existing.idea.ownerId === req.userId || existing.idea.collaborators.some((c: any) => c.id === req.userId));
+    if (existing.userId !== req.userId && existing.assigneeId !== req.userId && !hasProjectAccess) {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
 
     await (prisma as any).dailyTodo.delete({ where: { id: req.params.id } });
     res.json({ success: true });
