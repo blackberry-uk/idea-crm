@@ -4,6 +4,7 @@ import { Check, Circle, Flame, Trash2, X, Lightbulb, GripVertical, Plus, Chevron
 import IdeaPickerDropdown from './IdeaPickerDropdown';
 import { TaskChevronMenu } from './TaskChevronMenu';
 import { useStore } from '../store/useStore';
+import { mentionVariantsForName } from '../lib/taskMentions';
 
 export interface DailyTodoData {
   id: string;
@@ -99,17 +100,13 @@ const DailyTodoItem: React.FC<DailyTodoItemProps> = ({
       .map(e => ({ name: e.name, isStub: !e.description && !e.website && !e.linkedinUrl }))
       .filter(e => e.name.length > 1);
 
-    const knownContacts = rawContacts.flatMap(c => [
-      { text: `@${c.name}`, rawName: c.name, isStub: c.isStub },
-      { text: `@[${c.name}]`, rawName: c.name, isStub: c.isStub },
-      { text: `@"${c.name}"`, rawName: c.name, isStub: c.isStub }
-    ]);
+    const knownContacts = rawContacts.flatMap(c =>
+      mentionVariantsForName('@', c.name).map(text => ({ text, rawName: c.name, isStub: c.isStub }))
+    );
 
-    const knownEntities = rawEntities.flatMap(e => [
-      { text: `#${e.name}`, rawName: e.name, isStub: e.isStub },
-      { text: `#[${e.name}]`, rawName: e.name, isStub: e.isStub },
-      { text: `#"${e.name}"`, rawName: e.name, isStub: e.isStub }
-    ]);
+    const knownEntities = rawEntities.flatMap(e =>
+      mentionVariantsForName('#', e.name).map(text => ({ text, rawName: e.name, isStub: e.isStub }))
+    );
 
     // Sort by length descending so longest phrases match first
     const allKnown = [...knownContacts, ...knownEntities].sort((a, b) => b.text.length - a.text.length);
@@ -169,14 +166,14 @@ const DailyTodoItem: React.FC<DailyTodoItemProps> = ({
       }
       
       // Fallback for remaining text to find unmatched temporary pills
-      const fallbackRegex = /(@\[[^\]]+\]|@"[^"]+"|@[a-zA-ZÀ-ÖØ-Þß-öø-ÿ0-9]+(?:\s+[a-zA-ZÀ-ÖØ-Þß-öø-ÿ0-9]+)*|#\[[^\]]+\]|#"[^"]+"|#[a-zA-ZÀ-ÖØ-Þß-öø-ÿ0-9]+(?:\s+[a-zA-ZÀ-ÖØ-Þß-öø-ÿ0-9]+)*)/g;
+      const fallbackRegex = /(@[^@\n\r]+@|#[^#\n\r]+#|@\[[^\]]+\]|@"[^"]+"|@[a-zA-ZÀ-ÖØ-Þß-öø-ÿ0-9][a-zA-ZÀ-ÖØ-Þß-öø-ÿ0-9'’.-]*|#\[[^\]]+\]|#"[^"]+"|#[a-zA-ZÀ-ÖØ-Þß-öø-ÿ0-9][a-zA-ZÀ-ÖØ-Þß-öø-ÿ0-9'’.-]*)/g;
       const subParts = part.split(fallbackRegex);
       if (subParts.length === 1) return part;
       
       return subParts.map((subPart, j) => {
         if (subPart.startsWith('@') || subPart.startsWith('#')) {
           const isEntity = subPart.startsWith('#');
-          const rawName = subPart.replace(/^[@#]\[|^[@#]"|\]$|"$/g, '');
+          const rawName = subPart.replace(/^[@#]\[|^[@#]"|^[@#]|[@#]$|\]$|"$/g, '').trim();
           return (
             <span 
               key={`${i}-${j}`} 

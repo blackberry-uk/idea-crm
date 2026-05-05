@@ -9,6 +9,7 @@ import ContactEditPanel from './ContactEditPanel';
 import { DailyTodoData } from './DailyTodoItem';
 import { useStore } from '../store/useStore';
 import { format, startOfMonth, endOfMonth, getDay, addMonths, subMonths, isToday } from 'date-fns';
+import { extractDelimitedMentions, getActiveMentionQuery, replaceActiveMention } from '../lib/taskMentions';
 
 interface TaskDetailModalProps {
   todo: DailyTodoData;
@@ -58,7 +59,7 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
   }, [text, resizeTextarea]);
 
   // # entity and @ contact mention state
-  const { data, addEntity, updateEntity, showToast } = useStore();
+  const { data, addContact, addEntity, updateEntity, showToast } = useStore();
   const entities = data.entities || [];
   const contacts = data.contacts || [];
 
@@ -87,32 +88,29 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
   const showCreateEntity = entityQuery !== null && entityQuery.length >= 2 &&
     !entityFilteredList.some(e => e.name.toLowerCase() === entityQuery.toLowerCase());
 
+  const showCreateContact = contactQuery !== null && contactQuery.trim().length >= 2 &&
+    !contactFilteredList.some(c => (c.fullName || '').toLowerCase() === contactQuery.trim().toLowerCase());
+
   React.useEffect(() => { setEntityIdx(0); }, [entityFilteredList.length]);
   React.useEffect(() => { setContactIdx(0); }, [contactFilteredList.length]);
 
   const mentionedEntities = React.useMemo(() => {
+    const names = extractDelimitedMentions(text, '#').map(name => name.toLowerCase());
     return entities.filter(ent => {
-      const safeName = ent.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      const regex = new RegExp(`#${safeName}\\b`, 'i');
-      return regex.test(text);
+      return names.includes(ent.name.toLowerCase());
     });
   }, [text, entities]);
 
   const mentionedContacts = React.useMemo(() => {
+    const names = extractDelimitedMentions(text, '@').map(name => name.toLowerCase());
     return contacts.filter(c => {
       if (!c.fullName) return false;
-      const safeName = c.fullName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      const regex = new RegExp(`@${safeName}\\b`, 'i');
-      return regex.test(text);
+      return names.includes(c.fullName.toLowerCase());
     });
   }, [text, contacts]);
 
   const insertEntityMention = async (name: string) => {
-    const textBeforeCursor = text.slice(0, entityCursorPos);
-    const hashPos = textBeforeCursor.lastIndexOf('#');
-    const before = text.slice(0, hashPos);
-    const after = text.slice(entityCursorPos);
-    const newText = `${before}#${name}${after} `;
+    const newText = replaceActiveMention(text, entityCursorPos, '#', name);
     setText(newText);
     setEntityQuery(null);
     // Auto-create entity if it doesn't exist
@@ -135,13 +133,23 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
   };
 
   const insertContactMention = async (name: string) => {
-    const textBeforeCursor = text.slice(0, contactCursorPos);
-    const atPos = textBeforeCursor.lastIndexOf('@');
-    const before = text.slice(0, atPos);
-    const after = text.slice(contactCursorPos);
-    const newText = `${before}@${name}${after} `;
+    const newText = replaceActiveMention(text, contactCursorPos, '@', name);
     setText(newText);
     setContactQuery(null);
+    const existing = contacts.find(c => (c.fullName || '').toLowerCase() === name.toLowerCase());
+    if (!existing) {
+      const parts = name.trim().split(/\s+/);
+      try {
+        await addContact({
+          firstName: parts[0],
+          lastName: parts.slice(1).join(' ') || undefined,
+          fullName: name.trim()
+        });
+        showToast(`Contact "${name}" created`, 'success');
+      } catch (err) {
+        console.error('Failed to create contact:', err);
+      }
+    }
     setTimeout(async () => {
       setSaving(true);
       await onUpdate(todo.id, { text: newText.trim() });
@@ -292,21 +300,23 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
               setText(val);
               const cursor = e.target.selectionStart || 0;
               const textBeforeCursor = val.slice(0, cursor);
-              const hashMatch = textBeforeCursor.match(/#(\w*)$/);
-              if (hashMatch) {
-                setEntityQuery(hashMatch[1]);
+
+              const activeContact = getActiveMentionQuery(textBeforeCursor, '@');
+              const activeEntity = getActiveMentionQuery(textBeforeCursor, '#');
+              const contactStart = activeContact === null ? -1 : textBeforeCursor.lastIndexOf('@');
+              const entityStart = activeEntity === null ? -1 : textBeforeCursor.lastIndexOf('#');
+
+              if (activeEntity !== null && entityStart > contactStart) {
+                setEntityQuery(activeEntity);
                 setEntityCursorPos(cursor);
                 setContactQuery(null);
+              } else if (activeContact !== null) {
+                setContactQuery(activeContact);
+                setContactCursorPos(cursor);
+                setEntityQuery(null);
               } else {
-                const atMatch = textBeforeCursor.match(/@([\w\s]*)$/);
-                if (atMatch) {
-                  setContactQuery(atMatch[1]);
-                  setContactCursorPos(cursor);
-                  setEntityQuery(null);
-                } else {
-                  setEntityQuery(null);
-                  setContactQuery(null);
-                }
+                setEntityQuery(null);
+                setContactQuery(null);
               }
             }}
             onFocus={resizeTextarea}
@@ -326,12 +336,13 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                 }
                 if (e.key === 'Escape') { setEntityQuery(null); return; }
               }
-              if (contactQuery !== null && contactFilteredList.length > 0) {
-                if (e.key === 'ArrowDown') { e.preventDefault(); setContactIdx(i => Math.min(i + 1, contactFilteredList.length - 1)); return; }
+              if (contactQuery !== null && (contactFilteredList.length > 0 || showCreateContact)) {
+                if (e.key === 'ArrowDown') { e.preventDefault(); setContactIdx(i => Math.min(i + 1, contactFilteredList.length + (showCreateContact ? 0 : -1))); return; }
                 if (e.key === 'ArrowUp') { e.preventDefault(); setContactIdx(i => Math.max(i - 1, 0)); return; }
                 if (e.key === 'Enter') {
                   e.preventDefault();
-                  insertContactMention(contactFilteredList[contactIdx].fullName);
+                  if (contactIdx < contactFilteredList.length) insertContactMention(contactFilteredList[contactIdx].fullName);
+                  else if (showCreateContact) insertContactMention(contactQuery.trim());
                   return;
                 }
                 if (e.key === 'Escape') { setContactQuery(null); return; }
@@ -388,7 +399,7 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
           )}
 
           {/* Contact dropdown */}
-          {contactQuery !== null && contactFilteredList.length > 0 && (
+          {contactQuery !== null && (contactFilteredList.length > 0 || showCreateContact) && (
             <div style={{
               position: 'absolute', top: '100%', left: 0, zIndex: 60,
               width: '260px', background: '#fff', borderRadius: '12px',
@@ -413,6 +424,24 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                   <span style={{ fontSize: '12px', fontWeight: 700, color: '#374151' }}>{contact.fullName}</span>
                 </button>
               ))}
+              {showCreateContact && (
+                <button
+                  onMouseDown={e => { e.preventDefault(); insertContactMention(contactQuery.trim()); }}
+                  style={{
+                    width: '100%', display: 'flex', alignItems: 'center', gap: '10px',
+                    padding: '10px 14px', border: 'none', cursor: 'pointer', textAlign: 'left',
+                    background: contactIdx === contactFilteredList.length ? '#f5f3ff' : '#fff',
+                    borderTop: '1px solid #f3f4f6', transition: 'background 0.1s'
+                  }}
+                >
+                  <span style={{
+                    width: '28px', height: '28px', borderRadius: '8px', display: 'flex',
+                    alignItems: 'center', justifyContent: 'center', fontSize: '11px',
+                    fontWeight: 800, background: '#f5f3ff', color: '#8b5cf6'
+                  }}>+</span>
+                  <span style={{ fontSize: '12px', fontWeight: 700, color: '#8b5cf6' }}>Create "{contactQuery.trim()}"</span>
+                </button>
+              )}
             </div>
           )}
         </div>

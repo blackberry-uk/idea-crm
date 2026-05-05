@@ -14,6 +14,7 @@ import IdeaPickerDropdown from '../components/IdeaPickerDropdown';
 import TaskDetailModal from '../components/TaskDetailModal';
 import ContactModal from '../components/ContactModal';
 import EntityModal from '../components/EntityModal';
+import { extractDelimitedMentions, getActiveMentionQuery, replaceActiveMention } from '../lib/taskMentions';
 
 type DailyTodo = DailyTodoData;
 
@@ -157,44 +158,72 @@ const Dashboard: React.FC = () => {
 
   React.useEffect(() => { setEntityIdx(0); }, [entityFilteredList.length]);
 
+  const showCreateMention = mentionQuery !== null && mentionQuery.trim().length >= 2 &&
+    !mentionFilteredContacts.some(c => {
+      const name = (c.fullName || `${c.firstName || ''} ${c.lastName || ''}`.trim()).toLowerCase();
+      return name === mentionQuery.trim().toLowerCase();
+    });
+
+  const showCreateEntity = entityQuery !== null && entityQuery.trim().length >= 2 &&
+    !entityFilteredList.some(e => e.name.toLowerCase() === entityQuery.trim().toLowerCase());
+
   // Insert a selected contact name into the text
   const insertMention = (contact: { fullName?: string; firstName?: string; lastName?: string }) => {
     const name = contact.fullName || `${contact.firstName || ''} ${contact.lastName || ''}`.trim();
-    const textBeforeCursor = newText.slice(0, mentionCursorPos);
-    const atPos = textBeforeCursor.lastIndexOf('@');
-    const before = newText.slice(0, atPos);
-    const after = newText.slice(mentionCursorPos);
-    setNewText(`${before}@${name}${after} `);
+    setNewText(replaceActiveMention(newText, mentionCursorPos, '@', name));
+    setMentionQuery(null);
+    inputRef.current?.focus();
+  };
+
+  const insertNewContactMention = () => {
+    if (!mentionQuery) return;
+    setNewText(replaceActiveMention(newText, mentionCursorPos, '@', mentionQuery.trim()));
     setMentionQuery(null);
     inputRef.current?.focus();
   };
 
   // Insert a selected entity name into the text
-  const handleOpenContactByName = (name: string) => {
+  const handleOpenContactByName = async (name: string) => {
     const existing = findContactByName(name);
     if (existing) {
       setContactToEdit(existing);
       setShowContactModal(true);
+      return;
     }
+    const parts = name.trim().split(/\s+/);
+    const created = await addContact({
+      firstName: parts[0],
+      lastName: parts.slice(1).join(' ') || undefined,
+      fullName: name.trim()
+    });
+    setContactToEdit(created);
+    setShowContactModal(true);
   };
 
   const [showEntityModal, setShowEntityModal] = useState(false);
   const [entityToEdit, setEntityToEdit] = useState<any>(null);
 
-  const handleOpenEntityByName = (name: string) => {
+  const handleOpenEntityByName = async (name: string) => {
     const existing = entities.find(e => e.name.toLowerCase() === name.toLowerCase());
     if (existing) {
       setEntityToEdit(existing);
       setShowEntityModal(true);
+      return;
     }
+    const created = await addEntity({ name: name.trim() });
+    setEntityToEdit(created);
+    setShowEntityModal(true);
   };
 
   const insertEntityMention = (entity: { name: string }) => {
-    const textBeforeCursor = newText.slice(0, entityCursorPos);
-    const hashPos = textBeforeCursor.lastIndexOf('#');
-    const before = newText.slice(0, hashPos);
-    const after = newText.slice(entityCursorPos);
-    setNewText(`${before}#${entity.name}${after} `);
+    setNewText(replaceActiveMention(newText, entityCursorPos, '#', entity.name));
+    setEntityQuery(null);
+    inputRef.current?.focus();
+  };
+
+  const insertNewEntityMention = () => {
+    if (!entityQuery) return;
+    setNewText(replaceActiveMention(newText, entityCursorPos, '#', entityQuery.trim()));
     setEntityQuery(null);
     inputRef.current?.focus();
   };
@@ -202,11 +231,8 @@ const Dashboard: React.FC = () => {
   // Detected @mentions in current text
   const detectedMentions = React.useMemo(() => {
     if (!newText.includes('@')) return [];
-    const regex = /@([A-ZÀ-ÖØ-Þ][a-zß-öø-ÿa-zA-Z]*(?:\s+[A-ZÀ-ÖØ-Þ][a-zß-öø-ÿa-zA-Z]*)*)/g;
     const mentions: { name: string; isExisting: boolean }[] = [];
-    let match;
-    while ((match = regex.exec(newText)) !== null) {
-      const name = match[1].trim();
+    extractDelimitedMentions(newText, '@').forEach(name => {
       const lower = name.toLowerCase();
       const isExisting = contacts.some(c => {
         const full = (c.fullName || '').toLowerCase();
@@ -215,21 +241,18 @@ const Dashboard: React.FC = () => {
         return full === lower || first === lower || `${first} ${last}`.trim() === lower;
       });
       mentions.push({ name, isExisting });
-    }
+    });
     return mentions;
   }, [newText, contacts]);
 
   // Detected #entity mentions in current text
   const detectedEntityMentions = React.useMemo(() => {
     if (!newText.includes('#')) return [];
-    const regex = /#(\w+(?:\s+\w+)*)/g;
     const mentions: { name: string; isExisting: boolean }[] = [];
-    let match;
-    while ((match = regex.exec(newText)) !== null) {
-      const name = match[1].trim();
+    extractDelimitedMentions(newText, '#').forEach(name => {
       const isExisting = entities.some(e => e.name.toLowerCase() === name.toLowerCase());
       mentions.push({ name, isExisting });
-    }
+    });
     return mentions;
   }, [newText, entities]);
 
@@ -365,25 +388,11 @@ const Dashboard: React.FC = () => {
 
   // --- CRUD ---
   const extractMentions = (text: string): string[] => {
-    const regex = /@\[([^\]]+)\]|@"([^"]+)"|@([a-zA-ZÀ-ÖØ-Þß-öø-ÿ0-9]+(?:\s+[a-zA-ZÀ-ÖØ-Þß-öø-ÿ0-9]+)*)/g;
-    const mentions: string[] = [];
-    let match;
-    while ((match = regex.exec(text)) !== null) {
-      const name = match[1] || match[2] || match[3];
-      if (name) mentions.push(name.trim());
-    }
-    return mentions;
+    return extractDelimitedMentions(text, '@');
   };
   
   const extractEntityMentions = (text: string): string[] => {
-    const regex = /#\[([^\]]+)\]|#"([^"]+)"|#([a-zA-ZÀ-ÖØ-Þß-öø-ÿ0-9]+(?:\s+[a-zA-ZÀ-ÖØ-Þß-öø-ÿ0-9]+)*)/g;
-    const mentions: string[] = [];
-    let match;
-    while ((match = regex.exec(text)) !== null) {
-      const name = match[1] || match[2] || match[3];
-      if (name) mentions.push(name.trim());
-    }
-    return mentions;
+    return extractDelimitedMentions(text, '#');
   };
 
   const findContactByName = (name: string) => {
@@ -396,24 +405,8 @@ const Dashboard: React.FC = () => {
     });
   };
 
-
-
-  const addTodo = async (dateKey?: string | null, block?: string) => {
-    const text = newText.trim();
-    if (!text || submittingRef.current) return;
-    submittingRef.current = true;
-    const targetDate = dateKey !== undefined ? dateKey : toDateKey(selectedDate);
-
-    // Clear input immediately to prevent double-submit and UI freeze
-    setNewText('');
-    setNewIdeaId('');
-    setShowTagPicker(false);
-    setMentionQuery(null);
-    setEntityQuery(null);
-
-    // Auto-create contacts from @mentions in background
-    const mentions = extractMentions(text);
-    mentions.forEach(name => {
+  const autoCreateTaskLinks = (taskText: string) => {
+    extractMentions(taskText).forEach(name => {
       const existing = findContactByName(name);
       if (!existing) {
         const parts = name.split(/\s+/);
@@ -425,9 +418,7 @@ const Dashboard: React.FC = () => {
       }
     });
 
-    // Auto-create entities from #mentions in background
-    const entityMentionNames = extractEntityMentions(text);
-    entityMentionNames.forEach(name => {
+    extractEntityMentions(taskText).forEach(name => {
       const existing = entities.find(e => e.name.toLowerCase() === name.toLowerCase());
       if (!existing) {
         addEntity({ name })
@@ -435,19 +426,31 @@ const Dashboard: React.FC = () => {
           .catch(err => console.error('Failed to auto-create entity:', err));
       }
     });
+  };
+
+  const addTodo = async (dateKey?: string | null, block?: string) => {
+    const text = newText.trim();
+    if (!text || submittingRef.current) return;
+    submittingRef.current = true;
+    const targetDate = dateKey !== undefined ? dateKey : toDateKey(selectedDate);
+    const selectedIdeaId = newIdeaId || null;
 
     try {
       const todo = await apiClient.post('/daily-todos', {
         text,
         date: targetDate,
-        ideaId: newIdeaId || null,
+        ideaId: selectedIdeaId,
         timeBlock: block || getCurrentBlock(),
       });
       setAllTodos(prev => [...prev, todo]);
+      setNewText('');
+      setNewIdeaId('');
+      setShowTagPicker(false);
+      setMentionQuery(null);
+      setEntityQuery(null);
+      autoCreateTaskLinks(text);
     } catch (err: any) {
       showToast(err.message || 'Failed to add todo', 'error');
-      // If it fails, restore input
-      setNewText(text);
     } finally {
       submittingRef.current = false;
     }
@@ -458,31 +461,6 @@ const Dashboard: React.FC = () => {
     if (!trimmed || submittingRef.current) return;
     submittingRef.current = true;
 
-    // Auto-create contacts from @mentions in background
-    const mentions = extractMentions(trimmed);
-    mentions.forEach(name => {
-      const existing = findContactByName(name);
-      if (!existing) {
-        const parts = name.split(/\s+/);
-        const firstName = parts[0];
-        const lastName = parts.slice(1).join(' ') || undefined;
-        addContact({ firstName, lastName, fullName: name })
-          .then(() => showToast(`Contact "${name}" created automatically`, 'success'))
-          .catch(err => console.error('Failed to auto-create contact:', err));
-      }
-    });
-
-    // Auto-create entities from #mentions in background
-    const entityMentionNames = extractEntityMentions(trimmed);
-    entityMentionNames.forEach(name => {
-      const existing = entities.find(e => e.name.toLowerCase() === name.toLowerCase());
-      if (!existing) {
-        addEntity({ name })
-          .then(() => showToast(`Entity "${name}" created automatically`, 'success'))
-          .catch(err => console.error('Failed to auto-create entity:', err));
-      }
-    });
-
     try {
       const todo = await apiClient.post('/daily-todos', {
         text: trimmed,
@@ -490,6 +468,7 @@ const Dashboard: React.FC = () => {
         timeBlock: block || getCurrentBlock(),
       });
       setAllTodos(prev => [...prev, todo]);
+      autoCreateTaskLinks(trimmed);
     } catch (err: any) {
       showToast(err.message || 'Failed to add todo', 'error');
     } finally {
@@ -503,20 +482,22 @@ const Dashboard: React.FC = () => {
     setNewText(val);
     const cursor = e.target.selectionStart || 0;
     const textBeforeCursor = val.slice(0, cursor);
-    const atMatch = textBeforeCursor.match(/@([A-Za-z\u00c0-\u00d6\u00d8-\u00f6\u00f8-\u00ff\s]*)$/);
-    if (atMatch) {
-      setMentionQuery(atMatch[1]);
+
+    const activeMention = getActiveMentionQuery(textBeforeCursor, '@');
+    const activeEntity = getActiveMentionQuery(textBeforeCursor, '#');
+    const mentionStart = activeMention === null ? -1 : textBeforeCursor.lastIndexOf('@');
+    const entityStart = activeEntity === null ? -1 : textBeforeCursor.lastIndexOf('#');
+
+    if (activeMention !== null && mentionStart > entityStart) {
+      setMentionQuery(activeMention);
       setMentionCursorPos(cursor);
       setEntityQuery(null);
-    } else {
-      setMentionQuery(null);
-    }
-    const hashMatch = textBeforeCursor.match(/(?:^|\s)#([A-Za-z0-9][A-Za-z0-9\s]*)$/);
-    if (hashMatch) {
-      setEntityQuery(hashMatch[1]);
+    } else if (activeEntity !== null) {
+      setEntityQuery(activeEntity);
       setEntityCursorPos(cursor);
       setMentionQuery(null);
     } else {
+      setMentionQuery(null);
       setEntityQuery(null);
     }
   };
@@ -525,28 +506,36 @@ const Dashboard: React.FC = () => {
   const handleInlineKeyDown = (e: React.KeyboardEvent<HTMLInputElement>, submitFn: () => Promise<void>) => {
     if (mentionQuery !== null) {
       if (mentionFilteredContacts.length > 0) {
-        if (e.key === 'ArrowDown') { e.preventDefault(); setMentionIdx(i => Math.min(i + 1, mentionFilteredContacts.length - 1)); return; }
+        if (e.key === 'ArrowDown') { e.preventDefault(); setMentionIdx(i => Math.min(i + 1, mentionFilteredContacts.length + (showCreateMention ? 0 : -1))); return; }
         if (e.key === 'ArrowUp') { e.preventDefault(); setMentionIdx(i => Math.max(i - 1, 0)); return; }
-        if (e.key === 'Enter') { e.preventDefault(); insertMention(mentionFilteredContacts[mentionIdx]); return; }
-      } else if (mentionQuery.length > 0) {
         if (e.key === 'Enter') {
-          // If no matching contact, just clear the dropdown and let the enter key submit the task below
-          setMentionQuery(null);
+          e.preventDefault();
+          if (mentionIdx < mentionFilteredContacts.length) insertMention(mentionFilteredContacts[mentionIdx]);
+          else if (showCreateMention) insertNewContactMention();
+          return;
         }
+      } else if (showCreateMention && e.key === 'Enter') {
+        e.preventDefault();
+        insertNewContactMention();
+        return;
       }
       if (e.key === 'Escape') { setMentionQuery(null); return; }
     }
     
     if (entityQuery !== null) {
       if (entityFilteredList.length > 0) {
-        if (e.key === 'ArrowDown') { e.preventDefault(); setEntityIdx(i => Math.min(i + 1, entityFilteredList.length - 1)); return; }
+        if (e.key === 'ArrowDown') { e.preventDefault(); setEntityIdx(i => Math.min(i + 1, entityFilteredList.length + (showCreateEntity ? 0 : -1))); return; }
         if (e.key === 'ArrowUp') { e.preventDefault(); setEntityIdx(i => Math.max(i - 1, 0)); return; }
-        if (e.key === 'Enter') { e.preventDefault(); insertEntityMention(entityFilteredList[entityIdx]); return; }
-      } else if (entityQuery.length >= 2) {
-        if (e.key === 'Enter') { 
-          // If no matching entity, let the enter key submit the task below
-          setEntityQuery(null);
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          if (entityIdx < entityFilteredList.length) insertEntityMention(entityFilteredList[entityIdx]);
+          else if (showCreateEntity) insertNewEntityMention();
+          return;
         }
+      } else if (showCreateEntity && e.key === 'Enter') {
+        e.preventDefault();
+        insertNewEntityMention();
+        return;
       }
       if (e.key === 'Escape') { setEntityQuery(null); return; }
     }
@@ -560,30 +549,38 @@ const Dashboard: React.FC = () => {
     <>
       {mentionQuery !== null && (
         <div className="cl-mention-dropdown" style={{ position: 'absolute', left: 0, top: '100%', zIndex: 100 }}>
-          {mentionFilteredContacts.length > 0 ? (
-            mentionFilteredContacts.map((c, i) => (
+          {mentionFilteredContacts.map((c, i) => (
               <button key={c.id} className={`cl-mention-option ${i === mentionIdx ? 'cl-mention-option--active' : ''}`}
                 onMouseDown={e => { e.preventDefault(); insertMention(c); }}>
                 <span className="cl-mention-avatar">{(c.firstName || c.fullName || '?')[0].toUpperCase()}</span>
                 <span className="cl-mention-name">{c.fullName || `${c.firstName || ''} ${c.lastName || ''}`.trim()}</span>
                 {c.company && <span className="cl-mention-company">{c.company}</span>}
               </button>
-            ))
-          ) : (
-            <div className="cl-mention-hint">No matches. Use @[Name] or @"Name" to create</div>
+          ))}
+          {showCreateMention && (
+            <button className={`cl-mention-option ${mentionIdx === mentionFilteredContacts.length ? 'cl-mention-option--active' : ''}`}
+              onMouseDown={e => { e.preventDefault(); insertNewContactMention(); }}>
+              <span className="cl-mention-avatar">+</span>
+              <span className="cl-mention-name">Create "{mentionQuery.trim()}"</span>
+            </button>
           )}
         </div>
       )}
       {entityQuery !== null && (
         <div className="cl-mention-dropdown" style={{ position: 'absolute', left: 0, top: '100%', zIndex: 100 }}>
-          {entityFilteredList.length > 0 ? entityFilteredList.map((ent, i) => (
+          {entityFilteredList.map((ent, i) => (
             <button key={ent.id} className={`cl-mention-option ${i === entityIdx ? 'cl-mention-option--active' : ''}`}
               onMouseDown={e => { e.preventDefault(); insertEntityMention(ent); }}>
               <span className="cl-mention-avatar" style={{ backgroundColor: '#eef2ff', color: '#6366f1' }}>#</span>
               <span className="cl-mention-name">{ent.name}</span>
             </button>
-          )) : (
-            <div className="cl-mention-hint">No matches. Use #[Name] or #"Name" to create</div>
+          ))}
+          {showCreateEntity && (
+            <button className={`cl-mention-option ${entityIdx === entityFilteredList.length ? 'cl-mention-option--active' : ''}`}
+              onMouseDown={e => { e.preventDefault(); insertNewEntityMention(); }}>
+              <span className="cl-mention-avatar" style={{ backgroundColor: '#eef2ff', color: '#6366f1' }}>+</span>
+              <span className="cl-mention-name">Create "{entityQuery.trim()}"</span>
+            </button>
           )}
         </div>
       )}

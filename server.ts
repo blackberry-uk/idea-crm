@@ -10,6 +10,7 @@ import { sendInvitationEmail, sendTaskAssignmentEmail, sendNoteMentionEmail, sen
 import prisma from './lib/prisma.js';
 import { OAuth2Client } from 'google-auth-library';
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import { extractDelimitedMentions } from './lib/taskMentions.js';
 
 const genAI = process.env.GEMINI_API_KEY ? new GoogleGenerativeAI(process.env.GEMINI_API_KEY) : null;
 
@@ -176,10 +177,15 @@ app.post('/api/auth/google', async (req, res) => {
 });
 
 app.get('/api/me', authenticate, async (req: any, res) => {
-  const user = await prisma.user.findUnique({ where: { id: req.userId } });
-  if (!user) return res.status(404).json({ error: 'User not found' });
-  const { password, ...safeUser } = user;
-  res.json(safeUser);
+  try {
+    const user = await prisma.user.findUnique({ where: { id: req.userId } });
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    const { password, ...safeUser } = user;
+    res.json(safeUser);
+  } catch (err: any) {
+    console.error('/api/me error:', err);
+    res.status(500).json({ error: 'Failed to fetch user', details: err.message });
+  }
 });
 
 // --- DATA ROUTES ---
@@ -1222,13 +1228,7 @@ app.put('/api/daily-todos/:id', authenticate, async (req: any, res) => {
         const taskIdeaId = todo.ideaId || null;
         const ideaTitle = todo.idea?.title || null;
 
-        // Extract @mentions from task text
-        const mentionRegex = /@([A-Z\u00c0-\u00d6\u00d8-\u00de][a-z\u00df-\u00f6\u00f8-\u00ffa-zA-Z]*(?:\s+[A-Z\u00c0-\u00d6\u00d8-\u00de][a-z\u00df-\u00f6\u00f8-\u00ffa-zA-Z]*)*)/g;
-        const mentionNames: string[] = [];
-        let match;
-        while ((match = mentionRegex.exec(taskText)) !== null) {
-          mentionNames.push(match[1].trim());
-        }
+        const mentionNames = extractDelimitedMentions(taskText, '@');
 
         // Find matching contacts
         const allContacts = await prisma.contact.findMany({ where: { ownerId: req.userId } as any });
