@@ -365,7 +365,7 @@ const Dashboard: React.FC = () => {
 
   // --- CRUD ---
   const extractMentions = (text: string): string[] => {
-    const regex = /@\[([^\]]+)\]|@"([^"]+)"|@([A-ZÀ-ÖØ-Þ][a-zß-öø-ÿa-zA-Z]*(?:\s+[A-ZÀ-ÖØ-Þ][a-zß-öø-ÿa-zA-Z]*)*)/g;
+    const regex = /@\[([^\]]+)\]|@"([^"]+)"|@([a-zA-ZÀ-ÖØ-Þß-öø-ÿ0-9]+(?:\s+[a-zA-ZÀ-ÖØ-Þß-öø-ÿ0-9]+)*)/g;
     const mentions: string[] = [];
     let match;
     while ((match = regex.exec(text)) !== null) {
@@ -376,7 +376,7 @@ const Dashboard: React.FC = () => {
   };
   
   const extractEntityMentions = (text: string): string[] => {
-    const regex = /#\[([^\]]+)\]|#"([^"]+)"|#(\w+(?:\s+\w+)*)/g;
+    const regex = /#\[([^\]]+)\]|#"([^"]+)"|#([a-zA-ZÀ-ÖØ-Þß-öø-ÿ0-9]+(?:\s+[a-zA-ZÀ-ÖØ-Þß-öø-ÿ0-9]+)*)/g;
     const mentions: string[] = [];
     let match;
     while ((match = regex.exec(text)) !== null) {
@@ -530,9 +530,8 @@ const Dashboard: React.FC = () => {
         if (e.key === 'Enter') { e.preventDefault(); insertMention(mentionFilteredContacts[mentionIdx]); return; }
       } else if (mentionQuery.length > 0) {
         if (e.key === 'Enter') {
-          e.preventDefault();
+          // If no matching contact, just clear the dropdown and let the enter key submit the task below
           setMentionQuery(null);
-          return;
         }
       }
       if (e.key === 'Escape') { setMentionQuery(null); return; }
@@ -545,9 +544,8 @@ const Dashboard: React.FC = () => {
         if (e.key === 'Enter') { e.preventDefault(); insertEntityMention(entityFilteredList[entityIdx]); return; }
       } else if (entityQuery.length >= 2) {
         if (e.key === 'Enter') { 
-          e.preventDefault(); 
+          // If no matching entity, let the enter key submit the task below
           setEntityQuery(null);
-          return; 
         }
       }
       if (e.key === 'Escape') { setEntityQuery(null); return; }
