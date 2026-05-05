@@ -364,23 +364,24 @@ const Dashboard: React.FC = () => {
   const backburnerTodos = allTodos.filter(t => !t.date && !t.completed);
 
   // --- CRUD ---
-  // Parse @mentions from text
   const extractMentions = (text: string): string[] => {
-    const regex = /@([A-ZÀ-ÖØ-Þ][a-zß-öø-ÿa-zA-Z]*(?:\s+[A-ZÀ-ÖØ-Þ][a-zß-öø-ÿa-zA-Z]*)*)/g;
+    const regex = /@\[([^\]]+)\]|@"([^"]+)"|@([A-ZÀ-ÖØ-Þ][a-zß-öø-ÿa-zA-Z]*(?:\s+[A-ZÀ-ÖØ-Þ][a-zß-öø-ÿa-zA-Z]*)*)/g;
     const mentions: string[] = [];
     let match;
     while ((match = regex.exec(text)) !== null) {
-      mentions.push(match[1].trim());
+      const name = match[1] || match[2] || match[3];
+      if (name) mentions.push(name.trim());
     }
     return mentions;
   };
   
   const extractEntityMentions = (text: string): string[] => {
-    const regex = /#(\w+(?:\s+\w+)*)/g;
+    const regex = /#\[([^\]]+)\]|#"([^"]+)"|#(\w+(?:\s+\w+)*)/g;
     const mentions: string[] = [];
     let match;
     while ((match = regex.exec(text)) !== null) {
-      mentions.push(match[1].trim());
+      const name = match[1] || match[2] || match[3];
+      if (name) mentions.push(name.trim());
     }
     return mentions;
   };
@@ -530,8 +531,7 @@ const Dashboard: React.FC = () => {
       } else if (mentionQuery.length > 0) {
         if (e.key === 'Enter') {
           e.preventDefault();
-          const parts = mentionQuery.trim().split(/\s+/);
-          insertMention({ fullName: mentionQuery.trim(), firstName: parts[0], lastName: parts.slice(1).join(' ') });
+          setMentionQuery(null);
           return;
         }
       }
@@ -546,9 +546,7 @@ const Dashboard: React.FC = () => {
       } else if (entityQuery.length >= 2) {
         if (e.key === 'Enter') { 
           e.preventDefault(); 
-          const name = entityQuery.trim();
-          addEntity({ name }).catch(() => {});
-          insertEntityMention({ name }); 
+          setEntityQuery(null);
           return; 
         }
       }
@@ -573,14 +571,8 @@ const Dashboard: React.FC = () => {
                 {c.company && <span className="cl-mention-company">{c.company}</span>}
               </button>
             ))
-          ) : mentionQuery.length > 0 ? (
-            <button className="cl-mention-option cl-mention-option--create"
-              onMouseDown={e => { e.preventDefault(); const parts = mentionQuery.trim().split(/\s+/); insertMention({ fullName: mentionQuery.trim(), firstName: parts[0], lastName: parts.slice(1).join(' ') }); }}>
-              <span className="cl-mention-avatar cl-mention-avatar--new">+</span>
-              <span className="cl-mention-name">Create &quot;{mentionQuery.trim()}&quot;</span>
-            </button>
           ) : (
-            <div className="cl-mention-hint">Type a name…</div>
+            <div className="cl-mention-hint">No matches. Use @[Name] or @"Name" to create</div>
           )}
         </div>
       )}
@@ -592,18 +584,8 @@ const Dashboard: React.FC = () => {
               <span className="cl-mention-avatar" style={{ backgroundColor: '#eef2ff', color: '#6366f1' }}>#</span>
               <span className="cl-mention-name">{ent.name}</span>
             </button>
-          )) : null}
-          {entityQuery.length >= 2 && !entityFilteredList.some(en => en.name.toLowerCase() === entityQuery.toLowerCase()) && (
-            <button className="cl-mention-option cl-mention-option--create"
-              onMouseDown={e => { 
-                e.preventDefault(); 
-                const name = entityQuery.trim();
-                addEntity({ name }).catch(() => {});
-                insertEntityMention({ name }); 
-              }}>
-              <span className="cl-mention-avatar cl-mention-avatar--new" style={{ backgroundColor: '#e0e7ff', color: '#4f46e5' }}>+</span>
-              <span className="cl-mention-name">Create &quot;{entityQuery.trim()}&quot;</span>
-            </button>
+          )) : (
+            <div className="cl-mention-hint">No matches. Use #[Name] or #"Name" to create</div>
           )}
         </div>
       )}
