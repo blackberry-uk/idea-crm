@@ -211,11 +211,13 @@ const ContactEditPanel: React.FC<ContactEditPanelProps> = ({
             {showCreate && (
               <button onMouseDown={async e => {
                 e.preventDefault();
+                const cleanName = entitySearch.trim().replace(/^#+/, '');
+                setEntitySearch(''); 
+                setEntityDropdownOpen(false);
                 try {
-                  const newEnt = await addEntity({ name: entitySearch.trim() });
+                  const newEnt = await addEntity({ name: cleanName });
                   if (newEnt?.id) setLinkedEntityIds(ids => [...ids, newEnt.id]);
-                  setEntitySearch(''); setEntityDropdownOpen(false);
-                  showToast(`Entity "${entitySearch.trim()}" created`, 'success');
+                  showToast(`Entity "${cleanName}" created`, 'success');
                 } catch { showToast('Failed to create entity', 'error'); }
               }}
                 style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 14px', border: 'none', borderTop: '1px solid #e5e7eb', cursor: 'pointer', textAlign: 'left', background: '#f0fdf4' }}
