@@ -690,6 +690,7 @@ const Dashboard: React.FC = () => {
           ? { ...t, children: [...(t.children || []), subtask] }
           : t
       ));
+      autoCreateTaskLinks(text);
     } catch (err: any) {
       showToast(err.message || 'Failed to add subtask', 'error');
     }
@@ -1676,8 +1677,23 @@ const Dashboard: React.FC = () => {
                                 style={{ flex: 1 }}
                               />
                               <button
+                                onClick={e => {
+                                  e.stopPropagation();
+                                  if (wvSubtaskText.trim()) {
+                                    addSubtask(todo.id, wvSubtaskText.trim());
+                                    setWvSubtaskText('');
+                                    setWvSubtaskInputId(null);
+                                  }
+                                }}
+                                disabled={!wvSubtaskText.trim()}
+                                style={{ background: 'none', border: 'none', cursor: wvSubtaskText.trim() ? 'pointer' : 'not-allowed', padding: '2px', color: wvSubtaskText.trim() ? '#4f46e5' : '#9ca3af', flexShrink: 0, display: 'flex', alignItems: 'center' }}
+                                title="Save"
+                              >
+                                <Check className="w-4 h-4" />
+                              </button>
+                              <button
                                 onClick={e => { e.stopPropagation(); setWvSubtaskInputId(null); setWvSubtaskText(''); }}
-                                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px', color: '#9ca3af', flexShrink: 0, display: 'flex', alignItems: 'center' }}
+                                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px', color: '#ef4444', flexShrink: 0, display: 'flex', alignItems: 'center' }}
                                 title="Cancel"
                               >
                                 <X className="w-3.5 h-3.5" />

@@ -16,7 +16,9 @@ import {
   Settings as SettingsIcon,
   Mail,
   Brain,
-  Building2
+  Building2,
+  Menu,
+  ChevronLeft
 } from 'lucide-react';
 import { CalendarCheck } from 'lucide-react';
 import { useStore } from '../store/useStore.ts';
@@ -34,6 +36,13 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const location = useLocation();
   const navigate = useNavigate();
   const [isNoteModalOpen, setIsNoteModalOpen] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(() => {
+    return localStorage.getItem('ideaCrm_sidebar') !== 'closed';
+  });
+
+  useEffect(() => {
+    localStorage.setItem('ideaCrm_sidebar', isSidebarOpen ? 'open' : 'closed');
+  }, [isSidebarOpen]);
 
   const pendingInvs = data.invitations.filter(i =>
     i.email === data.currentUser?.email && i.status === 'Pending'
@@ -55,13 +64,19 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   return (
     <div className="flex h-screen bg-[var(--ui-bg)] text-gray-900 overflow-hidden transition-colors duration-500">
       {/* Sidebar */}
-      <aside className="w-64 border-r border-gray-200 bg-white flex flex-col hidden md:flex shrink-0">
-        <div className="p-6 flex items-center gap-2">
-          <div className="p-1.5 rounded-lg shadow-sm" style={{ backgroundColor: 'var(--primary)' }}>
-            <Lightbulb className="w-6 h-6 text-white" />
+      {isSidebarOpen ? (
+        <aside className="w-64 border-r border-gray-200 bg-white flex flex-col hidden md:flex shrink-0">
+          <div className="p-6 flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <div className="p-1.5 rounded-lg shadow-sm" style={{ backgroundColor: 'var(--primary)' }}>
+                <Lightbulb className="w-6 h-6 text-white" />
+              </div>
+              <span className="font-bold text-xl tracking-tight">IdeaCRM</span>
+            </div>
+            <button onClick={() => setIsSidebarOpen(false)} className="text-gray-400 hover:text-gray-600 transition-colors p-1" title="Hide Menu">
+              <ChevronLeft className="w-5 h-5" />
+            </button>
           </div>
-          <span className="font-bold text-xl tracking-tight">IdeaCRM</span>
-        </div>
 
         <nav className="flex-1 px-4 py-4 space-y-1">
           {navItems.map((item) => {
@@ -119,6 +134,13 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           </button>
         </div>
       </aside>
+      ) : (
+        <div className="hidden md:flex flex-col border-r border-gray-200 bg-white items-center py-6 px-3 shrink-0 transition-all duration-300">
+          <button onClick={() => setIsSidebarOpen(true)} className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-md transition-colors" title="Show Menu">
+            <Menu className="w-5 h-5" />
+          </button>
+        </div>
+      )}
 
       <main className="flex-1 flex flex-col min-w-0">
         <div className="flex-1 overflow-y-auto mobile-main-content">{children}</div>

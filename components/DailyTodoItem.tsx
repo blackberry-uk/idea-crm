@@ -5,6 +5,7 @@ import IdeaPickerDropdown from './IdeaPickerDropdown';
 import { TaskChevronMenu } from './TaskChevronMenu';
 import { useStore } from '../store/useStore';
 import { mentionVariantsForName } from '../lib/taskMentions';
+import { getInitials } from '../lib/utils';
 
 export interface DailyTodoData {
   id: string;
@@ -263,7 +264,7 @@ const DailyTodoItem: React.FC<DailyTodoItemProps> = ({
                     flexShrink: 0
                   }}
                 >
-                  {todo.assignee.name.charAt(0).toUpperCase()}
+                  {getInitials(todo.assignee.name)}
                 </div>
               )}
             </div>
@@ -347,7 +348,7 @@ const DailyTodoItem: React.FC<DailyTodoItemProps> = ({
 
       {/* Subtask input */}
       {showSubtaskInput && !isSubtask && (
-        <div className="daily-todo-subtask-add" style={{ marginLeft: '1.5rem' }}>
+        <div className="daily-todo-subtask-add" style={{ marginLeft: '1.5rem', display: 'flex', alignItems: 'center', gap: '4px' }}>
           <input
             className="daily-todo-subtask-input"
             placeholder="Add a subtask..."
@@ -358,7 +359,29 @@ const DailyTodoItem: React.FC<DailyTodoItemProps> = ({
               if (e.key === 'Escape') { setShowSubtaskInput(false); setSubtaskText(''); }
             }}
             autoFocus
+            style={{ flex: 1 }}
           />
+          <button
+            onClick={handleAddSubtask}
+            disabled={!subtaskText.trim()}
+            style={{ 
+              background: 'none', border: 'none', 
+              cursor: subtaskText.trim() ? 'pointer' : 'not-allowed', 
+              padding: '2px', 
+              color: subtaskText.trim() ? '#4f46e5' : '#9ca3af', 
+              flexShrink: 0, display: 'flex', alignItems: 'center' 
+            }}
+            title="Save"
+          >
+            <Check className="w-4 h-4" />
+          </button>
+          <button
+            onClick={() => { setShowSubtaskInput(false); setSubtaskText(''); }}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px', color: '#ef4444', flexShrink: 0, display: 'flex', alignItems: 'center' }}
+            title="Cancel"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
         </div>
       )}
 
