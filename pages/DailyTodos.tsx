@@ -15,7 +15,8 @@ type DailyTodo = DailyTodoData;
 function groupByDate(todos: DailyTodo[]): Map<string, DailyTodo[]> {
   const map = new Map<string, DailyTodo[]>();
   for (const todo of todos) {
-    const key = todo.date.slice(0, 10);
+    if (!todo.date) continue; // Skip floating tasks or handle them differently
+    const key = String(todo.date).slice(0, 10);
     if (!map.has(key)) map.set(key, []);
     map.get(key)!.push(todo);
   }
