@@ -395,6 +395,8 @@ const Dashboard: React.FC = () => {
     });
   };
 
+
+
   const addTodo = async (dateKey?: string | null, block?: string) => {
     const text = newText.trim();
     if (!text || submittingRef.current) return;
@@ -417,8 +419,19 @@ const Dashboard: React.FC = () => {
         const firstName = parts[0];
         const lastName = parts.slice(1).join(' ') || undefined;
         addContact({ firstName, lastName, fullName: name })
-          .then(() => showToast(`Contact "${name}" created`, 'success'))
+          .then(() => showToast(`Contact "${name}" created automatically`, 'success'))
           .catch(err => console.error('Failed to auto-create contact:', err));
+      }
+    });
+
+    // Auto-create entities from #mentions in background
+    const entityMentionNames = extractEntityMentions(text);
+    entityMentionNames.forEach(name => {
+      const existing = entities.find(e => e.name.toLowerCase() === name.toLowerCase());
+      if (!existing) {
+        addEntity({ name })
+          .then(() => showToast(`Entity "${name}" created automatically`, 'success'))
+          .catch(err => console.error('Failed to auto-create entity:', err));
       }
     });
 
@@ -453,8 +466,19 @@ const Dashboard: React.FC = () => {
         const firstName = parts[0];
         const lastName = parts.slice(1).join(' ') || undefined;
         addContact({ firstName, lastName, fullName: name })
-          .then(() => showToast(`Contact "${name}" created`, 'success'))
+          .then(() => showToast(`Contact "${name}" created automatically`, 'success'))
           .catch(err => console.error('Failed to auto-create contact:', err));
+      }
+    });
+
+    // Auto-create entities from #mentions in background
+    const entityMentionNames = extractEntityMentions(trimmed);
+    entityMentionNames.forEach(name => {
+      const existing = entities.find(e => e.name.toLowerCase() === name.toLowerCase());
+      if (!existing) {
+        addEntity({ name })
+          .then(() => showToast(`Entity "${name}" created automatically`, 'success'))
+          .catch(err => console.error('Failed to auto-create entity:', err));
       }
     });
 

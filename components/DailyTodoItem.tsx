@@ -89,27 +89,41 @@ const DailyTodoItem: React.FC<DailyTodoItemProps> = ({
 
   const renderTextWithMentions = (text: string) => {
     const knownContacts = (data.contacts || [])
-      .map(c => `@${c.fullName || c.firstName + ' ' + (c.lastName || '')}`.trim())
-      .filter(Boolean);
+      .map(c => ({
+        text: `@${c.fullName || c.firstName + ' ' + (c.lastName || '')}`.trim(),
+        isStub: !c.email && !c.phone && !c.company && !c.backgroundInfo
+      }))
+      .filter(c => c.text.length > 1);
+      
     const knownEntities = (data.entities || [])
-      .map(e => `#${e.name}`)
-      .filter(Boolean);
+      .map(e => ({
+        text: `#${e.name}`,
+        isStub: !e.description && !e.website && !e.linkedinUrl
+      }))
+      .filter(e => e.text.length > 1);
 
     // Sort by length descending so longest phrases match first
-    const allKnown = [...knownContacts, ...knownEntities].sort((a, b) => b.length - a.length);
+    const allKnown = [...knownContacts, ...knownEntities].sort((a, b) => b.text.length - a.text.length);
 
-    if (allKnown.length === 0) return [text];
+    let parts = [text];
+    if (allKnown.length > 0) {
+      const escaped = allKnown.map(k => k.text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
+      const regex = new RegExp(`(${escaped})`, 'g');
+      parts = text.split(regex);
+    }
 
-    const escaped = allKnown.map(k => k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
-    const regex = new RegExp(`(${escaped})`, 'g');
-
-    const parts = text.split(regex);
     return parts.map((part, i) => {
-      if (part.startsWith('@') && knownContacts.includes(part)) {
+      const contactMatch = knownContacts.find(c => c.text === part);
+      if (contactMatch) {
         return (
           <span 
             key={i} 
-            style={{ color: '#3b82f6', cursor: onOpenContact ? 'pointer' : 'inherit' }}
+            title={contactMatch.isStub ? "Temporary Contact - Click to add details" : undefined}
+            style={{ 
+              color: contactMatch.isStub ? '#9ca3af' : '#3b82f6', 
+              borderBottom: contactMatch.isStub ? '1px dashed #9ca3af' : 'none',
+              cursor: onOpenContact ? 'pointer' : 'inherit' 
+            }}
             onClick={(e) => { 
               if (onOpenContact) { 
                 e.stopPropagation(); 
@@ -121,11 +135,18 @@ const DailyTodoItem: React.FC<DailyTodoItemProps> = ({
           </span>
         );
       }
-      if (part.startsWith('#') && knownEntities.includes(part)) {
+      
+      const entityMatch = knownEntities.find(e => e.text === part);
+      if (entityMatch) {
         return (
           <span 
             key={i} 
-            style={{ color: '#8b5cf6', cursor: onOpenEntity ? 'pointer' : 'inherit' }}
+            title={entityMatch.isStub ? "Temporary Entity - Click to add details" : undefined}
+            style={{ 
+              color: entityMatch.isStub ? '#9ca3af' : '#8b5cf6', 
+              borderBottom: entityMatch.isStub ? '1px dashed #9ca3af' : 'none',
+              cursor: onOpenEntity ? 'pointer' : 'inherit' 
+            }}
             onClick={(e) => { 
               if (onOpenEntity) { 
                 e.stopPropagation(); 
@@ -137,7 +158,32 @@ const DailyTodoItem: React.FC<DailyTodoItemProps> = ({
           </span>
         );
       }
-      return part;
+      
+      // Fallback for remaining text to find unmatched temporary pills
+      const fallbackRegex = /(@[A-ZÀ-ÖØ-Þ][a-zß-öø-ÿa-zA-Z]*(?:\s+[A-ZÀ-ÖØ-Þ][a-zß-öø-ÿa-zA-Z]*)*|#\w+(?:\s+\w+)*)/g;
+      const subParts = part.split(fallbackRegex);
+      if (subParts.length === 1) return part;
+      
+      return subParts.map((subPart, j) => {
+        if (subPart.startsWith('@') || subPart.startsWith('#')) {
+          const isEntity = subPart.startsWith('#');
+          return (
+            <span 
+              key={`${i}-${j}`} 
+              style={{ color: '#9ca3af', borderBottom: '1px dashed #9ca3af', cursor: (isEntity ? onOpenEntity : onOpenContact) ? 'pointer' : 'inherit' }}
+              title={`Click to create ${isEntity ? 'entity' : 'contact'}`}
+              onClick={(e) => { 
+                e.stopPropagation(); 
+                if (isEntity && onOpenEntity) onOpenEntity(subPart.slice(1).trim()); 
+                else if (!isEntity && onOpenContact) onOpenContact(subPart.slice(1).trim());
+              }}
+            >
+              {subPart}
+            </span>
+          );
+        }
+        return subPart;
+      });
     });
   };
 
