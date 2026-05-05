@@ -41,6 +41,8 @@ interface DailyTodoItemProps {
   onTagIdea: (todoId: string, ideaId: string | null) => Promise<void>;
   onAddSubtask?: (parentId: string, text: string) => Promise<void>;
   onOpenDetail?: (todo: DailyTodoData) => void;
+  onOpenContact?: (contactName: string) => void;
+  onOpenEntity?: (entityName: string) => void;
   onChangeDate?: (id: string, dateKey: string | null) => Promise<void>;
   onChangeTimeBlock?: (id: string, block: string) => Promise<void>;
   dragHandleProps?: Record<string, any>;
@@ -51,7 +53,7 @@ interface DailyTodoItemProps {
 }
 
 const DailyTodoItem: React.FC<DailyTodoItemProps> = ({
-  todo, ideas, onToggleComplete, onToggleUrgent, onDelete, onSaveEdit, onTagIdea, onAddSubtask, onOpenDetail, onChangeDate, onChangeTimeBlock, dragHandleProps, isDragging, isSubtask, customContainerStyle, overrideDateLabel
+  todo, ideas, onToggleComplete, onToggleUrgent, onDelete, onSaveEdit, onTagIdea, onAddSubtask, onOpenDetail, onOpenContact, onOpenEntity, onChangeDate, onChangeTimeBlock, dragHandleProps, isDragging, isSubtask, customContainerStyle, overrideDateLabel
 }) => {
   const [editing, setEditing] = useState(false);
   const [editText, setEditText] = useState('');
@@ -81,6 +83,45 @@ const DailyTodoItem: React.FC<DailyTodoItemProps> = ({
     await onAddSubtask(todo.id, subtaskText.trim());
     setSubtaskText('');
     setShowSubtaskInput(false);
+  };
+
+  const renderTextWithMentions = (text: string) => {
+    const parts = text.split(/(@[A-ZÀ-ÖØ-Þ][a-zß-öø-ÿa-zA-Z]*(?:\s+[A-ZÀ-ÖØ-Þ][a-zß-öø-ÿa-zA-Z]*)*|#\w+)/g);
+    return parts.map((part, i) => {
+      if (part.startsWith('@')) {
+        return (
+          <span 
+            key={i} 
+            style={{ color: '#3b82f6', fontWeight: 800, cursor: onOpenContact ? 'pointer' : 'inherit' }}
+            onClick={(e) => { 
+              if (onOpenContact) { 
+                e.stopPropagation(); 
+                onOpenContact(part.slice(1).trim()); 
+              } 
+            }}
+          >
+            {part}
+          </span>
+        );
+      }
+      if (part.startsWith('#')) {
+        return (
+          <span 
+            key={i} 
+            style={{ color: '#8b5cf6', fontWeight: 800, cursor: onOpenEntity ? 'pointer' : 'inherit' }}
+            onClick={(e) => { 
+              if (onOpenEntity) { 
+                e.stopPropagation(); 
+                onOpenEntity(part.slice(1).trim()); 
+              } 
+            }}
+          >
+            {part}
+          </span>
+        );
+      }
+      return part;
+    });
   };
 
   const children = todo.children || [];
@@ -138,7 +179,7 @@ const DailyTodoItem: React.FC<DailyTodoItemProps> = ({
           ) : (
             <div className="wv-task-text-container" onClick={startEdit} style={{ display: 'flex', alignItems: 'center' }}>
               <span className="wv-task-text" title={todo.text}>
-                {todo.text}
+                {renderTextWithMentions(todo.text)}
                 {todo.comments && !isSubtask && <span style={{ marginLeft: '4px', opacity: 0.5 }}>📝</span>}
               </span>
               {todo.assignee && (
@@ -146,7 +187,7 @@ const DailyTodoItem: React.FC<DailyTodoItemProps> = ({
                   title={`Assigned to ${todo.assignee.name}`}
                   style={{
                     width: '16px', height: '16px', borderRadius: '50%',
-                    backgroundColor: todo.assignee.avatarColor || '#6b7280',
+                    backgroundColor: todo.assignee.avatarColor || '#ec4899', // Default to bright pink if no color
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                     fontSize: '9px', fontWeight: 800, color: '#fff', marginLeft: '6px',
                     flexShrink: 0
