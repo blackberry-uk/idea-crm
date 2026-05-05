@@ -990,7 +990,8 @@
         /* ===== Ideas Table ===== */
         .ideas-table {
             width: 100%;
-            border-collapse: collapse;
+            border-collapse: separate;
+            border-spacing: 0 6px;
             font-size: 0.8rem;
         }
 
@@ -1002,7 +1003,7 @@
             text-transform: uppercase;
             letter-spacing: 0.08em;
             color: #9ca3af;
-            border-bottom: 1px solid #f3f4f6;
+            border-bottom: none;
             white-space: nowrap;
             user-select: none;
         }
@@ -1032,36 +1033,81 @@
         }
 
         .ideas-row {
-            border-bottom: 1px solid #f9fafb;
-            transition: background 0.12s;
+            transition: box-shadow 0.15s, transform 0.1s;
+        }
+        .ideas-row td:first-child {
+            border-top-left-radius: 12px;
+            border-bottom-left-radius: 12px;
+        }
+        .ideas-row td:last-child {
+            border-top-right-radius: 12px;
+            border-bottom-right-radius: 12px;
+        }
+        .ideas-row td {
+            background: #fff;
+            border-top: 1px solid #f0f1f3;
+            border-bottom: 1px solid #f0f1f3;
+        }
+        .ideas-row td:first-child {
+            border-left: 1px solid #f0f1f3;
+        }
+        .ideas-row td:last-child {
+            border-right: 1px solid #f0f1f3;
         }
 
-        .ideas-row:hover {
-            background: #fafbfe;
+        .ideas-row:hover td {
+            background: #f9fafe;
+            border-color: #e0e2e8;
         }
 
         .ideas-td {
-            padding: 0.55rem 0.85rem;
-            vertical-align: middle;
+            padding: 0.65rem 0.85rem;
+            vertical-align: top;
         }
 
         .ideas-td--center { text-align: center; }
         .ideas-td--muted { color: #9ca3af; font-size: 0.75rem; font-weight: 600; }
 
         .ideas-title-link {
-            font-weight: 700;
+            font-weight: 500;
             color: #1f2937;
             text-decoration: none;
             transition: color 0.15s;
             display: block;
-            max-width: 280px;
+            max-width: 400px;
             overflow: hidden;
             text-overflow: ellipsis;
             white-space: nowrap;
+            font-size: 1rem;
         }
 
         .ideas-title-link:hover {
             color: var(--primary, #6366f1);
+        }
+
+        .ideas-title-hover-wrap {
+            position: relative;
+            display: inline-block;
+            max-width: 400px;
+        }
+        .ideas-title-tooltip {
+            display: none;
+            position: absolute;
+            left: 0;
+            top: 100%;
+            margin-top: 6px;
+            z-index: 100;
+            background: #fff;
+            border: 1px solid #e5e7eb;
+            border-radius: 12px;
+            box-shadow: 0 8px 24px -4px rgba(0,0,0,0.12);
+            padding: 10px 14px;
+            min-width: 240px;
+            max-width: 360px;
+            pointer-events: none;
+        }
+        .ideas-title-hover-wrap:hover .ideas-title-tooltip {
+            display: block;
         }
 
         .ideas-status-badge {
@@ -1182,25 +1228,38 @@
         }
 
         .ideas-tree-connector {
-            color: #d1d5db;
-            font-size: 0.75rem;
-            font-weight: 300;
+            color: #6b7280;
+            font-size: 0.85rem;
+            font-weight: 400;
             line-height: 1;
             flex-shrink: 0;
-            margin-right: 0.15rem;
+            margin-right: 0.3rem;
         }
 
-        .ideas-row--child {
-            background: #fafbfc;
+        /* Tree line drawn to the left of indented child cards */
+        .ideas-tree-line {
+            position: absolute;
+            left: -16px;
+            top: -6px;
+            width: 16px;
+            height: calc(50% + 6px);
+            border-left: 2px solid #d1d5db;
+            border-bottom: 2px solid #d1d5db;
+            border-bottom-left-radius: 8px;
+            pointer-events: none;
         }
 
-        .ideas-row--child:hover {
-            background: #f5f6f7;
+        .ideas-row--child td {
+            background: #e2e4ea;
+        }
+
+        .ideas-row--child:hover td {
+            background: #d8dae2;
         }
 
         .ideas-row--child .ideas-title-link {
-            font-size: 0.78rem;
-            font-weight: 600;
+            font-size: 0.9rem;
+            font-weight: 500;
         }
 
         .ideas-child-count {
@@ -4060,7 +4119,7 @@
   }
 }
 </script>
-  <script type="module" crossorigin src="/assets/index-DxXeML2g.js"></script>
+  <script type="module" crossorigin src="/assets/index-BmDMFuXd.js"></script>
 </head>
 
 <body>
