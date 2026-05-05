@@ -912,19 +912,40 @@ const Dashboard: React.FC = () => {
                   {/* Inline add input */}
                   {inlineAddTarget === block && (
                     <div style={{ padding: '0 8px 8px', position: 'relative' }}>
-                      <input
-                        ref={inputRef}
-                        value={newText}
-                        onChange={handleInlineChange}
-                        onKeyDown={e => handleInlineKeyDown(e, async () => {
-                          await inlineAddTodo(newText, toDateKey(selectedDate), block);
-                          setNewText('');
-                          setInlineAddTarget(null);
-                        })}
-                        placeholder="New task… (@ contact, # entity)"
-                        style={{ width: '100%', padding: '6px 10px', borderRadius: '8px', border: '1px solid #e5e7eb', fontSize: '0.8rem', outline: 'none' }}
-                        autoFocus
-                      />
+                      <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                        <input
+                          ref={inputRef}
+                          value={newText}
+                          onChange={handleInlineChange}
+                          onKeyDown={e => handleInlineKeyDown(e, async () => {
+                            await inlineAddTodo(newText, toDateKey(selectedDate), block);
+                            setNewText('');
+                            setInlineAddTarget(null);
+                          })}
+                          placeholder="New task… (@ contact, # entity)"
+                          style={{ flex: 1, padding: '6px 10px', borderRadius: '8px', border: '1px solid #e5e7eb', fontSize: '0.8rem', outline: 'none' }}
+                          autoFocus
+                        />
+                        <button
+                          onClick={async () => {
+                            if (!newText.trim()) return;
+                            await inlineAddTodo(newText, toDateKey(selectedDate), block);
+                            setNewText('');
+                            setInlineAddTarget(null);
+                          }}
+                          disabled={!newText.trim()}
+                          title="Add task"
+                          style={{
+                            width: 28, height: 28, borderRadius: '50%', border: 'none', cursor: newText.trim() ? 'pointer' : 'default',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                            background: newText.trim() ? '#22c55e' : '#e5e7eb',
+                            color: newText.trim() ? '#fff' : '#9ca3af',
+                            transition: 'background 0.15s, color 0.15s',
+                          }}
+                        >
+                          <Send className="w-3.5 h-3.5" style={{ marginLeft: '1px' }} />
+                        </button>
+                      </div>
                       {renderMentionDropdowns()}
                     </div>
                   )}
@@ -1315,19 +1336,40 @@ const Dashboard: React.FC = () => {
                   </div>
                   {inlineAddTarget === `wk-${dayKey}` && (
                     <div style={{ padding: '0 8px 6px', position: 'relative' }}>
-                      <input
-                        ref={inputRef}
-                        value={newText}
-                        onChange={handleInlineChange}
-                        onKeyDown={e => handleInlineKeyDown(e, async () => {
-                          await inlineAddTodo(newText, dayKey);
-                          setNewText('');
-                          setInlineAddTarget(null);
-                        })}
-                        placeholder="New task… (@ contact, # entity)"
-                        style={{ width: '100%', padding: '6px 10px', borderRadius: '8px', border: '1px solid #e5e7eb', fontSize: '0.78rem', outline: 'none' }}
-                        autoFocus
-                      />
+                      <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                        <input
+                          ref={inputRef}
+                          value={newText}
+                          onChange={handleInlineChange}
+                          onKeyDown={e => handleInlineKeyDown(e, async () => {
+                            await inlineAddTodo(newText, dayKey);
+                            setNewText('');
+                            setInlineAddTarget(null);
+                          })}
+                          placeholder="New task… (@ contact, # entity)"
+                          style={{ flex: 1, padding: '6px 10px', borderRadius: '8px', border: '1px solid #e5e7eb', fontSize: '0.78rem', outline: 'none' }}
+                          autoFocus
+                        />
+                        <button
+                          onClick={async () => {
+                            if (!newText.trim()) return;
+                            await inlineAddTodo(newText, dayKey);
+                            setNewText('');
+                            setInlineAddTarget(null);
+                          }}
+                          disabled={!newText.trim()}
+                          title="Add task"
+                          style={{
+                            width: 28, height: 28, borderRadius: '50%', border: 'none', cursor: newText.trim() ? 'pointer' : 'default',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                            background: newText.trim() ? '#22c55e' : '#e5e7eb',
+                            color: newText.trim() ? '#fff' : '#9ca3af',
+                            transition: 'background 0.15s, color 0.15s',
+                          }}
+                        >
+                          <Send className="w-3.5 h-3.5" style={{ marginLeft: '1px' }} />
+                        </button>
+                      </div>
                       {renderMentionDropdowns()}
                     </div>
                   )}
