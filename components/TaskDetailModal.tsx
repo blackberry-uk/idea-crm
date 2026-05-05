@@ -10,6 +10,7 @@ import { DailyTodoData } from './DailyTodoItem';
 import { useStore } from '../store/useStore';
 import { format, startOfMonth, endOfMonth, getDay, addMonths, subMonths, isToday } from 'date-fns';
 import { extractDelimitedMentions, getActiveMentionQuery, replaceActiveMention } from '../lib/taskMentions';
+import { getInitials } from '../lib/utils';
 
 interface TaskDetailModalProps {
   todo: DailyTodoData;
@@ -32,6 +33,7 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
   const [showTagPicker, setShowTagPicker] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [showAssigneePicker, setShowAssigneePicker] = useState(false);
   
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [calMonth, setCalMonth] = useState(() => todo.date ? new Date(String(todo.date).slice(0, 10) + 'T12:00:00') : new Date());
@@ -621,6 +623,60 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
           <>
             {/* Meta row: urgency, idea tag */}
             <div className="tdm-meta">
+              {/* Assignee tag */}
+              <div className="tdm-meta-tag-wrap">
+                <button
+                  className={`tdm-meta-chip ${todo.assigneeId ? 'tdm-meta-chip--idea' : ''}`}
+                  onClick={() => setShowAssigneePicker(!showAssigneePicker)}
+                  title={todo.assigneeId ? `Assigned to ${data.users.find(u => u.id === todo.assigneeId)?.name}` : 'Assign to'}
+                  style={{ padding: '4px' }}
+                >
+                  {todo.assigneeId ? (() => {
+                    const assigneeUser = data.users.find(u => u.id === todo.assigneeId);
+                    return (
+                      <div style={{ width: '18px', height: '18px', borderRadius: '50%', backgroundColor: assigneeUser?.avatarColor || '#8b5cf6', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '9px', color: '#fff', fontWeight: 800 }}>
+                        {getInitials(assigneeUser?.name || '')}
+                      </div>
+                    );
+                  })() : <User className="w-4 h-4 text-gray-500" />}
+                </button>
+                {showAssigneePicker && (
+                  <div className="tdm-tag-picker" style={{ padding: '8px', minWidth: '180px' }}>
+                    <div style={{ fontSize: '10px', fontWeight: 800, color: '#9ca3af', textTransform: 'uppercase', marginBottom: '8px' }}>Assign to</div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                      <button 
+                         onClick={async () => { setSaving(true); await onUpdate(todo.id, { assigneeId: null }); setSaving(false); setShowAssigneePicker(false); }}
+                         style={{ textAlign: 'left', padding: '6px 8px', borderRadius: '6px', fontSize: '12px', background: !todo.assigneeId ? '#f3f4f6' : 'transparent', border: 'none', cursor: 'pointer' }}
+                      >
+                         Unassigned
+                      </button>
+                      {(() => {
+                        let options = data.users;
+                        if (todo.ideaId) {
+                          const idea = data.ideas?.find(i => i.id === todo.ideaId);
+                          if (idea) {
+                            const allowed = [idea.ownerId, ...(idea.collaboratorIds || [])];
+                            options = data.users.filter(u => allowed.includes(u.id));
+                          }
+                        }
+                        return options.map(u => (
+                          <button
+                            key={u.id}
+                            onClick={async () => { setSaving(true); await onUpdate(todo.id, { assigneeId: u.id }); setSaving(false); setShowAssigneePicker(false); }}
+                            style={{ textAlign: 'left', padding: '6px 8px', borderRadius: '6px', fontSize: '12px', background: todo.assigneeId === u.id ? '#f3f4f6' : 'transparent', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}
+                          >
+                            <div style={{ width: '16px', height: '16px', borderRadius: '50%', backgroundColor: u.avatarColor || '#8b5cf6', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '8px', color: '#fff', fontWeight: 800 }}>
+                              {getInitials(u.name)}
+                            </div>
+                            {u.name}
+                          </button>
+                        ));
+                      })()}
+                    </div>
+                  </div>
+                )}
+              </div>
+
               {/* Due date toggle */}
               {!showDueDate && !dueDate && (
                 <button
@@ -693,29 +749,6 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                   Go to Project →
                 </Link>
               )}
-            </div>
-
-            {/* Assignee selector */}
-            <div className="tdm-field">
-              <label className="tdm-field-label">
-                <User className="w-3.5 h-3.5" />
-                Assignee
-              </label>
-              <select
-                value={todo.assigneeId || ''}
-                onChange={async e => {
-                  setSaving(true);
-                  await onUpdate(todo.id, { assigneeId: e.target.value || null });
-                  setSaving(false);
-                }}
-                className="tdm-field-date"
-                style={{ appearance: 'auto', background: '#fff', maxWidth: '200px' }}
-              >
-                <option value="">Unassigned</option>
-                {data.users.map(u => (
-                  <option key={u.id} value={u.id}>{u.name}</option>
-                ))}
-              </select>
             </div>
 
             {/* Time block selector */}
