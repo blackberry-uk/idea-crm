@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useStore } from '../store/useStore';
 import { Save, RefreshCw, Calendar, Tag, MapPin, Pin, Plus, AtSign, Search, ClipboardList, Image, X, ChevronDown, Sparkles, MessageSquare, CheckCircle, Zap, SlidersHorizontal, RotateCcw, CheckCheck, Microscope, Mountain, Bold, Italic, List, Type, Layers, Brain } from 'lucide-react';
 import CallMinuteModal from './CallMinuteModal';
+import EntityModal from './EntityModal';
 import { format } from 'date-fns';
 import { Note, IdeaStatus, NoteIntent } from '../types';
 
@@ -40,6 +41,11 @@ const NoteComposer: React.FC<NoteComposerProps> = ({ onComplete, defaultIdeaId, 
   const [isDragging, setIsDragging] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const savedRangeRef = useRef<Range | null>(null);
+
+  const [showEntityModal, setShowEntityModal] = useState(false);
+  const [entityToEdit, setEntityToEdit] = useState<any>(null);
+
   const draftKey = useMemo(() => {
     if (editingNote) return null;
     if (defaultIdeaId) return `draft_note_idea_${defaultIdeaId}`;
@@ -216,11 +222,12 @@ const NoteComposer: React.FC<NoteComposerProps> = ({ onComplete, defaultIdeaId, 
       }
 
       // Detect entity trigger (#)
-      const entityMatch = textBeforeCursor.match(/#(\w*)$/);
+      const entityMatch = textBeforeCursor.match(/(?:^|\s)#([A-Za-z0-9][A-Za-z0-9\s]*)$/);
       if (entityMatch) {
         setEntityQuery(entityMatch[1]);
         setShowEntityList(true);
         setShowMentionList(false);
+        savedRangeRef.current = range.cloneRange();
 
         const rect = range.getBoundingClientRect();
         const editorRect = editorRef.current.getBoundingClientRect();
@@ -277,10 +284,16 @@ const NoteComposer: React.FC<NoteComposerProps> = ({ onComplete, defaultIdeaId, 
   };
 
   const insertEntityMention = async (entityId: string, name: string) => {
+    let range: Range | null = null;
     const selection = window.getSelection();
-    if (!selection || selection.rangeCount === 0 || !editorRef.current) return;
+    if (selection && selection.rangeCount > 0) {
+      range = selection.getRangeAt(0);
+    } else if (savedRangeRef.current) {
+      range = savedRangeRef.current;
+    }
+    
+    if (!range || !editorRef.current) return;
 
-    const range = selection.getRangeAt(0);
     const container = range.startContainer;
 
     if (container.nodeType === Node.TEXT_NODE) {
@@ -288,10 +301,10 @@ const NoteComposer: React.FC<NoteComposerProps> = ({ onComplete, defaultIdeaId, 
       const textBeforeCursor = text.slice(0, range.startOffset);
       const textAfterCursor = text.slice(range.startOffset);
 
-      const entityMatch = textBeforeCursor.match(/#(\w*)$/);
+      const entityMatch = textBeforeCursor.match(/(?:^|\s)#([A-Za-z0-9][A-Za-z0-9\s]*)$/);
       if (entityMatch) {
-        const startPos = entityMatch.index!;
-        const newTextBefore = textBeforeCursor.slice(0, startPos) + `#${name} `;
+        const hashPos = textBeforeCursor.lastIndexOf('#');
+        const newTextBefore = textBeforeCursor.slice(0, hashPos) + `#${name} `;
         container.textContent = newTextBefore + textAfterCursor;
 
         const newRange = document.createRange();
@@ -308,16 +321,14 @@ const NoteComposer: React.FC<NoteComposerProps> = ({ onComplete, defaultIdeaId, 
     editorRef.current.focus();
   };
 
-  const createAndInsertEntity = async (name: string) => {
-    try {
-      const entity = await addEntity({ name: name.trim() });
-      if (entity?.id) {
-        await insertEntityMention(entity.id, entity.name);
-      }
-    } catch (err) {
-      console.error('Failed to create entity:', err);
-      showToast('Failed to create entity', 'error');
+  const openCreateEntityModal = (name: string) => {
+    // Preserve selection before opening modal
+    const selection = window.getSelection();
+    if (selection && selection.rangeCount > 0) {
+      savedRangeRef.current = selection.getRangeAt(0).cloneRange();
     }
+    setEntityToEdit({ name: name.trim() });
+    setShowEntityModal(true);
   };
 
   const handleToggleCategory = (cat: string) => {
@@ -742,7 +753,7 @@ const NoteComposer: React.FC<NoteComposerProps> = ({ onComplete, defaultIdeaId, 
               ))}
               {showCreateEntity && (
                 <button
-                  onMouseDown={(e) => { e.preventDefault(); createAndInsertEntity(entityQuery); }}
+                  onMouseDown={(e) => { e.preventDefault(); openCreateEntityModal(entityQuery); }}
                   className="w-full flex items-center gap-3 px-4 py-3 hover:bg-indigo-50 transition-colors border-t border-gray-100"
                 >
                   <div className="w-8 h-8 rounded-lg flex items-center justify-center text-[10px] font-bold bg-indigo-100 text-indigo-700">
@@ -1011,12 +1022,21 @@ const NoteComposer: React.FC<NoteComposerProps> = ({ onComplete, defaultIdeaId, 
         <CallMinuteModal
           isOpen={showCallMinuteModal}
           onClose={() => setShowCallMinuteModal(false)}
-          ideaId={defaultIdeaId}
-          contactId={defaultContactId}
-          location={locationStr}
-          idea={currentIdea}
+          onSaved={handleCallMinuteSaved}
         />
       )}
+
+      <EntityModal
+        isOpen={showEntityModal}
+        onClose={async (savedEntity) => {
+          setShowEntityModal(false);
+          setEntityToEdit(null);
+          if (savedEntity?.id) {
+            await insertEntityMention(savedEntity.id, savedEntity.name);
+          }
+        }}
+        entityToEdit={entityToEdit}
+      />
     </div>
   );
 };

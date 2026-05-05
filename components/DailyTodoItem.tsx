@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { Check, Circle, Flame, Trash2, X, Lightbulb, GripVertical, Plus, ChevronDown, ChevronRight } from 'lucide-react';
 import IdeaPickerDropdown from './IdeaPickerDropdown';
 import { TaskChevronMenu } from './TaskChevronMenu';
+import { useStore } from '../store/useStore';
 
 export interface DailyTodoData {
   id: string;
@@ -55,6 +56,7 @@ interface DailyTodoItemProps {
 const DailyTodoItem: React.FC<DailyTodoItemProps> = ({
   todo, ideas, onToggleComplete, onToggleUrgent, onDelete, onSaveEdit, onTagIdea, onAddSubtask, onOpenDetail, onOpenContact, onOpenEntity, onChangeDate, onChangeTimeBlock, dragHandleProps, isDragging, isSubtask, customContainerStyle, overrideDateLabel
 }) => {
+  const { data } = useStore();
   const [editing, setEditing] = useState(false);
   const [editText, setEditText] = useState('');
   const [showSubtaskInput, setShowSubtaskInput] = useState(false);
@@ -86,9 +88,24 @@ const DailyTodoItem: React.FC<DailyTodoItemProps> = ({
   };
 
   const renderTextWithMentions = (text: string) => {
-    const parts = text.split(/(@[A-ZÀ-ÖØ-Þ][a-zß-öø-ÿa-zA-Z]*(?:\s+[A-ZÀ-ÖØ-Þ][a-zß-öø-ÿa-zA-Z]*)*|#\w+)/g);
+    const knownContacts = (data.contacts || [])
+      .map(c => `@${c.fullName || c.firstName + ' ' + (c.lastName || '')}`.trim())
+      .filter(Boolean);
+    const knownEntities = (data.entities || [])
+      .map(e => `#${e.name}`)
+      .filter(Boolean);
+
+    // Sort by length descending so longest phrases match first
+    const allKnown = [...knownContacts, ...knownEntities].sort((a, b) => b.length - a.length);
+
+    if (allKnown.length === 0) return [text];
+
+    const escaped = allKnown.map(k => k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
+    const regex = new RegExp(`(${escaped})`, 'g');
+
+    const parts = text.split(regex);
     return parts.map((part, i) => {
-      if (part.startsWith('@')) {
+      if (part.startsWith('@') && knownContacts.includes(part)) {
         return (
           <span 
             key={i} 
@@ -104,7 +121,7 @@ const DailyTodoItem: React.FC<DailyTodoItemProps> = ({
           </span>
         );
       }
-      if (part.startsWith('#')) {
+      if (part.startsWith('#') && knownEntities.includes(part)) {
         return (
           <span 
             key={i} 
