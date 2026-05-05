@@ -88,19 +88,28 @@ const DailyTodoItem: React.FC<DailyTodoItemProps> = ({
   };
 
   const renderTextWithMentions = (text: string) => {
-    const knownContacts = (data.contacts || [])
-      .map(c => ({
-        text: `@${c.fullName || c.firstName + ' ' + (c.lastName || '')}`.trim(),
-        isStub: !c.email && !c.phone && !c.company && !c.backgroundInfo
-      }))
-      .filter(c => c.text.length > 1);
+    const rawContacts = (data.contacts || [])
+      .map(c => {
+        const name = (c.fullName || c.firstName + ' ' + (c.lastName || '')).trim();
+        return { name, isStub: !c.email && !c.phone && !c.company && !c.backgroundInfo };
+      })
+      .filter(c => c.name.length > 1);
       
-    const knownEntities = (data.entities || [])
-      .map(e => ({
-        text: `#${e.name}`,
-        isStub: !e.description && !e.website && !e.linkedinUrl
-      }))
-      .filter(e => e.text.length > 1);
+    const rawEntities = (data.entities || [])
+      .map(e => ({ name: e.name, isStub: !e.description && !e.website && !e.linkedinUrl }))
+      .filter(e => e.name.length > 1);
+
+    const knownContacts = rawContacts.flatMap(c => [
+      { text: `@${c.name}`, rawName: c.name, isStub: c.isStub },
+      { text: `@[${c.name}]`, rawName: c.name, isStub: c.isStub },
+      { text: `@"${c.name}"`, rawName: c.name, isStub: c.isStub }
+    ]);
+
+    const knownEntities = rawEntities.flatMap(e => [
+      { text: `#${e.name}`, rawName: e.name, isStub: e.isStub },
+      { text: `#[${e.name}]`, rawName: e.name, isStub: e.isStub },
+      { text: `#"${e.name}"`, rawName: e.name, isStub: e.isStub }
+    ]);
 
     // Sort by length descending so longest phrases match first
     const allKnown = [...knownContacts, ...knownEntities].sort((a, b) => b.text.length - a.text.length);
@@ -127,11 +136,11 @@ const DailyTodoItem: React.FC<DailyTodoItemProps> = ({
             onClick={(e) => { 
               if (onOpenContact) { 
                 e.stopPropagation(); 
-                onOpenContact(part.slice(1).trim()); 
+                onOpenContact(contactMatch.rawName); 
               } 
             }}
           >
-            {part}
+            @{contactMatch.rawName}
           </span>
         );
       }
@@ -150,23 +159,24 @@ const DailyTodoItem: React.FC<DailyTodoItemProps> = ({
             onClick={(e) => { 
               if (onOpenEntity) { 
                 e.stopPropagation(); 
-                onOpenEntity(part.slice(1).trim()); 
+                onOpenEntity(entityMatch.rawName); 
               } 
             }}
           >
-            {part}
+            #{entityMatch.rawName}
           </span>
         );
       }
       
       // Fallback for remaining text to find unmatched temporary pills
-      const fallbackRegex = /(@[A-ZÀ-ÖØ-Þ][a-zß-öø-ÿa-zA-Z]*(?:\s+[A-ZÀ-ÖØ-Þ][a-zß-öø-ÿa-zA-Z]*)*|#\w+(?:\s+\w+)*)/g;
+      const fallbackRegex = /(@\[[^\]]+\]|@"[^"]+"|@[A-ZÀ-ÖØ-Þ][a-zß-öø-ÿa-zA-Z]*(?:\s+[A-ZÀ-ÖØ-Þ][a-zß-öø-ÿa-zA-Z]*)*|#\[[^\]]+\]|#"[^"]+"|#\w+(?:\s+\w+)*)/g;
       const subParts = part.split(fallbackRegex);
       if (subParts.length === 1) return part;
       
       return subParts.map((subPart, j) => {
         if (subPart.startsWith('@') || subPart.startsWith('#')) {
           const isEntity = subPart.startsWith('#');
+          const rawName = subPart.replace(/^[@#]\[|^[@#]"|\]$|"$/g, '');
           return (
             <span 
               key={`${i}-${j}`} 
@@ -174,11 +184,11 @@ const DailyTodoItem: React.FC<DailyTodoItemProps> = ({
               title={`Click to create ${isEntity ? 'entity' : 'contact'}`}
               onClick={(e) => { 
                 e.stopPropagation(); 
-                if (isEntity && onOpenEntity) onOpenEntity(subPart.slice(1).trim()); 
-                else if (!isEntity && onOpenContact) onOpenContact(subPart.slice(1).trim());
+                if (isEntity && onOpenEntity) onOpenEntity(rawName); 
+                else if (!isEntity && onOpenContact) onOpenContact(rawName);
               }}
             >
-              {subPart}
+              {isEntity ? '#' : '@'}{rawName}
             </span>
           );
         }
