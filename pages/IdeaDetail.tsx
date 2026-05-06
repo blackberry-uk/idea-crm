@@ -605,148 +605,73 @@ const IdeaDetail: React.FC = () => {
       <div
         key={note.id}
         onDoubleClick={() => setSelectedNoteForDetail(note)}
-        className={`group relative p-4 mb-3 mx-4 rounded-2xl transition-all border cursor-default
-        ${currentIntent === 'follow_up'
-            ? 'shadow-md shadow-green-900/5'
-            : isPinned
-              ? 'shadow-sm'
-              : 'shadow-sm border-dotted'
-          }
-        ${isPinned ? 'ring-2 ring-[var(--primary)]/20' : ''}
+        className={`group relative py-2.5 px-4 mb-1.5 mx-4 rounded-xl transition-all border cursor-default
+        ${isPinned ? 'ring-1 ring-[var(--primary)]/20 shadow-sm' : 'shadow-sm border-dotted'}
         ${note.isHidden ? 'opacity-50 grayscale' : ''}
-        ${isNoteExpanded ? 'note-card--expanded' : ''}
       `}
         style={{
           backgroundColor: currentIntent === 'follow_up' ? 'var(--follow-up)' : isPinned ? 'var(--primary-shadow)' : 'var(--note-bg)',
           borderColor: currentIntent === 'follow_up' ? 'var(--follow-up-border)' : isPinned ? 'var(--primary)' : 'var(--note-border)'
         }}
       >
-        <div className="flex items-center flex-wrap gap-x-4 gap-y-1 mb-3 text-[13px] leading-none">
-          <div className="relative" onDoubleClick={e => e.stopPropagation()}>
-            <button
-              onClick={() => setOpenIntentMenuId(openIntentMenuId === note.id ? null : note.id)}
-              className={`p-1 rounded-md hover:bg-gray-100 transition-colors ${INTENT_CONFIG[currentIntent]?.color}`}
-              title={`Intent: ${INTENT_CONFIG[currentIntent]?.label}`}
-            >
-              <IntentIcon className="w-3.5 h-3.5" />
-            </button>
-            {openIntentMenuId === note.id && (
-              <>
-                <div className="fixed inset-0 z-40" onClick={() => setOpenIntentMenuId(null)} />
-                <div className="absolute top-full left-0 mt-1 bg-white border border-[var(--border)] rounded-xl shadow-xl z-50 py-1.5 min-w-[140px] animate-in fade-in zoom-in-95 duration-100">
-                  {Object.entries(INTENT_CONFIG).map(([key, config]) => (
-                    <button
-                      key={key}
-                      onClick={() => {
-                        updateNote(note.id, { intent: key as any });
-                        setOpenIntentMenuId(null);
-                      }}
-                      className="flex items-center gap-3 w-full px-4 py-2 text-[11px] font-bold text-gray-500 hover:bg-gray-50 hover:text-gray-900 transition-colors uppercase tracking-tight"
-                    >
-                      <config.icon className={`w-3.5 h-3.5 ${config.color}`} />
-                      <span>{config.label}</span>
-                    </button>
-                  ))}
-                </div>
-              </>
-            )}
-          </div>
-
-          <span className="text-blue-400 hover:underline cursor-default transition-colors" title={note.location || undefined}>
-            {format(new Date(note.createdAt), "EEE, MMM d ''yy · h:mm a")}
+        <div className="flex items-center gap-3 text-[11px] leading-none">
+          <span className="text-gray-400 shrink-0">
+            {format(new Date(note.createdAt), "MMM d · h:mm a")}
           </span>
-          <span className="text-blue-400">{note.createdBy}</span>
+          <span className="text-gray-500 font-medium shrink-0">{note.createdBy}</span>
 
-          <div className="ml-auto flex items-center gap-4" onDoubleClick={e => e.stopPropagation()}>
-            {/* Mobile: overflow toggle */}
-            {note.createdById === data.currentUser?.id && (
-              <button
-                className="note-card-overflow-btn"
-                onClick={() => setExpandedNoteActionsId(isNoteExpanded ? null : note.id)}
-                title="More actions"
-              >
-                <MoreHorizontal className="w-4 h-4" />
-              </button>
-            )}
-
-            {/* Categories — always visible */}
-            {note.categories && note.categories.length > 0 && (
-              <div className="flex flex-wrap gap-1.5">
-                {note.categories.map(cat => (
-                  <span key={cat} className="px-1.5 py-0.5 rounded text-[9px] font-black uppercase tracking-tighter border" style={{ backgroundColor: 'var(--primary)', color: '#fff', borderColor: 'var(--primary)' }}>
-                    {cat}
-                  </span>
-                ))}
-              </div>
-            )}
-
-            {/* Desktop: hover-revealed. Mobile: hidden until overflow tap */}
-            <div className="note-card-actions-secondary flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
-              {note.createdById === data.currentUser?.id && (
-                <div className="flex items-center gap-1">
-                  <button
-                    onClick={() => {
-                      if (isStructured && structuredData?.template === 'call-minute') {
-                        setEditingCallMinute(note);
-                      } else {
-                        setEditingNoteId(note.id);
-                      }
-                    }}
-                    className="p-1.5 rounded-lg hover:bg-[var(--primary)]/10 text-gray-400 hover:text-[var(--primary)] transition-all"
-                    title="Edit Note"
-                  >
-                    <Edit3 className="w-4 h-4" />
-                  </button>
-                  <button
-                    onClick={() => {
-                      confirm({
-                        title: 'Delete Note',
-                        message: 'Are you sure you want to permanently delete this insight? This action cannot be undone.',
-                        confirmLabel: 'Delete Permanently',
-                        type: 'danger',
-                        onConfirm: () => deleteNote(note.id)
-                      });
-                    }}
-                    className="p-1.5 rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-500 transition-all"
-                    title="Delete Note"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                </div>
-              )}
+          {/* Categories — without Activity Log */}
+          {note.categories && note.categories.filter(c => c !== 'Activity Log').length > 0 && (
+            <div className="flex flex-wrap gap-1">
+              {note.categories.filter(c => c !== 'Activity Log').map(cat => (
+                <span key={cat} className="px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-tighter border" style={{ backgroundColor: 'var(--primary)', color: '#fff', borderColor: 'var(--primary)' }}>
+                  {cat}
+                </span>
+              ))}
             </div>
+          )}
 
-            {/* Hide/Pin — Desktop: always. Mobile: behind overflow */}
+          <div className="ml-auto flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all" onDoubleClick={e => e.stopPropagation()}>
             {note.createdById === data.currentUser?.id && (
-              <div className="note-card-actions-secondary flex items-center gap-1">
+              <>
                 <button
-                  onClick={() => toggleHideNote(note.id)}
-                  className={`p-1.5 rounded-lg transition-all flex items-center justify-center ${note.isHidden ? 'bg-gray-100 text-gray-700 border border-[var(--border)] shadow-sm' : 'text-gray-300 hover:text-gray-500 hover:bg-gray-100'}`}
-                  title={note.isHidden ? 'Unhide' : 'Hide from thread'}
+                  onClick={() => {
+                    if (isStructured && structuredData?.template === 'call-minute') {
+                      setEditingCallMinute(note);
+                    } else {
+                      setEditingNoteId(note.id);
+                    }
+                  }}
+                  className="p-1 rounded hover:bg-[var(--primary)]/10 text-gray-400 hover:text-[var(--primary)] transition-all"
+                  title="Edit"
                 >
-                  <EyeOff className={`w-4 h-4 ${note.isHidden ? 'text-gray-900' : ''}`} />
+                  <Edit3 className="w-3 h-3" />
                 </button>
                 <button
-                  onClick={() => togglePinNote(note.id)}
-                  className={`p-1.5 rounded-lg transition-all flex items-center justify-center ${isPinned ? 'bg-amber-50 text-amber-600 border border-amber-200 shadow-sm' : 'text-gray-300 hover:text-gray-500 hover:bg-gray-100'}`}
-                  title={isPinned ? 'Unpin' : 'Pin'}
+                  onClick={() => {
+                    confirm({
+                      title: 'Delete Note',
+                      message: 'Permanently delete this note?',
+                      confirmLabel: 'Delete',
+                      type: 'danger',
+                      onConfirm: () => deleteNote(note.id)
+                    });
+                  }}
+                  className="p-1 rounded hover:bg-red-50 text-gray-400 hover:text-red-500 transition-all"
+                  title="Delete"
                 >
-                  <Pin className={`w-4 h-4 ${isPinned ? 'fill-current' : ''}`} />
+                  <Trash2 className="w-3 h-3" />
                 </button>
-              </div>
+              </>
             )}
           </div>
         </div>
 
-        <div className={`text-sm ${currentIntent === 'follow_up' ? 'text-slate-950' : 'text-slate-800'} font-[450] leading-relaxed whitespace-pre-wrap font-sans px-4`}>
-          {note.imageUrl && (
-            <div className="mb-4 rounded-2xl overflow-hidden border border-[var(--border)] shadow-lg max-w-xl">
-              <img src={note.imageUrl} alt="Attached" className="w-full h-auto" />
-            </div>
-          )}
+        <div className={`text-xs ${currentIntent === 'follow_up' ? 'text-slate-950' : 'text-slate-700'} font-normal leading-snug mt-1 line-clamp-2`}>
+          {note.imageUrl && <span className="mr-1">📎</span>}
           {isStructured && structuredData
             ? renderStructuredBody(structuredData)
-            : <div>{renderBodyWithLinks(note.body, note)}</div>
+            : <span>{note.body}</span>
           }
         </div>
 
