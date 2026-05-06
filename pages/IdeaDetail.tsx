@@ -695,7 +695,7 @@ const IdeaDetail: React.FC = () => {
           <div className="grid grid-cols-1 lg:grid-cols-[3fr_2fr] gap-4">
             
             {/* Left Header Bubble: Identification + Description + Sub-projects */}
-            <div className="min-w-0 flex flex-col gap-4 backdrop-blur-md border border-[var(--border)] shadow-md rounded-2xl p-6" style={{ background: 'var(--border)' }}>
+            <div className="min-w-0 flex flex-col gap-4 backdrop-blur-md bg-white border border-[var(--border)] shadow-sm rounded-2xl p-6">
               {/* Title and Identification */}
               <div className="flex flex-wrap items-center gap-3">
                 {isEditingIdea ? (
@@ -791,7 +791,7 @@ const IdeaDetail: React.FC = () => {
                                 >
                                   {isSelected && <span className="text-[10px] font-black leading-none mt-0.5">✓</span>}
                                 </button>
-                                <Link to={`/ideas/${parentProject.id}`} className={`text-xs font-bold px-2.5 py-1 rounded-full transition-colors flex items-center gap-1 ${isSelected ? 'text-[var(--primary)] bg-[var(--primary-shadow)]' : 'text-gray-600 hover:text-gray-900 bg-gray-100 hover:bg-gray-200'}`}>
+                                <Link to={`/ideas/${parentProject.id}`} className={`text-xs font-bold px-2.5 py-1 rounded-full transition-colors flex items-center gap-1 border ${isSelected ? 'text-[var(--primary)] bg-[var(--primary-shadow)] border-[var(--primary)]' : 'text-amber-900 bg-amber-50 border-amber-200 hover:bg-amber-100'}`}>
                                   ⬆ {parentProject.title}
                                 </Link>
                               </div>
@@ -823,7 +823,7 @@ const IdeaDetail: React.FC = () => {
                                 >
                                   {isSelected && <span className="text-[10px] font-black leading-none mt-0.5">✓</span>}
                                 </button>
-                                <Link to={`/ideas/${sp.id}`} className={`text-xs font-bold px-2.5 py-1 rounded-full transition-colors flex items-center gap-1 ${isSelected ? 'text-[var(--primary)] bg-[var(--primary-shadow)]' : 'text-gray-600 hover:text-gray-900 bg-gray-100 hover:bg-gray-200'}`}>
+                                <Link to={`/ideas/${sp.id}`} className={`text-xs font-bold px-2.5 py-1 rounded-full transition-colors flex items-center gap-1 border ${isSelected ? 'text-[var(--primary)] bg-[var(--primary-shadow)] border-[var(--primary)]' : 'text-amber-900 bg-amber-50 border-amber-200 hover:bg-amber-100'}`}>
                                   {sp.title}
                                 </Link>
                               </div>
@@ -998,11 +998,11 @@ const IdeaDetail: React.FC = () => {
       <div className="h-2" />
 
       <div className="max-w-[1600px] mx-auto px-8 mt-12 animate-in fade-in slide-in-from-bottom-4 duration-500">
-        <div className="grid grid-cols-1 lg:grid-cols-[3fr_2fr] gap-10">
+        <div className="grid grid-cols-1 lg:grid-cols-[3fr_2fr] gap-4">
           {/* LEFT COLUMN: Task Calendar */}
-          <div className="space-y-6">
+          <div className="flex flex-col gap-4 h-full">
             {/* Task Calendar — CENTERPIECE */}
-            <section className="rounded-2xl border shadow-sm" style={{ background: 'var(--secondary)' }}>
+            <section className="bg-white rounded-2xl border border-[var(--border)] shadow-sm">
               <div className="flex items-center justify-between p-6 pb-4 border-b border-[var(--border)]">
                 <h2 className="text-sm font-black text-gray-400 uppercase tracking-widest flex items-center gap-2">
                   <span>✅</span> Checklist Calendar
@@ -1212,7 +1212,7 @@ const IdeaDetail: React.FC = () => {
           </div>
 
           {/* RIGHT COLUMN: Documents + Activity Log */}
-          <div className="space-y-6">
+          <div className="flex flex-col gap-4 h-full">
             
             {/* Documents & Links */}
             <section className="bg-white rounded-2xl border p-6 shadow-sm">
@@ -1311,7 +1311,7 @@ const IdeaDetail: React.FC = () => {
             </section>
 
             {/* Activity Log */}
-            <div className="bg-white rounded-[40px] border border-[var(--border)] shadow-sm overflow-hidden flex flex-col">
+            <div className="bg-white rounded-2xl border border-[var(--border)] shadow-sm overflow-hidden flex flex-col">
               {/* Working Area (Amber) */}
               {showComposer && (
                 <div style={{ backgroundColor: 'var(--secondary)' }} className="border-b border-[var(--border)] animate-in fade-in transition-all">
