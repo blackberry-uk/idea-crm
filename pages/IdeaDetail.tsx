@@ -760,40 +760,80 @@ const IdeaDetail: React.FC = () => {
                 </div>
               )}
 
-              {/* Sub-projects */}
+              {/* Hierarchy / Related Projects */}
               {(() => {
                 const subProjects = data.ideas.filter(i => i.parentId === idea.id);
-                return subProjects.length > 0 ? (
-                  <div>
-                    <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">Sub-projects</div>
-                    <div className="flex flex-wrap gap-2">
-                      {subProjects.map(sp => {
-                        const isSelected = selectedSubProjectIds.has(sp.id);
-                        return (
-                          <div key={sp.id} className="flex items-center gap-0">
-                            <button
-                              onClick={() => {
-                                setSelectedSubProjectIds(prev => {
-                                  const next = new Set(prev);
-                                  if (next.has(sp.id)) next.delete(sp.id);
-                                  else next.add(sp.id);
-                                  return next;
-                                });
-                              }}
-                              className={`w-4 h-4 rounded border-2 flex items-center justify-center transition-all shrink-0 ${isSelected ? 'bg-[var(--primary)] border-[var(--primary)] text-white' : 'border-gray-300 hover:border-gray-400'}`}
-                              title={isSelected ? 'Hide tasks from calendar' : 'Show tasks in calendar'}
-                            >
-                              {isSelected && <span className="text-[8px] font-black">✓</span>}
-                            </button>
-                            <Link to={`/ideas/${sp.id}`} className={`text-xs font-bold px-2.5 py-1 rounded-full transition-colors flex items-center gap-1 ${isSelected ? 'text-[var(--primary)] bg-[var(--primary-shadow)]' : 'text-gray-600 hover:text-gray-900 bg-gray-100 hover:bg-gray-200'}`}>
-                              {sp.title}
-                            </Link>
-                          </div>
-                        );
-                      })}
-                    </div>
+                const parentProject = idea.parentId ? data.ideas.find(i => i.id === idea.parentId) : null;
+                
+                if (!parentProject && subProjects.length === 0) return null;
+
+                return (
+                  <div className="flex flex-col gap-4">
+                    {parentProject && (
+                      <div>
+                        <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">Parent Project</div>
+                        <div className="flex flex-wrap gap-2">
+                          {(() => {
+                            const isSelected = selectedSubProjectIds.has(parentProject.id);
+                            return (
+                              <div className="flex items-center gap-1.5">
+                                <button
+                                  onClick={() => {
+                                    setSelectedSubProjectIds(prev => {
+                                      const next = new Set(prev);
+                                      if (next.has(parentProject.id)) next.delete(parentProject.id);
+                                      else next.add(parentProject.id);
+                                      return next;
+                                    });
+                                  }}
+                                  className={`w-4 h-4 rounded-full border bg-white flex items-center justify-center transition-all shrink-0 ${isSelected ? 'border-[var(--primary)] text-[var(--primary)] shadow-sm' : 'border-gray-300 hover:border-gray-400'}`}
+                                  title={isSelected ? 'Hide tasks from calendar' : 'Show tasks in calendar'}
+                                >
+                                  {isSelected && <span className="text-[10px] font-black leading-none mt-0.5">✓</span>}
+                                </button>
+                                <Link to={`/ideas/${parentProject.id}`} className={`text-xs font-bold px-2.5 py-1 rounded-full transition-colors flex items-center gap-1 ${isSelected ? 'text-[var(--primary)] bg-[var(--primary-shadow)]' : 'text-gray-600 hover:text-gray-900 bg-gray-100 hover:bg-gray-200'}`}>
+                                  ⬆ {parentProject.title}
+                                </Link>
+                              </div>
+                            );
+                          })()}
+                        </div>
+                      </div>
+                    )}
+
+                    {subProjects.length > 0 && (
+                      <div>
+                        <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">Sub-projects</div>
+                        <div className="flex flex-wrap gap-2">
+                          {subProjects.map(sp => {
+                            const isSelected = selectedSubProjectIds.has(sp.id);
+                            return (
+                              <div key={sp.id} className="flex items-center gap-1.5">
+                                <button
+                                  onClick={() => {
+                                    setSelectedSubProjectIds(prev => {
+                                      const next = new Set(prev);
+                                      if (next.has(sp.id)) next.delete(sp.id);
+                                      else next.add(sp.id);
+                                      return next;
+                                    });
+                                  }}
+                                  className={`w-4 h-4 rounded-full border bg-white flex items-center justify-center transition-all shrink-0 ${isSelected ? 'border-[var(--primary)] text-[var(--primary)] shadow-sm' : 'border-gray-300 hover:border-gray-400'}`}
+                                  title={isSelected ? 'Hide tasks from calendar' : 'Show tasks in calendar'}
+                                >
+                                  {isSelected && <span className="text-[10px] font-black leading-none mt-0.5">✓</span>}
+                                </button>
+                                <Link to={`/ideas/${sp.id}`} className={`text-xs font-bold px-2.5 py-1 rounded-full transition-colors flex items-center gap-1 ${isSelected ? 'text-[var(--primary)] bg-[var(--primary-shadow)]' : 'text-gray-600 hover:text-gray-900 bg-gray-100 hover:bg-gray-200'}`}>
+                                  {sp.title}
+                                </Link>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
                   </div>
-                ) : null;
+                );
               })()}
             </div>
 
