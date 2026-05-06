@@ -21,8 +21,8 @@ const ContactsPage: React.FC = () => {
     setShowModal(true);
   };
 
-  const [sortField, setSortField] = useState<'createdAt' | 'fullName' | 'org' | 'noteCount'>('createdAt');
-  const [sortDirection, setSortDirection] = useState<'desc' | 'asc'>('desc');
+  const [sortField, setSortField] = useState<'createdAt' | 'fullName' | 'org' | 'noteCount'>('fullName');
+  const [sortDirection, setSortDirection] = useState<'desc' | 'asc'>('asc');
 
   const handleSort = (field: 'createdAt' | 'fullName' | 'org' | 'noteCount') => {
     if (sortField === field) {
