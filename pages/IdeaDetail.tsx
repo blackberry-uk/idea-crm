@@ -693,7 +693,7 @@ const IdeaDetail: React.FC = () => {
           <div className="grid grid-cols-1 lg:grid-cols-[3fr_2fr] gap-4">
             
             {/* Left Header Bubble: Identification + Description + Sub-projects */}
-            <div className="min-w-0 flex flex-col gap-4 backdrop-blur-md border border-[var(--border)] shadow-md rounded-2xl p-6" style={{ background: 'linear-gradient(135deg, rgba(255,183,77,0.12) 0%, rgba(255,224,178,0.10) 25%, rgba(129,212,250,0.10) 50%, rgba(178,255,218,0.10) 75%, rgba(206,147,216,0.08) 100%)' }}>
+            <div className="min-w-0 flex flex-col gap-4 backdrop-blur-md border border-blue-200 shadow-md rounded-2xl p-6" style={{ background: '#CADCF7' }}>
               {/* Title and Identification */}
               <div className="flex flex-wrap items-center gap-3">
                 {isEditingIdea ? (
