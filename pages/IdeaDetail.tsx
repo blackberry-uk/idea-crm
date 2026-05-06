@@ -164,7 +164,8 @@ const IdeaDetail: React.FC = () => {
     }
   };
 
-  // Fetch daily todos tagged to this idea
+  // Fetch daily todos tagged to this idea (and selected sub-projects)
+  const [selectedSubProjectIds, setSelectedSubProjectIds] = useState<Set<string>>(new Set());
   const [linkedDailyTodos, setLinkedDailyTodos] = useState<any[]>([]);
   useEffect(() => {
     if (!idea?.id) return;
@@ -177,13 +178,14 @@ const IdeaDetail: React.FC = () => {
         const all = await apiClient.get(
           `/daily-todos?from=${from.toISOString()}&to=${to.toISOString()}`
         ) as any[];
-        setLinkedDailyTodos(all.filter(t => t.ideaId === idea.id));
+        const includeIds = new Set([idea.id, ...selectedSubProjectIds]);
+        setLinkedDailyTodos(all.filter(t => includeIds.has(t.ideaId)));
       } catch (err) {
         console.error('Failed to fetch linked daily todos:', err);
       }
     };
     fetchLinked();
-  }, [idea?.id]);
+  }, [idea?.id, selectedSubProjectIds]);
 
   const toggleLinkedDailyTodo = async (todo: any) => {
     try {
@@ -764,12 +766,31 @@ const IdeaDetail: React.FC = () => {
                 return subProjects.length > 0 ? (
                   <div>
                     <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">Sub-projects</div>
-                    <div className="flex flex-wrap gap-4">
-                      {subProjects.map(sp => (
-                        <Link key={sp.id} to={`/ideas/${sp.id}`} className="text-xs font-bold text-gray-600 hover:text-gray-900 bg-gray-100 hover:bg-gray-200 px-3 py-1.5 rounded-full transition-colors flex items-center gap-1.5">
-                          • {sp.title}
-                        </Link>
-                      ))}
+                    <div className="flex flex-wrap gap-2">
+                      {subProjects.map(sp => {
+                        const isSelected = selectedSubProjectIds.has(sp.id);
+                        return (
+                          <div key={sp.id} className="flex items-center gap-0">
+                            <button
+                              onClick={() => {
+                                setSelectedSubProjectIds(prev => {
+                                  const next = new Set(prev);
+                                  if (next.has(sp.id)) next.delete(sp.id);
+                                  else next.add(sp.id);
+                                  return next;
+                                });
+                              }}
+                              className={`w-4 h-4 rounded border-2 flex items-center justify-center transition-all shrink-0 ${isSelected ? 'bg-[var(--primary)] border-[var(--primary)] text-white' : 'border-gray-300 hover:border-gray-400'}`}
+                              title={isSelected ? 'Hide tasks from calendar' : 'Show tasks in calendar'}
+                            >
+                              {isSelected && <span className="text-[8px] font-black">✓</span>}
+                            </button>
+                            <Link to={`/ideas/${sp.id}`} className={`text-xs font-bold px-2.5 py-1 rounded-full transition-colors flex items-center gap-1 ${isSelected ? 'text-[var(--primary)] bg-[var(--primary-shadow)]' : 'text-gray-600 hover:text-gray-900 bg-gray-100 hover:bg-gray-200'}`}>
+                              {sp.title}
+                            </Link>
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
                 ) : null;
