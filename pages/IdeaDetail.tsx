@@ -2,7 +2,7 @@
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { useNavigate, useParams, Link } from 'react-router-dom';
 import { useStore } from '../store/useStore';
-import { format, isToday, isTomorrow, isPast, addDays, parseISO, startOfDay } from 'date-fns';
+import { format, isToday, isTomorrow, isPast, addDays, parseISO, startOfDay, formatDistanceToNow } from 'date-fns';
 import CallMinuteModal from '../components/CallMinuteModal';
 import CallMinuteViewer from '../components/CallMinuteViewer';
 import { Note, Idea, Contact, User, IdeaType, IdeaStatus } from '../types';
@@ -858,15 +858,17 @@ const IdeaDetail: React.FC = () => {
       {/* Sticky Header - Peninsula Style */}
       <div className="sticky top-0 z-50 bg-white/95 backdrop-blur-md border-b border-[var(--border)] shadow-md rounded-b-[40px] max-w-[1600px] mx-auto">
         <div className="max-w-6xl mx-auto px-8 pt-8 pb-6">
-          <div className="flex flex-col md:flex-row md:items-start justify-between gap-6">
-            <div className="flex-1 min-w-0">
-              <div className="flex flex-wrap items-center gap-3 mb-5">
-                <div className="flex items-center gap-2">
-                  {isEditingIdea ? (
+          <div className="flex flex-col lg:flex-row justify-between gap-10">
+            
+            {/* Left Header: Identification + Description + Sub-projects */}
+            <div className="flex-1 min-w-0 flex flex-col gap-4">
+              {/* Title and Identification */}
+              <div className="flex flex-wrap items-center gap-3">
+                {isEditingIdea ? (
+                  <div className="space-y-3 w-full">
                     <div className="flex gap-2">
                       <select
-                        className="text-[10px] font-bold uppercase bg-white border border-[var(--border)] rounded px-2 py-1 shadow-sm focus:ring-2"
-                        style={{ ringColor: 'var(--primary)' }}
+                        className="text-[10px] font-bold uppercase bg-white border border-[var(--border)] rounded px-2 py-1 shadow-sm"
                         value={editedIdea.type}
                         onChange={e => setEditedIdea({ ...editedIdea, type: e.target.value })}
                       >
@@ -875,243 +877,361 @@ const IdeaDetail: React.FC = () => {
                         ))}
                       </select>
                       <select
-                        className="text-[10px] font-bold uppercase bg-white border border-[var(--border)] rounded px-2 py-1 shadow-sm focus:ring-2"
-                        style={{ ringColor: 'var(--primary)' }}
+                        className="text-[10px] font-bold uppercase bg-white border border-[var(--border)] rounded px-2 py-1 shadow-sm"
                         value={editedIdea.entity}
                         onChange={e => setEditedIdea({ ...editedIdea, entity: e.target.value })}
                       >
                         {personalEntities.map(ent => <option key={ent} value={ent}>{ent}</option>)}
                       </select>
                     </div>
-                  ) : (
-                    <>
-                      <span className="px-3 py-1 rounded-full text-[12px] font-medium tracking-tight border shadow-sm font-sans" style={{ backgroundColor: 'var(--primary-shadow)', color: 'var(--primary)', borderColor: 'var(--primary)' }}>
+                    <input
+                      className="text-3xl font-extrabold w-full outline-none border-b-2 bg-transparent border-[var(--primary)]"
+                      value={editedIdea.title}
+                      onChange={e => setEditedIdea({ ...editedIdea, title: e.target.value })}
+                      placeholder="Idea Title"
+                    />
+                  </div>
+                ) : (
+                  <>
+                    <h1 className="text-3xl font-extrabold text-gray-900 truncate tracking-tight">{idea.title}</h1>
+                    <div className="flex items-center gap-2">
+                      <span className="px-2 py-0.5 rounded-md text-[11px] font-bold tracking-tight border bg-gray-50 text-gray-500 border-gray-200">
                         {idea.type}
                       </span>
-                      <span className="px-3 py-1 rounded-full text-[12px] font-medium tracking-tight border shadow-sm font-sans" style={{ backgroundColor: 'var(--primary-shadow)', color: 'var(--primary)', borderColor: 'var(--primary)' }}>
+                      <span className="px-2 py-0.5 rounded-md text-[11px] font-bold tracking-tight border bg-gray-50 text-gray-500 border-gray-200">
                         {idea.entity}
                       </span>
-                    </>
-                  )}
-                </div>
-
-                {!isEditingIdea && owner && (
-                  <div className="flex items-center gap-2 pl-3 border-l border-[var(--border)]">
-                    <span className="text-[10px] font-bold text-gray-300 uppercase tracking-widest font-sans">Owner</span>
-                    <span className="px-3 py-1 bg-amber-50 text-amber-600 rounded-full text-[12px] font-medium tracking-tight border border-amber-100 shadow-sm font-sans">
-                      {owner.name}
-                    </span>
-                  </div>
+                      {owner && (
+                        <span className="px-2 py-0.5 rounded-md text-[11px] font-bold tracking-tight border bg-amber-50 text-amber-600 border-amber-200 flex items-center gap-1">
+                          👑 {owner.name}
+                        </span>
+                      )}
+                    </div>
+                  </>
                 )}
               </div>
 
+              {/* Description (Gray background) */}
               {isEditingIdea ? (
-                <div className="space-y-3 mb-6">
-                  <input
-                    className="text-3xl font-extrabold w-full outline-none border-b-2 bg-transparent"
-                    style={{ borderBottomColor: 'var(--primary)' }}
-                    value={editedIdea.title}
-                    onChange={e => setEditedIdea({ ...editedIdea, title: e.target.value })}
-                    placeholder="Idea Title"
-                  />
+                <textarea
+                  className="w-full text-sm text-gray-700 leading-relaxed font-medium bg-gray-50 p-4 rounded-xl outline-none border border-[var(--border)]"
+                  value={editedIdea.oneLiner ?? ''}
+                  onChange={e => setEditedIdea({ ...editedIdea, oneLiner: e.target.value })}
+                  placeholder="Describe the mission..."
+                />
+              ) : idea.oneLiner && (
+                <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 text-sm text-gray-700 font-medium leading-relaxed shadow-sm flex gap-2">
+                  <span>📝</span>
+                  <span className="flex-1">{idea.oneLiner}</span>
                 </div>
-              ) : (
-                <>
-                  {idea.parentId && (() => {
-                    const parentIdea = data.ideas.find(i => i.id === idea.parentId);
-                    return parentIdea ? (
-                      <Link
-                        to={`/ideas/${parentIdea.id}`}
-                        className="inline-flex items-center gap-1.5 text-xs font-semibold mb-1 px-2.5 py-1 rounded-lg transition-colors"
-                        style={{ color: 'var(--primary)', backgroundColor: 'var(--primary-shadow)' }}
-                      >
-                        <ChevronRight className="w-3 h-3 rotate-180" />
-                        {parentIdea.title}
-                        <span className="text-gray-300 mx-0.5">›</span>
-                        <span className="text-gray-400 font-normal">Sub-Idea</span>
-                      </Link>
-                    ) : null;
-                  })()}
-                  <h1 className="text-3xl font-extrabold text-gray-900 truncate tracking-tight mb-4">{idea.title}</h1>
-                </>
               )}
 
-              <div className="flex-col flex sm:flex-row items-center gap-4 mb-2 font-sans">
-                <div className="flex-1 flex items-center h-8 font-normal text-[13px] tracking-tight rounded-lg border border-[var(--border)] w-full bg-white/50 p-[1px] shadow-sm overflow-hidden">
-                  {getStagesForType(idea.type, data.currentUser?.ideaConfigs || []).map((s, idx, arr) => {
-                    const statusOrder = getStagesForType(idea.type, data.currentUser?.ideaConfigs || []);
-                    const currentIdx = statusOrder.indexOf(idea.status as any);
-                    const isPassed = currentIdx > idx;
-                    const isCurrent = currentIdx === idx;
-                    const isUntouched = currentIdx < idx;
+              {/* Sub-projects */}
+              {(() => {
+                const subProjects = data.ideas.filter(i => i.parentId === idea.id);
+                return subProjects.length > 0 ? (
+                  <div>
+                    <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">Sub-projects</div>
+                    <div className="flex flex-wrap gap-4">
+                      {subProjects.map(sp => (
+                        <Link key={sp.id} to={`/ideas/${sp.id}`} className="text-sm font-semibold text-gray-600 hover:text-gray-900 flex items-center gap-1.5 transition-colors hover:bg-gray-100 px-2 py-1 rounded-md">
+                          • {sp.title}
+                        </Link>
+                      ))}
+                    </div>
+                  </div>
+                ) : null;
+              })()}
+            </div>
 
-                    return (
-                      <div
-                        key={s}
+            {/* Right Header: Status, Last Update, Collaborators */}
+            <div className="w-full lg:w-[400px] flex flex-col gap-4 shrink-0">
+              
+              {/* Actions Box */}
+              <div className="flex justify-end gap-2">
+                {isOwner ? (
+                  <>
+                    <button
+                      onClick={() => setIsEditingIdea(!isEditingIdea)}
+                      className="p-1.5 rounded-lg text-gray-400 hover:bg-gray-100 transition-all text-sm grayscale"
+                      title={isEditingIdea ? 'Cancel' : 'Edit Project'}
+                    >
+                      {isEditingIdea ? '❌' : '✏️'}
+                    </button>
+                    {!isEditingIdea && (
+                      <button
                         onClick={() => {
-                          if (isOwner) {
-                            updateIdea(idea.id, { status: s as any });
-                            showToast(`Moved to ${s} `, 'success');
-                          }
+                          confirm({
+                            title: 'Delete Idea',
+                            message: `Permanently delete "${idea.title}"? This action cannot be undone.`,
+                            confirmLabel: 'Delete',
+                            type: 'danger',
+                            onConfirm: async () => {
+                              try {
+                                await deleteIdea(idea.id);
+                                showToast('Idea deleted', 'success');
+                                navigate('/ideas');
+                              } catch (err: any) {
+                                showToast(err.message || 'Failed to delete idea', 'error');
+                              }
+                            }
+                          });
                         }}
-                        className={`relative flex-1 flex items-center justify-center h-full transition-all cursor-pointer group/status border-r last:border-r-0 border-black/5 ${isCurrent
-                          ? 'z-20 shadow-sm rounded-md' :
-                          isPassed
-                            ? 'z-10' :
-                            'bg-transparent text-slate-300'
-                          } hover:brightness-95`}
-                        style={isCurrent ? { backgroundColor: 'var(--primary)', color: 'white' } : isPassed ? { backgroundColor: 'var(--primary-shadow)', color: 'var(--primary)' } : {}}
-                        title={isOwner ? `Set status to ${s} ` : undefined}
+                        className="p-1.5 rounded-lg text-gray-400 hover:bg-red-50 hover:text-red-500 transition-all text-sm grayscale hover:grayscale-0"
+                        title="Delete Project"
                       >
-                        <span>{s}</span>
-                        {!isPassed && isOwner && (
-                          <div className="absolute inset-0 bg-emerald-50/0 group-hover/status:bg-emerald-50/50 transition-colors" />
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
+                        🗑️
+                      </button>
+                    )}
+                    {isEditingIdea && (
+                      <button onClick={handleSaveIdea} className="px-3 py-1 bg-[var(--primary)] text-white rounded-lg text-xs font-bold flex items-center gap-1 hover:brightness-110 transition-all">
+                        💾 Save
+                      </button>
+                    )}
+                  </>
+                ) : (
+                  <button
+                    onClick={() => {
+                      confirm({
+                        title: 'Leave Project',
+                        message: `Stop collaborating on "${idea.title}"?`,
+                        confirmLabel: 'Leave',
+                        type: 'danger',
+                        onConfirm: async () => {
+                          try {
+                            await leaveIdea(idea.id);
+                            showToast('You have left the project', 'info');
+                            navigate('/ideas');
+                          } catch (err: any) {
+                            showToast(err.message || 'Failed to leave project', 'error');
+                          }
+                        }
+                      });
+                    }}
+                    className="px-3 py-1 bg-white border border-gray-200 rounded-lg text-xs font-bold text-gray-500 hover:bg-red-50 hover:text-red-600 flex items-center gap-1 transition-all"
+                  >
+                    🚪 Leave
+                  </button>
+                )}
+              </div>
 
-                <div className="flex gap-2 shrink-0">
-                  <button
-                    onClick={() => isOwner && updateIdea(idea.id, { status: 'On Hold' })}
-                    className={`px-4 h-8 rounded-lg text-[9px] font-black uppercase tracking-widest border transition-all ${idea.status === 'On Hold'
-                      ? 'bg-amber-500 text-white border-amber-600 shadow-lg shadow-amber-100'
-                      : 'bg-white text-amber-500 border-amber-100 hover:bg-amber-50'
-                      } `}
-                  >
-                    On Hold
-                  </button>
-                  <button
-                    onClick={() => isOwner && updateIdea(idea.id, { status: 'Dead' })}
-                    className={`px-4 h-8 rounded-lg text-[9px] font-black uppercase tracking-widest border transition-all ${idea.status === 'Dead'
-                      ? 'bg-red-500 text-white border-red-600 shadow-lg shadow-red-100'
-                      : 'bg-white text-red-500 border-red-100 hover:bg-red-50'
-                      } `}
-                  >
-                    Dead
-                  </button>
+              <div className="flex flex-col gap-2 mt-2">
+                <div className="text-sm text-gray-500 font-medium flex items-center gap-2">
+                  <span>📅</span>
+                  <span className="text-gray-400">Last update:</span> 
+                  <span>{format(new Date(idea.updatedAt), 'd MMM yyyy')}</span>
+                  <span className="text-[10px] text-gray-400">({formatDistanceToNow(new Date(idea.updatedAt))} ago)</span>
+                </div>
+                <div className="text-sm text-gray-500 font-medium flex items-center gap-2">
+                  <span>📊</span>
+                  <span className="text-gray-400">Current stage:</span>
+                  <span className="font-bold text-gray-800">{idea.status}</span>
                 </div>
               </div>
 
-            </div>
-            <div className="flex items-center gap-2">
-              {isOwner ? (
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => setIsEditingIdea(!isEditingIdea)}
-                    className={`p-1.5 rounded-lg transition-all flex items-center justify-center bg-transparent ${isEditingIdea
-                      ? 'text-red-400 hover:bg-red-50'
-                      : 'text-gray-300 hover:text-gray-500 hover:bg-gray-100 active:scale-95'
-                      }`}
-                    title={isEditingIdea ? 'Cancel' : 'Edit Idea'}
-                  >
-                    {isEditingIdea ? <X className="w-4 h-4" /> : <Edit3 className="w-4 h-4" />}
-                  </button>
-                  {!isEditingIdea && (
-                    <button
-                      onClick={() => {
-                        confirm({
-                          title: 'Delete Idea',
-                          message: `Permanently delete "${idea.title}" ? This action cannot be undone.`,
-                          confirmLabel: 'Delete',
-                          type: 'danger',
-                          onConfirm: async () => {
-                            try {
-                              await deleteIdea(idea.id);
-                              showToast('Idea deleted', 'success');
-                              navigate('/ideas');
-                            } catch (err: any) {
-                              showToast(err.message || 'Failed to delete idea', 'error');
-                            }
-                          }
-                        });
-                      }}
-                      className="p-1.5 rounded-lg transition-all flex items-center justify-center text-gray-300 hover:text-red-500 hover:bg-red-50 active:scale-95"
-                      title="Delete Idea"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  )}
+              {/* Collaborators Box */}
+              <div className="border border-[var(--border)] rounded-2xl p-4 bg-white shadow-sm flex flex-col gap-3 mt-1">
+                <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest flex items-center gap-1.5">
+                  👥 Collaborators
                 </div>
-              ) : (
-                <button
-                  onClick={() => {
-                    confirm({
-                      title: 'Leave Project',
-                      message: `Stop collaborating on "${idea.title}" ? `,
-                      confirmLabel: 'Leave',
-                      type: 'danger',
-                      onConfirm: async () => {
-                        try {
-                          await leaveIdea(idea.id);
-                          showToast('You have left the project', 'info');
-                          navigate('/ideas');
-                        } catch (err: any) {
-                          showToast(err.message || 'Failed to leave project', 'error');
-                        }
-                      }
-                    });
-                  }}
-                  className="flex items-center gap-2 px-4 py-1.5 bg-white border border-[var(--border)] rounded-xl text-gray-400 hover:text-red-500 hover:bg-red-50 transition-all text-[10px] font-black uppercase tracking-widest active:scale-95 shadow-sm"
-                >
-                  <LogOut className="w-3.5 h-3.5" />
-                  Leave
-                </button>
-              )}
-              {isEditingIdea && (
-                <button
-                  onClick={handleSaveIdea}
-                  className="px-6 h-[46px] text-white rounded-2xl font-bold shadow-lg transition-all flex items-center justify-center gap-2"
-                  style={{ backgroundColor: 'var(--primary)', boxShadow: '0 10px 15px -3px var(--primary-shadow)' }}
-                >
-                  <Save className="w-5 h-5" />
-                  <span>Save</span>
-                </button>
-              )}
+                <div className="flex flex-col gap-2">
+                  {[owner, ...collaborators].filter(Boolean).map((c: any) => c && (
+                    <div key={c.id} className="flex items-center justify-between text-sm text-gray-700 font-semibold">
+                      <span>{c.name}</span>
+                      <div className={`w-6 h-6 rounded-full ${getAvatarColor(c.id)} flex items-center justify-center text-white text-[9px] font-black shadow-sm`}>
+                        {getInitials(c.name)}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
             </div>
+
           </div>
         </div>
       </div>
 
       <div className="max-w-[1600px] mx-auto px-8 mt-12 animate-in fade-in slide-in-from-bottom-4 duration-500">
         <div className="grid grid-cols-1 lg:grid-cols-[3fr_2fr] gap-10">
-          {/* LEFT COLUMN: Brief + Documents + Task Calendar */}
+          {/* LEFT COLUMN: Task Calendar */}
           <div className="space-y-6">
-            {/* Program Brief */}
-            <section className="bg-white rounded-2xl border p-6 shadow-sm">
-              <h2 className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-4 flex items-center gap-2">
-                <ClipboardList className="w-4 h-4" style={{ color: 'var(--primary)' }} />
-                Program Brief
-              </h2>
-              {isEditingIdea ? (
-                <textarea
-                  className="w-full text-sm text-gray-700 leading-relaxed font-medium bg-gray-50 p-4 rounded-xl outline-none border border-[var(--border)] focus:ring-2"
-                  style={{ ringColor: 'var(--primary)' }}
-                  value={editedIdea.oneLiner ?? ''}
-                  onChange={e => setEditedIdea({ ...editedIdea, oneLiner: e.target.value })}
-                  placeholder="Describe the mission..."
-                />
-              ) : (
-                <p className="text-sm text-gray-700 leading-relaxed font-medium">
-                  {idea.oneLiner || <span className="text-gray-400 italic">No mission statement defined.</span>}
-                </p>
-              )}
-            </section>
+            {/* Task Calendar — CENTERPIECE */}
+            <section className="bg-white rounded-2xl border shadow-sm overflow-hidden">
+              <div className="flex items-center justify-between p-6 pb-4 border-b border-gray-50">
+                <h2 className="text-sm font-black text-gray-400 uppercase tracking-widest flex items-center gap-2">
+                  <span>✅</span> Checklist Calendar
+                </h2>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setIsAddingTodo(!isAddingTodo)}
+                    className="text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-1.5 px-3 py-1.5 rounded-xl border group active:scale-95"
+                    style={{ color: 'var(--primary)', backgroundColor: 'var(--primary-shadow)', borderColor: 'var(--primary)' }}
+                  >
+                    ➕ Add Task
+                  </button>
+                  <button
+                    onClick={() => setIsKanbanOpen(true)}
+                    className="text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-1.5 px-3 py-1.5 rounded-xl border group active:scale-95"
+                    style={{ color: 'var(--primary)', backgroundColor: 'var(--primary-shadow)', borderColor: 'var(--primary)' }}
+                  >
+                    🗂️ Kanban
+                  </button>
+                </div>
+              </div>
 
+              {isAddingTodo && (
+                <div className="px-6 py-4 bg-gray-50/50 border-b border-gray-50">
+                  <form onSubmit={handleAddTodo} className="flex gap-2">
+                    <input
+                      className="flex-1 text-xs border border-[var(--border)] rounded-lg px-3 py-2 outline-none focus:ring-2 bg-white"
+                      style={{ ringColor: 'var(--primary)' }}
+                      placeholder="What needs to be done? (+ Enter to add)"
+                      value={todoInput}
+                      onChange={e => setTodoInput(e.target.value)}
+                      autoFocus
+                    />
+                    <button
+                      type="submit"
+                      disabled={!todoInput.trim()}
+                      className="text-white p-2 rounded-lg transition-all shadow-md active:scale-95 disabled:opacity-50"
+                      style={{ backgroundColor: 'var(--primary)' }}
+                    >
+                      ➕
+                    </button>
+                  </form>
+                </div>
+              )}
+
+              <div className="px-4 py-6 space-y-6">
+                {(() => {
+                  const sorted = [...linkedDailyTodos]
+                    .filter(t => (t.status || (t.completed ? 'Done' : 'Not Started')) !== 'Archived')
+                    .sort((a, b) => {
+                      const dateA = a.date || '9999-12-31';
+                      const dateB = b.date || '9999-12-31';
+                      if (dateA !== dateB) return dateA.localeCompare(dateB);
+                      
+                      const weights: Record<string, number> = { 'Working': 0, 'Not Started': 1, 'Done': 2 };
+                      const sA = a.status || (a.completed ? 'Done' : 'Not Started');
+                      const sB = b.status || (b.completed ? 'Done' : 'Not Started');
+                      if (weights[sA] !== weights[sB]) return (weights[sA] ?? 1) - (weights[sB] ?? 1);
+                      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+                    });
+
+                  if (sorted.length === 0) {
+                    return <p className="text-[10px] text-gray-400 italic text-center py-8">No tasks yet. Ready to start?</p>;
+                  }
+
+                  const groups: Record<string, typeof sorted> = {};
+                  sorted.forEach(t => {
+                    const d = t.date || 'No Date';
+                    if (!groups[d]) groups[d] = [];
+                    groups[d].push(t);
+                  });
+
+                  return Object.entries(groups).map(([dateStr, todos]) => {
+                    let displayDay = dateStr;
+                    let displayDate = "";
+                    let isTodayFlag = false;
+                    
+                    if (dateStr !== 'No Date') {
+                      const d = parseISO(dateStr);
+                      isTodayFlag = isToday(d);
+                      
+                      displayDay = format(d, 'EEE');
+                      displayDate = format(d, 'MMM d');
+                      
+                      if (isTodayFlag) displayDate += ' (today)';
+                    }
+
+                    return (
+                      <div key={dateStr} className="flex gap-4">
+                        {/* Date Divider Column */}
+                        <div className="w-24 shrink-0 flex flex-col pt-2 items-end text-right">
+                           <span className={`text-sm font-black ${isTodayFlag ? 'text-[var(--primary)]' : 'text-gray-600'} capitalize tracking-tight`}>
+                             {displayDay}
+                           </span>
+                           <span className={`text-xs font-bold ${isTodayFlag ? 'text-[var(--primary)]' : 'text-gray-400'} tracking-tight`}>
+                             {displayDate}
+                           </span>
+                        </div>
+                        
+                        {/* Tasks Column */}
+                        <div className="flex-1 space-y-1 border-l-2 border-gray-100 pl-4 pb-4">
+                          {todos.map(todo => (
+                            <DailyTodoItem
+                              key={todo.id}
+                              todo={todo as DailyTodoData}
+                              ideas={data.ideas.map(i => ({ id: i.id, title: i.title }))}
+                              onToggleComplete={async (t) => {
+                                const updated = await apiClient.put(`/daily-todos/${t.id}`, { completed: !t.completed, status: !t.completed ? 'Done' : 'Working' });
+                                setLinkedDailyTodos(prev => prev.map(x => x.id === t.id ? updated : x));
+                              }}
+                              onToggleUrgent={async (t) => {
+                                const updated = await apiClient.put(`/daily-todos/${t.id}`, { isUrgent: !t.isUrgent });
+                                setLinkedDailyTodos(prev => prev.map(x => x.id === t.id ? updated : x));
+                              }}
+                              onDelete={async (id) => {
+                                await apiClient.delete(`/daily-todos/${id}`);
+                                setLinkedDailyTodos(prev => prev.filter(x => x.id !== id));
+                              }}
+                              onSaveEdit={async (id, text) => {
+                                const updated = await apiClient.put(`/daily-todos/${id}`, { text });
+                                setLinkedDailyTodos(prev => prev.map(x => x.id === id ? updated : x));
+                              }}
+                              onTagIdea={async (todoId, ideaId) => {
+                                const updated = await apiClient.put(`/daily-todos/${todoId}`, { ideaId });
+                                setLinkedDailyTodos(prev => prev.map(x => x.id === todoId ? updated : x));
+                              }}
+                              onAddSubtask={async (parentId, text) => {
+                                const subtask = await apiClient.post('/daily-todos', {
+                                  text, date: new Date().toISOString().split('T')[0],
+                                  ideaId: idea.id, parentId
+                                });
+                                setLinkedDailyTodos(prev => prev.map(t =>
+                                  t.id === parentId ? { ...t, children: [...(t.children || []), subtask] } : t
+                                ));
+                              }}
+                              onOpenContact={handleOpenContactByName}
+                              onOpenEntity={handleOpenEntityByName}
+                              onAssigneeChange={async (todoId, assigneeId) => {
+                                const updated = await apiClient.put(`/daily-todos/${todoId}`, { assigneeId });
+                                setLinkedDailyTodos(prev => prev.map(x => x.id === todoId ? updated : x));
+                              }}
+                              onChangeDate={async (id, dateKey) => {
+                                const updated = await apiClient.put(`/daily-todos/${id}`, { date: dateKey });
+                                setLinkedDailyTodos(prev => prev.map(x => x.id === id ? updated : x));
+                              }}
+                              onChangeTimeBlock={async (id, block) => {
+                                const updated = await apiClient.put(`/daily-todos/${id}`, { timeBlock: block });
+                                setLinkedDailyTodos(prev => prev.map(x => x.id === id ? updated : x));
+                              }}
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  });
+                })()}
+              </div>
+            </section>
+          </div>
+
+          {/* RIGHT COLUMN: Documents + Activity Log */}
+          <div className="space-y-6">
+            
             {/* Documents & Links */}
             <section className="bg-white rounded-2xl border p-6 shadow-sm">
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-[10px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-2">
-                  <FileText className="w-4 h-4" style={{ color: 'var(--primary)' }} />
-                  Documents & Links
+                  <span>📁</span> Documents & Attachments
                 </h2>
                 <button
                   onClick={() => setShowAddLink(!showAddLink)}
                   className="text-[10px] font-black uppercase tracking-widest transition-all hover:underline"
                   style={{ color: 'var(--primary)' }}
                 >
-                  {showAddLink ? '✕ Cancel' : '+ Add'}
+                  {showAddLink ? '❌ Cancel' : '➕ Add'}
                 </button>
               </div>
 
@@ -1146,7 +1266,7 @@ const IdeaDetail: React.FC = () => {
                       className="text-white p-2 rounded-lg transition-all shadow-md active:scale-95 disabled:opacity-40"
                       style={{ backgroundColor: 'var(--primary)' }}
                     >
-                      <Plus className="w-4 h-4" />
+                      ➕
                     </button>
                   </div>
                 </div>
@@ -1156,7 +1276,7 @@ const IdeaDetail: React.FC = () => {
                 {(idea.links || []).map((link: { title: string; url: string }, idx: number) => (
                   <div key={idx} className="group flex items-center gap-3 p-3 border border-[var(--border)] rounded-xl hover:border-[var(--primary)] transition-colors">
                     <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" style={{ backgroundColor: 'var(--primary-shadow)' }}>
-                      <Link2 className="w-4 h-4" style={{ color: 'var(--primary)' }} />
+                      <span>🔗</span>
                     </div>
                     <div className="flex-1 min-w-0">
                       <a href={link.url} target="_blank" rel="noopener noreferrer" className="text-xs font-bold text-gray-700 hover:underline truncate block">
@@ -1165,7 +1285,7 @@ const IdeaDetail: React.FC = () => {
                       <p className="text-[9px] text-gray-400 truncate">{link.url}</p>
                     </div>
                     <a href={link.url} target="_blank" rel="noopener noreferrer" className="p-1 text-gray-300 hover:text-[var(--primary)] transition-colors shrink-0">
-                      <ExternalLink className="w-3.5 h-3.5" />
+                      ↗️
                     </a>
                     {isOwner && (
                       <button
@@ -1176,7 +1296,7 @@ const IdeaDetail: React.FC = () => {
                         }}
                         className="opacity-0 group-hover:opacity-100 p-1 text-gray-300 hover:text-red-500 transition-all shrink-0"
                       >
-                        <Trash2 className="w-3 h-3" />
+                        🗑️
                       </button>
                     )}
                   </div>
@@ -1187,128 +1307,6 @@ const IdeaDetail: React.FC = () => {
               </div>
             </section>
 
-            {/* Task Calendar — CENTERPIECE */}
-            <section className="bg-white rounded-2xl border shadow-sm overflow-hidden">
-              <div className="flex items-center justify-between p-6 pb-4">
-                <h2 className="text-sm font-black text-gray-400 uppercase tracking-widest flex items-center gap-2">
-                  <ListChecks className="w-4 h-4" style={{ color: 'var(--primary)' }} />
-                  Tasks
-                </h2>
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => setIsAddingTodo(!isAddingTodo)}
-                    className="text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-1.5 px-3 py-1.5 rounded-xl border group active:scale-95"
-                    style={{ color: 'var(--primary)', backgroundColor: 'var(--primary-shadow)', borderColor: 'var(--primary)' }}
-                  >
-                    <Plus className="w-3.5 h-3.5" /> Add Task
-                  </button>
-                  <button
-                    onClick={() => setIsKanbanOpen(true)}
-                    className="text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-1.5 px-3 py-1.5 rounded-xl border group active:scale-95"
-                    style={{ color: 'var(--primary)', backgroundColor: 'var(--primary-shadow)', borderColor: 'var(--primary)' }}
-                  >
-                    <Layout className="w-3.5 h-3.5 transition-transform group-hover:rotate-12" />
-                    Kanban
-                  </button>
-                </div>
-              </div>
-
-              {isAddingTodo && (
-                <div className="px-6 pb-4">
-                  <form onSubmit={handleAddTodo} className="flex gap-2">
-                    <input
-                      className="flex-1 text-xs border border-[var(--border)] rounded-lg px-3 py-2 outline-none focus:ring-2 bg-gray-50"
-                      style={{ ringColor: 'var(--primary)' }}
-                      placeholder="What needs to be done? (+ Enter to add)"
-                      value={todoInput}
-                      onChange={e => setTodoInput(e.target.value)}
-                      autoFocus
-                    />
-                    <button
-                      type="submit"
-                      disabled={!todoInput.trim()}
-                      className="text-white p-2 rounded-lg transition-all shadow-md active:scale-95"
-                      style={{ backgroundColor: 'var(--primary)' }}
-                    >
-                      <Plus className="w-5 h-5" />
-                    </button>
-                  </form>
-                </div>
-              )}
-
-              <div className="px-4 pb-6 space-y-1">
-                {(() => {
-                  const sorted = [...linkedDailyTodos]
-                    .filter(t => (t.status || (t.completed ? 'Done' : 'Not Started')) !== 'Archived')
-                    .sort((a, b) => {
-                      const weights: Record<string, number> = { 'Working': 0, 'Not Started': 1, 'Done': 2 };
-                      const sA = a.status || (a.completed ? 'Done' : 'Not Started');
-                      const sB = b.status || (b.completed ? 'Done' : 'Not Started');
-                      if (weights[sA] !== weights[sB]) return (weights[sA] ?? 1) - (weights[sB] ?? 1);
-                      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-                    });
-
-                  if (sorted.length === 0) {
-                    return <p className="text-[10px] text-gray-400 italic text-center py-8">No tasks yet. Ready to start?</p>;
-                  }
-
-                  return sorted.map(todo => (
-                    <DailyTodoItem
-                      key={todo.id}
-                      todo={todo as DailyTodoData}
-                      ideas={data.ideas.map(i => ({ id: i.id, title: i.title }))}
-                      onToggleComplete={async (t) => {
-                        const updated = await apiClient.put(`/daily-todos/${t.id}`, { completed: !t.completed, status: !t.completed ? 'Done' : 'Working' });
-                        setLinkedDailyTodos(prev => prev.map(x => x.id === t.id ? updated : x));
-                      }}
-                      onToggleUrgent={async (t) => {
-                        const updated = await apiClient.put(`/daily-todos/${t.id}`, { isUrgent: !t.isUrgent });
-                        setLinkedDailyTodos(prev => prev.map(x => x.id === t.id ? updated : x));
-                      }}
-                      onDelete={async (id) => {
-                        await apiClient.delete(`/daily-todos/${id}`);
-                        setLinkedDailyTodos(prev => prev.filter(x => x.id !== id));
-                      }}
-                      onSaveEdit={async (id, text) => {
-                        const updated = await apiClient.put(`/daily-todos/${id}`, { text });
-                        setLinkedDailyTodos(prev => prev.map(x => x.id === id ? updated : x));
-                      }}
-                      onTagIdea={async (todoId, ideaId) => {
-                        const updated = await apiClient.put(`/daily-todos/${todoId}`, { ideaId });
-                        setLinkedDailyTodos(prev => prev.map(x => x.id === todoId ? updated : x));
-                      }}
-                      onAddSubtask={async (parentId, text) => {
-                        const subtask = await apiClient.post('/daily-todos', {
-                          text, date: new Date().toISOString().split('T')[0],
-                          ideaId: idea.id, parentId
-                        });
-                        setLinkedDailyTodos(prev => prev.map(t =>
-                          t.id === parentId ? { ...t, children: [...(t.children || []), subtask] } : t
-                        ));
-                      }}
-                      onOpenContact={handleOpenContactByName}
-                      onOpenEntity={handleOpenEntityByName}
-                      onAssigneeChange={async (todoId, assigneeId) => {
-                        const updated = await apiClient.put(`/daily-todos/${todoId}`, { assigneeId });
-                        setLinkedDailyTodos(prev => prev.map(x => x.id === todoId ? updated : x));
-                      }}
-                      onChangeDate={async (id, dateKey) => {
-                        const updated = await apiClient.put(`/daily-todos/${id}`, { date: dateKey });
-                        setLinkedDailyTodos(prev => prev.map(x => x.id === id ? updated : x));
-                      }}
-                      onChangeTimeBlock={async (id, block) => {
-                        const updated = await apiClient.put(`/daily-todos/${id}`, { timeBlock: block });
-                        setLinkedDailyTodos(prev => prev.map(x => x.id === id ? updated : x));
-                      }}
-                    />
-                  ));
-                })()}
-              </div>
-            </section>
-          </div>
-
-          {/* RIGHT COLUMN: Activity Log + Collaborators */}
-          <div className="space-y-6">
             {/* Activity Log */}
             <div className="bg-white rounded-[40px] border border-[var(--border)] shadow-sm overflow-hidden flex flex-col">
               {/* Working Area (Amber) */}
@@ -1318,7 +1316,7 @@ const IdeaDetail: React.FC = () => {
                     defaultIdeaId={idea.id}
                     onComplete={() => setShowComposer(false)}
                     title="New Note"
-                    titleIcon={<StickyNote className="w-4 h-4 text-amber-900" />}
+                    titleIcon={<span className="text-base">📝</span>}
                     onCancel={toggleComposer}
                     flat
                   />
@@ -1331,8 +1329,7 @@ const IdeaDetail: React.FC = () => {
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 px-10 pt-6 pb-4">
                   <div className="flex items-center gap-4">
                     <h2 className="text-sm font-black text-gray-400 uppercase tracking-widest flex items-center gap-2">
-                      <Activity className="w-4 h-4" style={{ color: 'var(--primary)' }} />
-                      Activity
+                      <span>⚡</span> Activity
                     </h2>
                     {!showComposer && (
                       <button
@@ -1340,7 +1337,7 @@ const IdeaDetail: React.FC = () => {
                         className="text-[10px] font-black uppercase tracking-widest transition-all hover:underline"
                         style={{ color: 'var(--primary)' }}
                       >
-                        ( + Add Note )
+                        ( ➕ Add Note )
                       </button>
                     )}
                   </div>
@@ -1348,26 +1345,16 @@ const IdeaDetail: React.FC = () => {
                   <div className="flex items-center gap-3">
                     <button
                       onClick={() => setShowAICounselor(prev => !prev)}
-                      className={`p-2 rounded-xl transition-all shadow-sm border ${showAICounselor ? 'text-white' : 'bg-white text-indigo-400 border-indigo-100 hover:bg-indigo-50'}`}
-                      style={showAICounselor ? { backgroundColor: '#6366f1', borderColor: '#6366f1', boxShadow: '0 4px 6px -1px rgba(99,102,241,0.3)' } : {}}
-                      title="AI Counselor"
+                      className={`text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-1.5 px-3 py-1.5 rounded-xl border ${showAICounselor ? 'border-[var(--primary)] text-white' : 'border-[var(--border)] text-gray-500 hover:bg-gray-50'}`}
+                      style={showAICounselor ? { backgroundColor: 'var(--primary)' } : {}}
                     >
-                      <Brain className="w-5 h-5" />
-                    </button>
-                    <button
-                      onClick={() => setVisibilityFilter(v => v === 'visible' ? 'all' : 'visible')}
-                      className={`p-2 rounded-xl transition-all shadow-sm ${visibilityFilter !== 'visible' ? 'bg-amber-100 text-amber-700 border border-amber-200' : 'bg-white text-gray-400 border border-[var(--border)]'}`}
-                      title={visibilityFilter === 'visible' ? "Reveal hidden notes" : "Mask hidden notes"}
-                    >
-                      <Eye className="w-5 h-5" />
+                      <span>✨</span> AI
                     </button>
                     <button
                       onClick={() => setIsFilterOpen(!isFilterOpen)}
-                      className={`p-2 rounded-xl transition-all shadow-sm border ${isFilterOpen ? 'text-white' : 'bg-white text-gray-400 border-[var(--border)]'}`}
-                      style={isFilterOpen ? { backgroundColor: 'var(--primary)', borderColor: 'var(--primary)', boxShadow: `0 4px 6px -1px var(--primary-shadow)` } : {}}
-                      title="Filters"
+                      className={`p-1.5 rounded-xl border transition-all ${isFilterOpen ? 'bg-gray-100 border-gray-200 text-gray-600' : 'bg-white border-gray-100 text-gray-400 hover:bg-gray-50'}`}
                     >
-                      <SlidersHorizontal className="w-5 h-5" />
+                      <span>🔍</span>
                     </button>
                   </div>
                 </div>
@@ -1385,7 +1372,7 @@ const IdeaDetail: React.FC = () => {
                       <div className="space-y-2">
                         <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-1">Search Keywords</label>
                         <div className="relative">
-                          <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                          <span className="absolute left-4 top-1/2 -translate-y-1/2 text-sm">🔍</span>
                           <input
                             className="pl-11 pr-4 py-2.5 w-full bg-white border border-[var(--border)] rounded-xl text-xs outline-none focus:ring-2 transition-all"
                             style={{ ringColor: 'var(--primary)' }}
@@ -1468,7 +1455,7 @@ const IdeaDetail: React.FC = () => {
                             className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-[10px] font-bold border transition-all ${visibilityFilter === 'hidden' ? 'text-white' : 'bg-white border-[var(--border)] text-gray-500 hover:border-[var(--primary)]'}`}
                             style={visibilityFilter === 'hidden' ? { backgroundColor: 'var(--primary)', borderColor: 'var(--primary)' } : {}}
                           >
-                            <EyeOff className={`w-3 h-3 ${visibilityFilter === 'hidden' ? 'text-white' : 'text-gray-400'}`} />
+                            <span>👁️‍🗨️</span>
                             Hidden
                           </button>
                         </div>
@@ -1487,64 +1474,6 @@ const IdeaDetail: React.FC = () => {
                   )}
                 </div>
             </div>
-
-          {/* Collaborators Panel - inside right column */}
-            <section className="bg-white rounded-2xl border p-6 shadow-sm">
-              <h2 className="text-sm font-black text-gray-400 uppercase tracking-widest mb-6 flex items-center gap-2">
-                <Share2 className="w-4 h-4" style={{ color: 'var(--primary)' }} />
-                Collaborators
-              </h2>
-              <div className="space-y-3">
-                {collaborators.map(collab => (
-                  <div key={collab.id} className="group flex items-center gap-3 p-3 border border-[var(--border)] rounded-xl transition-colors hover:border-[var(--primary)]">
-                    <div className={`w-9 h-9 rounded-lg ${getAvatarColor(collab.id)} flex items-center justify-center text-white text-[13px] font-black shadow-md ring-1 ring-white/20`} title={collab.name}>
-                      {getInitials(collab.name)}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="text-xs font-bold text-gray-700 truncate">{collab.name}</p>
-                      <p className="text-[9px] text-gray-400 truncate">{collab.email}</p>
-                    </div>
-                    {isOwner && (
-                      <button onClick={() => { confirm({ title: 'Remove Collaborator', message: `Remove ${collab.name}?`, confirmLabel: 'Remove', type: 'danger', onConfirm: async () => { await uninviteCollaborator(idea.id, collab.id); showToast(`${collab.name} removed`, 'info'); } }); }}
-                        className="opacity-0 group-hover:opacity-100 p-1.5 text-gray-300 hover:text-red-500 transition-all rounded-lg hover:bg-red-50" title="Uninvite">
-                        <UserMinus className="w-3.5 h-3.5" />
-                      </button>
-                    )}
-                  </div>
-                ))}
-                {data.invitations.filter(inv => inv.ideaId === idea.id && inv.status === 'Pending').map(inv => (
-                  <div key={inv.id} className="group flex items-center gap-3 p-3 border border-dashed border-[var(--border)] rounded-xl">
-                    <div className="w-8 h-8 rounded-lg bg-gray-50 flex items-center justify-center text-gray-400 opacity-60"><AtSign className="w-4 h-4" /></div>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2">
-                        <p className="text-xs font-bold text-gray-500 truncate">{inv.email}</p>
-                        <span className="text-[8px] bg-gray-100 text-gray-400 px-1 rounded font-bold uppercase">Pending</span>
-                      </div>
-                    </div>
-                    {isOwner && (
-                      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
-                        <button onClick={async () => { try { await resendInvitation(inv.id); showToast('Resent', 'success'); } catch (err: any) { showToast(err.message || 'Failed', 'error'); } }}
-                          className="p-1.5 text-gray-300 transition-all rounded-lg" title="Resend"><RefreshCw className="w-3.5 h-3.5" /></button>
-                        <button onClick={() => { confirm({ title: 'Revoke Invitation', message: `Delete invitation for ${inv.email}?`, confirmLabel: 'Delete', type: 'danger', onConfirm: async () => { try { await deleteInvitation(inv.id); showToast('Deleted', 'info'); } catch (err: any) { showToast(err.message || 'Failed', 'error'); } } }); }}
-                          className="p-1.5 text-gray-300 hover:text-red-500 transition-all rounded-lg hover:bg-red-50" title="Delete"><Trash2 className="w-3.5 h-3.5" /></button>
-                      </div>
-                    )}
-                  </div>
-                ))}
-                {collaborators.length === 0 && data.invitations.filter(i => i.ideaId === idea.id && i.status === 'Pending').length === 0 && (
-                  <p className="text-[10px] text-gray-400 italic text-center py-2">Private workspace</p>
-                )}
-              </div>
-              {isOwner && (
-                <form onSubmit={handleShare} className="mt-6 pt-6 border-t border-[var(--border)] space-y-3">
-                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Invite Collaborator</label>
-                  <div className="flex gap-2">
-                    <input className="flex-1 text-xs border border-[var(--border)] rounded-lg px-3 py-2 outline-none focus:ring-2 bg-gray-50" style={{ ringColor: 'var(--primary)' }} placeholder="Email address..." value={inviteEmail} onChange={e => setInviteEmail(e.target.value)} />
-                    <button type="submit" className="text-white p-2 rounded-lg transition-all shadow-md active:scale-95" style={{ backgroundColor: 'var(--primary)' }}><Plus className="w-5 h-5" /></button>
-                  </div>
-                </form>
-              )}
-            </section>
           </div>
         </div>
         {/* End of grid */}
