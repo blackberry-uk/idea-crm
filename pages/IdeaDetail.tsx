@@ -941,23 +941,23 @@ const IdeaDetail: React.FC = () => {
           {/* LEFT COLUMN: Task Calendar */}
           <div className="space-y-6">
             {/* Task Calendar — CENTERPIECE */}
-            <section className="rounded-2xl border border-blue-700 shadow-sm" style={{ background: '#2563EB' }}>
-              <div className="flex items-center justify-between p-6 pb-4 border-b border-blue-500/30">
-                <h2 className="text-sm font-black text-white/80 uppercase tracking-widest flex items-center gap-2">
+            <section className="rounded-2xl border shadow-sm" style={{ background: '#E5F0FF' }}>
+              <div className="flex items-center justify-between p-6 pb-4 border-b border-blue-100">
+                <h2 className="text-sm font-black text-gray-400 uppercase tracking-widest flex items-center gap-2">
                   <span>✅</span> Checklist Calendar
                 </h2>
                 <div className="flex items-center gap-2">
                   <button
                     onClick={() => setIsAddingTodo(!isAddingTodo)}
                     className="text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-1.5 px-3 py-1.5 rounded-xl border group active:scale-95"
-                    style={{ color: '#fff', backgroundColor: 'rgba(255,255,255,0.15)', borderColor: 'rgba(255,255,255,0.3)' }}
+                    style={{ color: 'var(--primary)', backgroundColor: 'var(--primary-shadow)', borderColor: 'var(--primary)' }}
                   >
                     ➕ Add Task
                   </button>
                   <button
                     onClick={() => setIsKanbanOpen(true)}
                     className="text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-1.5 px-3 py-1.5 rounded-xl border group active:scale-95"
-                    style={{ color: '#fff', backgroundColor: 'rgba(255,255,255,0.15)', borderColor: 'rgba(255,255,255,0.3)' }}
+                    style={{ color: 'var(--primary)', backgroundColor: 'var(--primary-shadow)', borderColor: 'var(--primary)' }}
                   >
                     🗂️ Kanban
                   </button>
@@ -965,7 +965,7 @@ const IdeaDetail: React.FC = () => {
               </div>
 
               {isAddingTodo && (
-                <div className="px-6 py-4 bg-white/10 border-b border-blue-500/30">
+                <div className="px-6 py-4 bg-white/50 border-b border-blue-100">
                   <TaskQuickAdd 
                     onSubmit={async (text) => {
                       await handleAddTodo(text);
@@ -994,7 +994,7 @@ const IdeaDetail: React.FC = () => {
                     });
 
                   if (sorted.length === 0) {
-                    return <p className="text-[10px] text-white/50 italic text-center py-8">No tasks yet. Ready to start?</p>;
+                    return <p className="text-[10px] text-gray-400 italic text-center py-8">No tasks yet. Ready to start?</p>;
                   }
 
                   const groups: Record<string, typeof sorted> = {};
@@ -1029,16 +1029,16 @@ const IdeaDetail: React.FC = () => {
                       <div key={dateStr} className="flex gap-4">
                         {/* Date Divider Column */}
                         <div className="w-24 shrink-0 flex flex-col pt-2 items-end text-right">
-                           <span className={`text-sm font-black ${isTodayFlag ? 'text-yellow-300' : 'text-white/90'} capitalize tracking-tight`}>
+                           <span className={`text-sm font-black ${isTodayFlag ? 'text-[var(--primary)]' : 'text-gray-600'} capitalize tracking-tight`}>
                              {displayDay}
                            </span>
-                           <span className={`text-xs font-bold ${isTodayFlag ? 'text-yellow-300' : 'text-white/60'} tracking-tight`}>
+                           <span className={`text-xs font-bold ${isTodayFlag ? 'text-[var(--primary)]' : 'text-gray-400'} tracking-tight`}>
                              {displayDate}
                            </span>
                         </div>
                         
                         {/* Tasks Column */}
-                        <div className="flex-1 space-y-1 border-l-2 border-white/20 pl-4 pb-4">
+                        <div className="flex-1 space-y-1 border-l-2 border-blue-200 pl-4 pb-4">
                           {todos.map(todo => (
                             <DailyTodoItem
                               key={todo.id}
