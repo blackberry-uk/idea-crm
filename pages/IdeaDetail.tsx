@@ -101,6 +101,7 @@ const IdeaDetail: React.FC = () => {
   const [isEditingIdea, setIsEditingIdea] = useState(false);
   const [editedIdea, setEditedIdea] = useState(idea);
   const [inviteEmail, setInviteEmail] = useState('');
+  const [showInviteBox, setShowInviteBox] = useState(false);
   const [noteSearchQuery, setNoteSearchQuery] = useState('');
   const [activeCategoryFilter, setActiveCategoryFilter] = useState<string | null>(null);
   const [activeIntentFilter, setActiveIntentFilter] = useState<string | null>(null);
@@ -607,7 +608,7 @@ const IdeaDetail: React.FC = () => {
       <div
         key={note.id}
         onDoubleClick={() => setSelectedNoteForDetail(note)}
-        className={`group relative p-6 mb-4 mx-6 rounded-[2rem] transition-all border cursor-default
+        className={`group relative p-4 mb-3 mx-4 rounded-2xl transition-all border cursor-default
         ${currentIntent === 'follow_up'
             ? 'shadow-md shadow-green-900/5'
             : isPinned
@@ -740,7 +741,7 @@ const IdeaDetail: React.FC = () => {
           </div>
         </div>
 
-        <div className={`text-sm ${currentIntent === 'follow_up' ? 'text-slate-950' : 'text-slate-800'} font-[450] leading-relaxed whitespace-pre-wrap font-sans px-10`}>
+        <div className={`text-sm ${currentIntent === 'follow_up' ? 'text-slate-950' : 'text-slate-800'} font-[450] leading-relaxed whitespace-pre-wrap font-sans px-4`}>
           {note.imageUrl && (
             <div className="mb-4 rounded-2xl overflow-hidden border border-[var(--border)] shadow-lg max-w-xl">
               <img src={note.imageUrl} alt="Attached" className="w-full h-auto" />
@@ -752,106 +753,19 @@ const IdeaDetail: React.FC = () => {
           }
         </div>
 
-        {/* Comments Section */}
-        <div className="mt-8 pt-4 border-t border-[var(--border)] px-10" onDoubleClick={e => e.stopPropagation()}>
-          <button
-            onClick={() => setExpandedCommentsNoteId(expandedCommentsNoteId === note.id ? null : note.id)}
-            className="flex items-center gap-2 text-[10px] font-black text-gray-400 uppercase tracking-widest transition-colors group"
-            style={{ color: 'var(--text-main)' }}
-          >
-            {expandedCommentsNoteId === note.id ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3 group-hover:translate-x-0.5 transition-transform" />}
-            <MessageSquare className="w-3.5 h-3.5" />
-            Comments ({note.comments?.length || 0})
-          </button>
-
-          {expandedCommentsNoteId === note.id && (
-            <div className="mt-6 space-y-6 animate-in slide-in-from-top-2 duration-200">
-              {note.comments?.map(comment => (
-                <div key={comment.id} className="flex gap-3">
-                  <div className="w-7 h-7 rounded-full bg-gray-100 flex items-center justify-center shrink-0 text-[9px] font-bold text-gray-500">
-                    {comment.authorName?.charAt(0) || 'U'}
-                  </div>
-                  <div className="flex-1 group/comment relative">
-                    <div className="bg-gray-50/50 rounded-2xl rounded-tl-none p-3 border border-[var(--border)]/50">
-                      <div className="flex items-center justify-between mb-1">
-                        <div className="flex items-center gap-2">
-                          <span className="text-[10px] font-black text-gray-900 uppercase tracking-wider">{comment.authorName}</span>
-                          <span className="text-[8px] font-bold text-gray-400">{format(new Date(comment.createdAt), 'MMM d, p')}</span>
-                        </div>
-                        {(comment.authorId === data.currentUser?.id || idea?.ownerId === data.currentUser?.id || note.createdById === data.currentUser?.id) && (
-                          <button
-                            onClick={() => {
-                              confirm({
-                                title: 'Delete Comment',
-                                message: 'Are you sure you want to delete this comment?',
-                                confirmLabel: 'Delete',
-                                type: 'danger',
-                                onConfirm: () => deleteComment(comment.id)
-                              });
-                            }}
-                            className="opacity-0 group-hover/comment:opacity-100 p-1 text-gray-400 hover:text-red-500 transition-all"
-                          >
-                            <Trash2 className="w-3 h-3" />
-                          </button>
-                        )}
-                      </div>
-                      <p className="text-[12px] text-gray-600 leading-relaxed font-medium">{comment.body}</p>
-                    </div>
-                  </div>
-                </div>
-              ))}
-
-              <div className="flex gap-3 pt-2">
-                <div className="w-7 h-7 rounded-full flex items-center justify-center shrink-0 text-[10px] font-bold" style={{ backgroundColor: 'var(--primary-shadow)', color: 'var(--primary)' }}>
-                  {data.currentUser?.name?.charAt(0) || 'U'}
-                </div>
-                <div className="flex-1 relative">
-                  <input
-                    type="text"
-                    disabled={!data.currentUser}
-                    placeholder={data.currentUser ? "Write a comment..." : "Login to comment"}
-                    className="w-full bg-white border border-[var(--border)] rounded-xl px-4 py-2 text-[12px] outline-none focus:ring-2 transition-all font-medium pr-10 shadow-sm"
-                    style={{ ringColor: 'var(--primary)' }}
-                    value={commentBody[note.id] || ''}
-                    onChange={e => setCommentBody({ ...commentBody, [note.id]: e.target.value })}
-                    onKeyDown={async (e) => {
-                      if (e.key === 'Enter' && commentBody[note.id]?.trim()) {
-                        const body = commentBody[note.id];
-                        setCommentBody({ ...commentBody, [note.id]: '' });
-                        await addComment(note.id, body);
-                      }
-                    }}
-                  />
-                  <button
-                    disabled={!commentBody[note.id]?.trim()}
-                    onClick={async () => {
-                      const body = commentBody[note.id];
-                      setCommentBody({ ...commentBody, [note.id]: '' });
-                      await addComment(note.id, body);
-                    }}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 disabled:text-gray-300 transition-colors"
-                    style={{ color: 'var(--primary)' }}
-                  >
-                    <Send className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
       </div>
     );
   };
 
   return (
     <div className="pb-20 transition-all bg-[var(--ui-bg)] min-h-screen">
-      {/* Sticky Header - Peninsula Style */}
-      <div className="sticky top-0 z-50 bg-white/95 backdrop-blur-md border-b border-[var(--border)] shadow-md rounded-b-[40px] max-w-[1600px] mx-auto w-full">
-        <div className="max-w-[1600px] mx-auto px-8 pt-8 pb-6">
-          <div className="grid grid-cols-1 lg:grid-cols-[3fr_2fr] gap-10">
+      {/* Sticky Header - Two Bubbles */}
+      <div className="sticky top-0 z-50 max-w-[1600px] mx-auto w-full">
+        <div className="max-w-[1600px] mx-auto px-8 pt-6 pb-4">
+          <div className="grid grid-cols-1 lg:grid-cols-[3fr_2fr] gap-4">
             
-            {/* Left Header: Identification + Description + Sub-projects */}
-            <div className="min-w-0 flex flex-col gap-4">
+            {/* Left Header Bubble: Identification + Description + Sub-projects */}
+            <div className="min-w-0 flex flex-col gap-4 bg-white/95 backdrop-blur-md border border-[var(--border)] shadow-md rounded-2xl p-6">
               {/* Title and Identification */}
               <div className="flex flex-wrap items-center gap-3">
                 {isEditingIdea ? (
@@ -934,8 +848,8 @@ const IdeaDetail: React.FC = () => {
               })()}
             </div>
 
-            {/* Right Header: Status, Last Update, Collaborators */}
-            <div className="flex flex-col gap-4">
+            {/* Right Header Bubble: Status, Last Update, Collaborators */}
+            <div className="flex flex-col gap-4 bg-white/95 backdrop-blur-md border border-[var(--border)] shadow-md rounded-2xl p-6">
               
               {/* Actions Box */}
               <div className="flex justify-end gap-2">
@@ -1038,15 +952,48 @@ const IdeaDetail: React.FC = () => {
               </div>
 
               {/* Collaborators Box */}
-              <div className="border border-[var(--border)] rounded-2xl p-4 bg-white shadow-sm flex flex-col gap-3 mt-1">
-                <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest flex items-center gap-1.5">
-                  👥 Collaborators
+              <div className="border border-[var(--border)] rounded-xl p-3 bg-gray-50/50 flex flex-col gap-2 mt-1">
+                <div className="flex items-center justify-between">
+                  <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest flex items-center gap-1.5">
+                    👥 Collaborators
+                  </div>
+                  {isOwner && (
+                    <button
+                      onClick={() => setShowInviteBox(!showInviteBox)}
+                      className="text-gray-400 hover:text-gray-600 transition-colors p-0.5 rounded hover:bg-gray-100"
+                      title="Add collaborator"
+                    >
+                      {showInviteBox ? '✕' : '➕'}
+                    </button>
+                  )}
                 </div>
-                <div className="flex flex-col gap-2">
+
+                {showInviteBox && isOwner && (
+                  <form onSubmit={handleShare} className="flex gap-1.5 animate-in fade-in slide-in-from-top-2 duration-200">
+                    <input
+                      className="flex-1 text-xs border border-[var(--border)] rounded-lg px-2 py-1.5 outline-none focus:ring-1 bg-white"
+                      style={{ ringColor: 'var(--primary)' }}
+                      placeholder="Email address..."
+                      value={inviteEmail}
+                      onChange={e => setInviteEmail(e.target.value)}
+                      autoFocus
+                    />
+                    <button
+                      type="submit"
+                      disabled={!inviteEmail.trim()}
+                      className="px-2 py-1.5 text-white rounded-lg text-[10px] font-bold disabled:opacity-40 active:scale-95 transition-all"
+                      style={{ backgroundColor: 'var(--primary)' }}
+                    >
+                      Invite
+                    </button>
+                  </form>
+                )}
+
+                <div className="flex flex-col gap-1.5">
                   {[owner, ...collaborators].filter(Boolean).map((c: any) => c && (
-                    <div key={c.id} className="flex items-center justify-between text-sm text-gray-700 font-semibold">
+                    <div key={c.id} className="flex items-center justify-between text-xs text-gray-700 font-semibold">
                       <span>{c.name}</span>
-                      <div className={`w-6 h-6 rounded-full ${getAvatarColor(c.id)} flex items-center justify-center text-white text-[9px] font-black shadow-sm`}>
+                      <div className={`w-5 h-5 rounded-full ${getAvatarColor(c.id)} flex items-center justify-center text-white text-[8px] font-black shadow-sm`}>
                         {getInitials(c.name)}
                       </div>
                     </div>
@@ -1058,6 +1005,8 @@ const IdeaDetail: React.FC = () => {
           </div>
         </div>
       </div>
+      {/* Spacer for sticky header */}
+      <div className="h-2" />
 
       <div className="max-w-[1600px] mx-auto px-8 mt-12 animate-in fade-in slide-in-from-bottom-4 duration-500">
         <div className="grid grid-cols-1 lg:grid-cols-[3fr_2fr] gap-10">
@@ -1389,9 +1338,9 @@ const IdeaDetail: React.FC = () => {
               )}
 
               {/* History Area (White) */}
-              <div className="bg-white flex flex-col min-h-[400px]">
+              <div className="bg-white flex flex-col min-h-[300px]">
                 {/* Simplified Activity Header */}
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 px-10 pt-6 pb-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-6 pt-4 pb-3">
                   <div className="flex items-center gap-4">
                     <h2 className="text-sm font-black text-gray-400 uppercase tracking-widest flex items-center gap-2">
                       <span>⚡</span> Activity
@@ -1431,7 +1380,7 @@ const IdeaDetail: React.FC = () => {
                 )}
 
                 {isFilterOpen && (
-                  <div className="mx-10 mb-10 p-6 bg-white/50 rounded-[24px] border border-[var(--border)] animate-in fade-in slide-in-from-top-4 duration-300 shadow-sm backdrop-blur-sm">
+                  <div className="mx-4 mb-4 p-4 bg-white/50 rounded-2xl border border-[var(--border)] animate-in fade-in slide-in-from-top-4 duration-300 shadow-sm backdrop-blur-sm">
                     <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                       {/* Search Field */}
                       <div className="space-y-2">
@@ -1529,11 +1478,11 @@ const IdeaDetail: React.FC = () => {
                   </div>
                 )}
 
-                <div className="space-y-4 pb-10">
+                <div className="space-y-2 pb-6">
                   {pinnedNote && renderNote(pinnedNote)}
                   {ideaNotes.map(renderNote)}
                   {ideaNotes.length === 0 && !pinnedNote && (
-                    <div className="py-20 mx-10 text-center border-2 border-dashed border-[var(--border)] rounded-[28px]">
+                    <div className="py-12 mx-4 text-center border-2 border-dashed border-[var(--border)] rounded-2xl">
                       <p className="text-gray-400 font-bold text-sm tracking-tight italic">No activity logged yet. Share your first thought above.</p>
                     </div>
                   )}
