@@ -1237,11 +1237,12 @@ app.put('/api/daily-todos/:id', authenticate, async (req: any, res) => {
     }
 
     // --- Activity Log Sync ---
-    // Uses a keyed object: { ideaNoteId?: string, contactNoteIds?: { [contactId]: noteId } }
-    // This ensures untagging an idea or removing a contact correctly deletes the right note.
+    // Only run when completion status actually changed
+    const completionChanged = completed !== undefined && existing.completed !== todo.completed;
+    if (completionChanged) {
     try {
-      const raw = todo.activityNoteIds;
-      const existing: { ideaNoteId?: string; contactNoteIds?: Record<string, string> } = 
+      const raw = existing.activityNoteIds;
+      const existingNoteIds: { ideaNoteId?: string; contactNoteIds?: Record<string, string> } = 
         raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : {};
 
       if (todo.completed) {
@@ -1275,17 +1276,17 @@ app.put('/api/daily-todos/:id', authenticate, async (req: any, res) => {
             ? `✅ Completed task: "${taskText}"\n\nWith: ${contactNames}${notesSection}`
             : `✅ Completed task: "${taskText}"${notesSection}`;
 
-          if (existing.ideaNoteId) {
+          if (existingNoteIds.ideaNoteId) {
             try {
               await prisma.note.update({
-                where: { id: existing.ideaNoteId },
+                where: { id: existingNoteIds.ideaNoteId },
                 data: {
                   content: body,
                   ideaId: taskIdeaId,
                   taggedContacts: { set: mentionedContacts.map(c => ({ id: c.id })) }
                 }
               });
-              updated.ideaNoteId = existing.ideaNoteId;
+              updated.ideaNoteId = existingNoteIds.ideaNoteId;
             } catch {
               const note = await (prisma.note as any).create({
                 data: {
@@ -1308,14 +1309,14 @@ app.put('/api/daily-todos/:id', authenticate, async (req: any, res) => {
             });
             updated.ideaNoteId = note.id;
           }
-        } else if (existing.ideaNoteId) {
+        } else if (existingNoteIds.ideaNoteId) {
           // Idea was untagged — delete the orphaned idea note
-          try { await prisma.note.delete({ where: { id: existing.ideaNoteId } }); } catch {}
+          try { await prisma.note.delete({ where: { id: existingNoteIds.ideaNoteId } }); } catch {}
         }
 
         // --- Contact activity notes ---
         const currentContactIds = new Set(mentionedContacts.map(c => c.id));
-        const oldContactNoteIds = existing.contactNoteIds || {};
+        const oldContactNoteIds = existingNoteIds.contactNoteIds || {};
 
         // Create or update notes for currently mentioned contacts
         for (const contact of mentionedContacts) {
@@ -1365,10 +1366,10 @@ app.put('/api/daily-todos/:id', authenticate, async (req: any, res) => {
         });
       } else if (completed === false) {
         // Task was un-completed — remove ALL activity notes
-        if (existing.ideaNoteId) {
-          try { await prisma.note.delete({ where: { id: existing.ideaNoteId } }); } catch {}
+        if (existingNoteIds.ideaNoteId) {
+          try { await prisma.note.delete({ where: { id: existingNoteIds.ideaNoteId } }); } catch {}
         }
-        for (const noteId of Object.values(existing.contactNoteIds || {})) {
+        for (const noteId of Object.values(existingNoteIds.contactNoteIds || {})) {
           try { await prisma.note.delete({ where: { id: noteId } }); } catch {}
         }
         await (prisma as any).dailyTodo.update({
@@ -1379,6 +1380,7 @@ app.put('/api/daily-todos/:id', authenticate, async (req: any, res) => {
     } catch (actErr: any) {
       console.error('Activity log sync error (non-blocking):', actErr.message);
     }
+    } // end completionChanged
 
     res.json(todo);
   } catch (err: any) {
