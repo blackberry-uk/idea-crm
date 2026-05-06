@@ -218,10 +218,7 @@ const IdeaDetail: React.FC = () => {
   const handleTodoDragEnd = () => {
     setDraggedTodoIndex(null);
   };
-  const [showComposer, setShowComposer] = useState(() => {
-    const saved = localStorage.getItem('hideComposer');
-    return saved !== 'true';
-  });
+  const [showComposer, setShowComposer] = useState(false);
   const [showAICounselor, setShowAICounselor] = useState(false);
 
   const toggleComposer = () => {
