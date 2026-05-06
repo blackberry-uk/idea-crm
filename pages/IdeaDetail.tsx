@@ -398,7 +398,7 @@ const IdeaDetail: React.FC = () => {
       const taggedContacts = data.contacts.filter(c => note.taggedContactIds?.includes(c.id));
       taggedContacts.forEach(contact => {
         const mentionText = `@${contact.fullName}`;
-        const mentionHtml = `<a href="/contacts/${contact.id}" class="bg-violet-50 text-violet-700 px-1.5 py-0.5 rounded-md font-bold hover:bg-violet-100 transition-colors border border-violet-100 inline-flex items-center gap-0.5 no-underline mx-0.5 align-baseline">@${contact.fullName}</a>`;
+        const mentionHtml = `<button type="button" class="contact-link bg-violet-50 text-violet-700 px-1.5 py-0.5 rounded-md font-bold hover:bg-violet-100 transition-colors border border-violet-100 inline-flex items-center gap-0.5 no-underline mx-0.5 align-baseline" data-contact-name="${contact.fullName}">@${contact.fullName}</button>`;
         html = html.split(mentionText).join(mentionHtml);
       });
 
@@ -432,7 +432,15 @@ const IdeaDetail: React.FC = () => {
         });
       }
 
-      return <div className="rich-text-content" dangerouslySetInnerHTML={{ __html: html }} />;
+      return <div className="rich-text-content" dangerouslySetInnerHTML={{ __html: html }} onClick={(e) => {
+        const target = e.target as HTMLElement;
+        const contactBtn = target.closest('.contact-link');
+        if (contactBtn) {
+          e.preventDefault();
+          const name = contactBtn.getAttribute('data-contact-name');
+          if (name) handleOpenContactByName(name);
+        }
+      }} />;
     }
 
     // Original plain text processing
@@ -477,9 +485,9 @@ const IdeaDetail: React.FC = () => {
         return subParts.map((sub, i) => {
           if (sub === mentionText) {
             return (
-              <Link key={`mc-${contact.id}-${i}`} to={`/contacts/${contact.id}`} className="bg-violet-50 text-violet-700 px-1.5 py-0.5 rounded-md font-bold hover:bg-violet-100 transition-colors border border-violet-100 inline-flex items-center gap-0.5 no-underline mx-0.5 align-baseline">
+              <button type="button" key={`mc-${contact.id}-${i}`} onClick={() => handleOpenContactByName(contact.fullName)} className="bg-violet-50 text-violet-700 px-1.5 py-0.5 rounded-md font-bold hover:bg-violet-100 transition-colors border border-violet-100 inline-flex items-center gap-0.5 no-underline mx-0.5 align-baseline">
                 <AtSign className="w-2.5 h-2.5" />{contact.fullName}
-              </Link>
+              </button>
             );
           }
           return sub;

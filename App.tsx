@@ -7,7 +7,6 @@ import IdeasPage from './pages/IdeasPage';
 import IdeaDetail from './pages/IdeaDetail';
 import WeeklyReport from './pages/WeeklyReport';
 import ContactsPage from './pages/ContactsPage';
-import ContactDetail from './pages/ContactDetail';
 import EntitiesPage from './pages/EntitiesPage';
 import Settings from './pages/Settings';
 import Invitations from './pages/Invitations';
@@ -269,7 +268,6 @@ const App: React.FC = () => {
         <Route path="/ideas/:id" element={<ProtectedRoute><IdeaDetail /></ProtectedRoute>} />
         <Route path="/reports/weekly" element={<ProtectedRoute><WeeklyReport /></ProtectedRoute>} />
         <Route path="/contacts" element={<ProtectedRoute><ContactsPage /></ProtectedRoute>} />
-        <Route path="/contacts/:id" element={<ProtectedRoute><ContactDetail /></ProtectedRoute>} />
         <Route path="/entities" element={<ProtectedRoute><EntitiesPage /></ProtectedRoute>} />
         <Route path="/daily" element={<ProtectedRoute><DailyTodos /></ProtectedRoute>} />
         <Route path="/invitations" element={<ProtectedRoute><Invitations /></ProtectedRoute>} />
