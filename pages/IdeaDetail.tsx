@@ -693,7 +693,7 @@ const IdeaDetail: React.FC = () => {
           <div className="grid grid-cols-1 lg:grid-cols-[3fr_2fr] gap-4">
             
             {/* Left Header Bubble: Identification + Description + Sub-projects */}
-            <div className="min-w-0 flex flex-col gap-4 backdrop-blur-md border border-[var(--border)] shadow-md rounded-2xl p-6" style={{ background: 'linear-gradient(135deg, rgba(251,191,36,0.08) 0%, rgba(255,255,255,0.98) 30%, rgba(244,114,182,0.06) 60%, rgba(255,255,255,0.98) 80%, rgba(139,92,246,0.07) 100%)' }}>
+            <div className="min-w-0 flex flex-col gap-4 backdrop-blur-md border border-[var(--border)] shadow-md rounded-2xl p-6" style={{ background: 'linear-gradient(135deg, rgba(255,183,77,0.12) 0%, rgba(255,224,178,0.10) 25%, rgba(129,212,250,0.10) 50%, rgba(178,255,218,0.10) 75%, rgba(206,147,216,0.08) 100%)' }}>
               {/* Title and Identification */}
               <div className="flex flex-wrap items-center gap-3">
                 {isEditingIdea ? (
@@ -941,7 +941,7 @@ const IdeaDetail: React.FC = () => {
           {/* LEFT COLUMN: Task Calendar */}
           <div className="space-y-6">
             {/* Task Calendar — CENTERPIECE */}
-            <section className="rounded-2xl border shadow-sm" style={{ background: 'linear-gradient(160deg, rgba(236,254,255,0.5) 0%, #ffffff 35%, rgba(254,243,199,0.3) 100%)' }}>
+            <section className="rounded-2xl border shadow-sm" style={{ background: '#f3f0ff' }}>
               <div className="flex items-center justify-between p-6 pb-4 border-b border-gray-50">
                 <h2 className="text-sm font-black text-gray-400 uppercase tracking-widest flex items-center gap-2">
                   <span>✅</span> Checklist Calendar
