@@ -21,9 +21,12 @@ const ContactActivityPanel: React.FC<ContactActivityPanelProps> = ({ contact }) 
   const [showComposer, setShowComposer] = useState(false);
 
   // Find all notes linked to this contact (either directly via contactId or tagged)
-  const contactNotes = data.notes
+  const rawContactNotes = data.notes
     .filter(n => n.contactId === contact.id || n.taggedContactIds?.includes(contact.id))
     .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+  // Deduplicate notes by ID
+  const contactNotes = Array.from(new Map(rawContactNotes.map(n => [n.id, n])).values());
 
   const renderNote = (note: Note) => {
     const isStructured = note.body.startsWith('{') && note.body.includes('"template"');
