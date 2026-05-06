@@ -159,6 +159,12 @@ const NoteComposer: React.FC<NoteComposerProps> = ({ onComplete, defaultIdeaId, 
     return !entityCandidates.some(e => e.name.toLowerCase() === entityQuery.toLowerCase());
   }, [entityQuery, entityCandidates]);
 
+  // Check if the @ query matches no existing contacts (for create-on-the-fly)
+  const showCreateContact = useMemo(() => {
+    if (!mentionQuery || mentionQuery.length < 2) return false;
+    return !mentionCandidates.some(c => c.name.toLowerCase() === mentionQuery.toLowerCase());
+  }, [mentionQuery, mentionCandidates]);
+
   const editorRef = useRef<HTMLDivElement>(null);
 
   const applyFormat = (command: string, value: string = '') => {
@@ -727,6 +733,31 @@ const NoteComposer: React.FC<NoteComposerProps> = ({ onComplete, defaultIdeaId, 
                   <span className="text-[11px] font-bold text-gray-700">{candidate.name}</span>
                 </button>
               ))}
+              {showCreateContact && (
+                <button
+                  onMouseDown={(e) => { 
+                    e.preventDefault(); 
+                    const parts = mentionQuery.split(/\s+/);
+                    const firstName = parts[0];
+                    const lastName = parts.slice(1).join(' ') || undefined;
+                    addContact({ firstName, lastName, fullName: mentionQuery })
+                      .then((newContact) => {
+                        insertMention(newContact.id, newContact.fullName || newContact.firstName || mentionQuery, 'contact');
+                        showToast(`Contact "${mentionQuery}" created automatically`, 'success');
+                      })
+                      .catch(err => {
+                        console.error('Failed to auto-create contact:', err);
+                        showToast('Failed to auto-create contact', 'error');
+                      });
+                  }}
+                  className="w-full flex items-center gap-3 px-4 py-3 hover:bg-emerald-50 transition-colors border-t border-gray-100"
+                >
+                  <div className="w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-bold bg-emerald-100 text-emerald-700">
+                    +
+                  </div>
+                  <span className="text-[11px] font-bold text-emerald-600">Create "{mentionQuery}"</span>
+                </button>
+              )}
             </div>
           )}
 
