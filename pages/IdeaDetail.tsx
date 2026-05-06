@@ -848,10 +848,10 @@ const IdeaDetail: React.FC = () => {
       {/* Sticky Header - Peninsula Style */}
       <div className="sticky top-0 z-50 bg-white/95 backdrop-blur-md border-b border-[var(--border)] shadow-md rounded-b-[40px] max-w-[1600px] mx-auto w-full">
         <div className="max-w-[1600px] mx-auto px-8 pt-8 pb-6">
-          <div className="flex flex-col lg:flex-row justify-between gap-10">
+          <div className="grid grid-cols-1 lg:grid-cols-[3fr_2fr] gap-10">
             
             {/* Left Header: Identification + Description + Sub-projects */}
-            <div className="flex-1 min-w-0 flex flex-col gap-4">
+            <div className="min-w-0 flex flex-col gap-4">
               {/* Title and Identification */}
               <div className="flex flex-wrap items-center gap-3">
                 {isEditingIdea ? (
@@ -935,7 +935,7 @@ const IdeaDetail: React.FC = () => {
             </div>
 
             {/* Right Header: Status, Last Update, Collaborators */}
-            <div className="w-full lg:w-[400px] flex flex-col gap-4 shrink-0">
+            <div className="flex flex-col gap-4">
               
               {/* Actions Box */}
               <div className="flex justify-end gap-2">
