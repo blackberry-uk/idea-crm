@@ -690,7 +690,7 @@ const IdeaDetail: React.FC = () => {
   return (
     <div className="pb-20 transition-all bg-[var(--ui-bg)] min-h-screen">
       {/* Sticky Header - Two Bubbles */}
-      <div className="sticky top-0 z-50 max-w-[1600px] mx-auto w-full">
+      <div className="sticky top-0 z-50 w-full">
         <div className="max-w-[1600px] mx-auto px-8 pt-6 pb-4">
           <div className="grid grid-cols-1 lg:grid-cols-[3fr_2fr] gap-4">
             
@@ -728,19 +728,6 @@ const IdeaDetail: React.FC = () => {
                 ) : (
                   <>
                     <h1 className="text-3xl font-extrabold text-gray-900 truncate tracking-tight">{idea.title}</h1>
-                    <div className="flex items-center gap-2">
-                      <span className="px-2 py-0.5 rounded-md text-[11px] font-bold tracking-tight border bg-gray-50 text-gray-500 border-gray-200">
-                        {idea.type}
-                      </span>
-                      <span className="px-2 py-0.5 rounded-md text-[11px] font-bold tracking-tight border bg-gray-50 text-gray-500 border-gray-200">
-                        {idea.entity}
-                      </span>
-                      {owner && (
-                        <span className="px-2 py-0.5 rounded-md text-[11px] font-bold tracking-tight border bg-amber-50 text-amber-600 border-amber-200 flex items-center gap-1">
-                          👑 {owner.name}
-                        </span>
-                      )}
-                    </div>
                   </>
                 )}
               </div>
@@ -838,10 +825,25 @@ const IdeaDetail: React.FC = () => {
             </div>
 
             {/* Right Header Bubble: Status, Last Update, Collaborators */}
-            <div className="flex flex-col gap-4 bg-white/95 backdrop-blur-md border border-[var(--border)] shadow-md rounded-2xl p-6">
+            <div className="flex flex-col gap-4 bg-white/95 backdrop-blur-md border border-[var(--border)] shadow-md rounded-2xl p-6 group relative">
               
+              {/* Pills (Moved from left header) */}
+              <div className="flex items-center gap-2 pr-16">
+                <span className="px-2 py-0.5 rounded-md text-[11px] font-bold tracking-tight border bg-gray-50 text-gray-500 border-gray-200">
+                  {idea.type}
+                </span>
+                <span className="px-2 py-0.5 rounded-md text-[11px] font-bold tracking-tight border bg-gray-50 text-gray-500 border-gray-200">
+                  {idea.entity}
+                </span>
+                {owner && (
+                  <span className="px-2 py-0.5 rounded-md text-[11px] font-bold tracking-tight border bg-amber-50 text-amber-600 border-amber-200 flex items-center gap-1">
+                    🔥 {owner.name}
+                  </span>
+                )}
+              </div>
+
               {/* Actions Box */}
-              <div className="flex justify-end gap-2">
+              <div className="flex justify-end gap-2 absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity">
                 {isOwner ? (
                   <>
                     <button
@@ -978,11 +980,11 @@ const IdeaDetail: React.FC = () => {
                   </form>
                 )}
 
-                <div className="flex flex-col gap-1.5">
+                <div className="grid grid-cols-2 gap-x-4 gap-y-2">
                   {[owner, ...collaborators].filter(Boolean).map((c: any) => c && (
-                    <div key={c.id} className="flex items-center justify-between text-xs text-gray-700 font-semibold">
-                      <span>{c.name}</span>
-                      <div className={`w-5 h-5 rounded-full ${getAvatarColor(c.id)} flex items-center justify-center text-white text-[8px] font-black shadow-sm`}>
+                    <div key={c.id} className="flex items-center justify-between text-xs text-gray-700 font-semibold bg-white border border-gray-100 shadow-sm rounded-lg p-1.5">
+                      <span className="truncate pr-2 pl-1">{c.name}</span>
+                      <div className={`w-5 h-5 rounded-full ${getAvatarColor(c.id)} flex items-center justify-center text-white text-[8px] font-black shadow-sm shrink-0`}>
                         {getInitials(c.name)}
                       </div>
                     </div>
@@ -1275,37 +1277,42 @@ const IdeaDetail: React.FC = () => {
                 </div>
               )}
 
-              <div className="space-y-2">
-                {(idea.links || []).map((link: { title: string; url: string }, idx: number) => (
-                  <div key={idx} className="group flex items-center gap-3 p-3 border border-[var(--border)] rounded-xl hover:border-[var(--primary)] transition-colors">
-                    <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" style={{ backgroundColor: 'var(--primary-shadow)' }}>
-                      <span>🔗</span>
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <a href={link.url} target="_blank" rel="noopener noreferrer" className="text-xs font-bold text-gray-700 hover:underline truncate block">
+              <div className="grid grid-cols-2 gap-2">
+                {(idea.links || []).map((link: { title: string; url: string }, idx: number) => {
+                  let iconText = '🔗';
+                  let iconBg = 'bg-gray-400';
+                  const lowerUrl = link.url.toLowerCase();
+                  const lowerTitle = link.title.toLowerCase();
+                  if (lowerUrl.includes('document') || lowerUrl.includes('.doc') || lowerTitle.includes('doc') || lowerTitle.includes('version') || lowerTitle.includes('brief')) { iconText = 'W'; iconBg = 'bg-blue-600'; }
+                  else if (lowerUrl.includes('spreadsheet') || lowerUrl.includes('.xls') || lowerTitle.includes('sheet') || lowerTitle.includes('db') || lowerTitle.includes('data')) { iconText = 'X'; iconBg = 'bg-emerald-600'; }
+                  else if (lowerUrl.includes('presentation') || lowerUrl.includes('.ppt') || lowerTitle.includes('pitch') || lowerTitle.includes('deck')) { iconText = 'P'; iconBg = 'bg-orange-600'; }
+                  else if (lowerUrl.includes('.pdf') || lowerTitle.includes('pdf')) { iconText = 'PDF'; iconBg = 'bg-red-600'; }
+
+                  return (
+                    <div key={idx} className="group relative flex items-center gap-2 p-1.5 border border-gray-200 rounded-lg bg-gray-50 hover:border-gray-300 transition-colors">
+                      <div className={`w-6 h-6 rounded flex items-center justify-center shrink-0 text-white text-[9px] font-black shadow-sm ${iconBg}`}>
+                        {iconText}
+                      </div>
+                      <a href={link.url} target="_blank" rel="noopener noreferrer" className="flex-1 min-w-0 pr-6 text-[10px] font-bold text-gray-700 hover:text-black truncate">
                         {link.title}
                       </a>
-                      <p className="text-[9px] text-gray-400 truncate">{link.url}</p>
+                      {isOwner && (
+                        <button
+                          onClick={() => {
+                            const currentLinks = [...(idea.links || [])];
+                            currentLinks.splice(idx, 1);
+                            updateIdea(idea.id, { links: currentLinks } as any);
+                          }}
+                          className="opacity-0 group-hover:opacity-100 absolute right-1.5 p-1 text-gray-400 hover:text-red-500 transition-all shrink-0 bg-gray-50 rounded"
+                        >
+                          ✕
+                        </button>
+                      )}
                     </div>
-                    <a href={link.url} target="_blank" rel="noopener noreferrer" className="p-1 text-gray-300 hover:text-[var(--primary)] transition-colors shrink-0">
-                      ↗️
-                    </a>
-                    {isOwner && (
-                      <button
-                        onClick={() => {
-                          const currentLinks = [...(idea.links || [])];
-                          currentLinks.splice(idx, 1);
-                          updateIdea(idea.id, { links: currentLinks } as any);
-                        }}
-                        className="opacity-0 group-hover:opacity-100 p-1 text-gray-300 hover:text-red-500 transition-all shrink-0"
-                      >
-                        🗑️
-                      </button>
-                    )}
-                  </div>
-                ))}
+                  );
+                })}
                 {(!idea.links || idea.links.length === 0) && !showAddLink && (
-                  <p className="text-[10px] text-gray-400 italic text-center py-3">No documents linked yet.</p>
+                  <div className="col-span-2 text-[10px] text-gray-400 italic text-center py-3">No documents linked yet.</div>
                 )}
               </div>
             </section>
