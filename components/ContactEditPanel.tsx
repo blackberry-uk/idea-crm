@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useStore } from '../store/useStore';
 import { Contact } from '../types';
-import { X, Plus } from 'lucide-react';
+import { X, Plus, Trash2 } from 'lucide-react';
 
 const ENTITY_PILL_STYLE: React.CSSProperties = {
   display: 'inline-flex', alignItems: 'center', gap: '4px',
@@ -47,7 +47,7 @@ const parseIds = (ids: any): string[] => {
 const ContactEditPanel: React.FC<ContactEditPanelProps> = ({
   contact = null, onSaved, onCancel, onNameChanged
 }) => {
-  const { data, addContact, updateContact, addEntity, showToast } = useStore();
+  const { data, addContact, updateContact, addEntity, showToast, deleteContact, confirm } = useStore();
   const entities = data.entities || [];
 
   const [firstName, setFirstName] = useState('');
@@ -249,16 +249,45 @@ const ContactEditPanel: React.FC<ContactEditPanelProps> = ({
         </label>
       </div>
 
-      {/* Save / Cancel */}
-      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '4px' }}>
-        {onCancel && (
-          <button onClick={onCancel} style={{ padding: '6px 16px', fontSize: '12px', fontWeight: 700, borderRadius: '6px', border: '1px solid #d1d5db', background: '#fff', cursor: 'pointer', color: '#6b7280' }}>Cancel</button>
-        )}
-        <button onClick={handleSave} disabled={saving}
-          style={{ padding: '6px 16px', backgroundColor: '#16a34a', color: '#fff', fontSize: '12px', fontWeight: 700, borderRadius: '6px', border: 'none', cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.6 : 1 }}
-        >
-          {saving ? 'Saving...' : contact ? 'Save Details' : 'Create Contact'}
-        </button>
+      {/* Save / Cancel / Delete */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '4px' }}>
+        <div>
+          {contact && (
+            <button
+              onClick={() => {
+                confirm({
+                  title: 'Delete Contact',
+                  message: `Are you sure you want to delete "${contact.fullName}"? This cannot be undone.`,
+                  confirmLabel: 'Delete',
+                  type: 'danger',
+                  onConfirm: async () => {
+                    try {
+                      await deleteContact(contact.id);
+                      showToast('Contact deleted', 'success');
+                      if (onSaved) onSaved();
+                    } catch (err) {
+                      showToast('Failed to delete contact', 'error');
+                    }
+                  }
+                });
+              }}
+              className="p-1.5 rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-500 transition-colors flex items-center justify-center"
+              title="Delete Contact"
+            >
+              <Trash2 className="w-4 h-4" />
+            </button>
+          )}
+        </div>
+        <div style={{ display: 'flex', gap: '8px' }}>
+          {onCancel && (
+            <button onClick={onCancel} style={{ padding: '6px 16px', fontSize: '12px', fontWeight: 700, borderRadius: '6px', border: '1px solid #d1d5db', background: '#fff', cursor: 'pointer', color: '#6b7280' }}>Cancel</button>
+          )}
+          <button onClick={handleSave} disabled={saving}
+            style={{ padding: '6px 16px', backgroundColor: '#16a34a', color: '#fff', fontSize: '12px', fontWeight: 700, borderRadius: '6px', border: 'none', cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.6 : 1 }}
+          >
+            {saving ? 'Saving...' : contact ? 'Save Details' : 'Create Contact'}
+          </button>
+        </div>
       </div>
     </div>
   );
