@@ -68,8 +68,6 @@ const ContactEditPanel: React.FC<ContactEditPanelProps> = ({
 
   const isReadOnly = contact && contact.ownerId !== data.currentUser?.id;
 
-  const isReadOnly = contact && contact.ownerId !== data.currentUser?.id;
-
   useEffect(() => {
     if (contact) {
       setFirstName(contact.firstName || '');
