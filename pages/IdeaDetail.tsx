@@ -1168,24 +1168,58 @@ const IdeaDetail: React.FC = () => {
                               todo={todo as DailyTodoData}
                               ideas={data.ideas.map(i => ({ id: i.id, title: i.title }))}
                               onToggleComplete={async (t) => {
-                                const updated = await apiClient.put(`/daily-todos/${t.id}`, { completed: !t.completed, status: !t.completed ? 'Done' : 'Working' });
-                                setLinkedDailyTodos(prev => prev.map(x => x.id === t.id ? updated : x));
+                                // Optimistic
+                                setLinkedDailyTodos(prev => prev.map(x => {
+                                  if (x.id === t.id) return { ...x, completed: !t.completed, status: !t.completed ? 'Done' : 'Working' };
+                                  if (x.children && x.children.some((c: any) => c.id === t.id)) {
+                                    return { ...x, children: x.children.map((c: any) => c.id === t.id ? { ...c, completed: !t.completed, status: !t.completed ? 'Done' : 'Working' } : c) };
+                                  }
+                                  return x;
+                                }));
+                                try {
+                                  const updated = await apiClient.put(`/daily-todos/${t.id}`, { completed: !t.completed, status: !t.completed ? 'Done' : 'Working' });
+                                  setLinkedDailyTodos(prev => prev.map(x => {
+                                    if (x.id === t.id) return updated;
+                                    if (x.children && x.children.some((c: any) => c.id === t.id)) {
+                                      return { ...x, children: x.children.map((c: any) => c.id === t.id ? updated : c) };
+                                    }
+                                    return x;
+                                  }));
+                                } catch (err) { console.error(err); }
                               }}
                               onToggleUrgent={async (t) => {
                                 const updated = await apiClient.put(`/daily-todos/${t.id}`, { isUrgent: !t.isUrgent });
-                                setLinkedDailyTodos(prev => prev.map(x => x.id === t.id ? updated : x));
+                                setLinkedDailyTodos(prev => prev.map(x => {
+                                  if (x.id === t.id) return updated;
+                                  if (x.children && x.children.some((c: any) => c.id === t.id)) {
+                                    return { ...x, children: x.children.map((c: any) => c.id === t.id ? updated : c) };
+                                  }
+                                  return x;
+                                }));
                               }}
                               onDelete={async (id) => {
                                 await apiClient.delete(`/daily-todos/${id}`);
-                                setLinkedDailyTodos(prev => prev.filter(x => x.id !== id));
+                                setLinkedDailyTodos(prev => prev.filter(x => x.id !== id).map(x => x.children ? { ...x, children: x.children.filter((c: any) => c.id !== id) } : x));
                               }}
                               onSaveEdit={async (id, text) => {
                                 const updated = await apiClient.put(`/daily-todos/${id}`, { text });
-                                setLinkedDailyTodos(prev => prev.map(x => x.id === id ? updated : x));
+                                setLinkedDailyTodos(prev => prev.map(x => {
+                                  if (x.id === id) return updated;
+                                  if (x.children && x.children.some((c: any) => c.id === id)) {
+                                    return { ...x, children: x.children.map((c: any) => c.id === id ? updated : c) };
+                                  }
+                                  return x;
+                                }));
                               }}
                               onTagIdea={async (todoId, ideaId) => {
                                 const updated = await apiClient.put(`/daily-todos/${todoId}`, { ideaId });
-                                setLinkedDailyTodos(prev => prev.map(x => x.id === todoId ? updated : x));
+                                setLinkedDailyTodos(prev => prev.map(x => {
+                                  if (x.id === todoId) return updated;
+                                  if (x.children && x.children.some((c: any) => c.id === todoId)) {
+                                    return { ...x, children: x.children.map((c: any) => c.id === todoId ? updated : c) };
+                                  }
+                                  return x;
+                                }));
                               }}
                               onAddSubtask={async (parentId, text) => {
                                 const subtask = await apiClient.post('/daily-todos', {
@@ -1200,15 +1234,33 @@ const IdeaDetail: React.FC = () => {
                               onOpenEntity={handleOpenEntityByName}
                               onAssigneeChange={async (todoId, assigneeId) => {
                                 const updated = await apiClient.put(`/daily-todos/${todoId}`, { assigneeId });
-                                setLinkedDailyTodos(prev => prev.map(x => x.id === todoId ? updated : x));
+                                setLinkedDailyTodos(prev => prev.map(x => {
+                                  if (x.id === todoId) return updated;
+                                  if (x.children && x.children.some((c: any) => c.id === todoId)) {
+                                    return { ...x, children: x.children.map((c: any) => c.id === todoId ? updated : c) };
+                                  }
+                                  return x;
+                                }));
                               }}
                               onChangeDate={async (id, dateKey) => {
                                 const updated = await apiClient.put(`/daily-todos/${id}`, { date: dateKey });
-                                setLinkedDailyTodos(prev => prev.map(x => x.id === id ? updated : x));
+                                setLinkedDailyTodos(prev => prev.map(x => {
+                                  if (x.id === id) return updated;
+                                  if (x.children && x.children.some((c: any) => c.id === id)) {
+                                    return { ...x, children: x.children.map((c: any) => c.id === id ? updated : c) };
+                                  }
+                                  return x;
+                                }));
                               }}
                               onChangeTimeBlock={async (id, block) => {
                                 const updated = await apiClient.put(`/daily-todos/${id}`, { timeBlock: block });
-                                setLinkedDailyTodos(prev => prev.map(x => x.id === id ? updated : x));
+                                setLinkedDailyTodos(prev => prev.map(x => {
+                                  if (x.id === id) return updated;
+                                  if (x.children && x.children.some((c: any) => c.id === id)) {
+                                    return { ...x, children: x.children.map((c: any) => c.id === id ? updated : c) };
+                                  }
+                                  return x;
+                                }));
                               }}
                             />
                           ))}
