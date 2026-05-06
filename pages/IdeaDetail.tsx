@@ -693,7 +693,7 @@ const IdeaDetail: React.FC = () => {
           <div className="grid grid-cols-1 lg:grid-cols-[3fr_2fr] gap-4">
             
             {/* Left Header Bubble: Identification + Description + Sub-projects */}
-            <div className="min-w-0 flex flex-col gap-4 backdrop-blur-md border border-blue-200 shadow-md rounded-2xl p-6" style={{ background: '#CADCF7' }}>
+            <div className="min-w-0 flex flex-col gap-4 backdrop-blur-md border border-[var(--border)] shadow-md rounded-2xl p-6" style={{ background: 'var(--border)' }}>
               {/* Title and Identification */}
               <div className="flex flex-wrap items-center gap-3">
                 {isEditingIdea ? (
@@ -941,8 +941,8 @@ const IdeaDetail: React.FC = () => {
           {/* LEFT COLUMN: Task Calendar */}
           <div className="space-y-6">
             {/* Task Calendar — CENTERPIECE */}
-            <section className="rounded-2xl border shadow-sm" style={{ background: '#E5F0FF' }}>
-              <div className="flex items-center justify-between p-6 pb-4 border-b border-blue-100">
+            <section className="rounded-2xl border shadow-sm" style={{ background: 'var(--secondary)' }}>
+              <div className="flex items-center justify-between p-6 pb-4 border-b border-[var(--border)]">
                 <h2 className="text-sm font-black text-gray-400 uppercase tracking-widest flex items-center gap-2">
                   <span>✅</span> Checklist Calendar
                 </h2>
@@ -965,7 +965,7 @@ const IdeaDetail: React.FC = () => {
               </div>
 
               {isAddingTodo && (
-                <div className="px-6 py-4 bg-white/50 border-b border-blue-100">
+                <div className="px-6 py-4 bg-white/50 border-b border-[var(--border)]">
                   <TaskQuickAdd 
                     onSubmit={async (text) => {
                       await handleAddTodo(text);
@@ -1038,7 +1038,7 @@ const IdeaDetail: React.FC = () => {
                         </div>
                         
                         {/* Tasks Column */}
-                        <div className="flex-1 space-y-1 border-l-2 border-blue-200 pl-4 pb-4">
+                        <div className="flex-1 space-y-1 border-l-2 border-[var(--border)] pl-4 pb-4">
                           {todos.map(todo => (
                             <DailyTodoItem
                               key={todo.id}
