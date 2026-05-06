@@ -59,6 +59,7 @@ import DailyTodoItem, { DailyTodoData } from '../components/DailyTodoItem';
 import { MentionInput } from '../components/MentionInput';
 import ContactModal from '../components/ContactModal';
 import EntityModal from '../components/EntityModal';
+import { TaskQuickAdd } from '../components/TaskQuickAdd';
 
 import { getStagesForType } from '../lib/idea-utils';
 import AICounselor from '../components/AICounselor';
@@ -107,9 +108,6 @@ const IdeaDetail: React.FC = () => {
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
   const [editingCallMinute, setEditingCallMinute] = useState<Note | null>(null);
   const [viewingCallMinute, setViewingCallMinute] = useState<Note | null>(null);
-  const [todoInput, setTodoInput] = useState('');
-  const [todoDueDate, setTodoDueDate] = useState('');
-  const [todoAssigneeId, setTodoAssigneeId] = useState<string>('');
   const [isAddingTodo, setIsAddingTodo] = useState(false);
   const [isUrlUrgent, setIsUrlUrgent] = useState(false);
   const [editingTodoId, setEditingTodoId] = useState<string | null>(null);
@@ -281,25 +279,17 @@ const IdeaDetail: React.FC = () => {
     setIsEditingIdea(false);
   };
 
-  const handleAddTodo = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!todoInput.trim()) return;
+  const handleAddTodo = async (text: string) => {
+    if (!text.trim()) return;
     try {
       const newTodo = await apiClient.post('/daily-todos', {
-        text: todoInput.trim(),
+        text: text.trim(),
         date: new Date().toISOString().split('T')[0],
-        isUrgent: isUrlUrgent,
         ideaId: idea.id,
-        dueDate: todoDueDate || null,
-        assigneeId: todoAssigneeId || data.currentUser?.id || null,
+        assigneeId: data.currentUser?.id || null,
         status: 'Not Started'
       });
       setLinkedDailyTodos(prev => [...prev, newTodo]);
-      setTodoInput('');
-      setTodoDueDate('');
-      setTodoAssigneeId('');
-      setIsUrlUrgent(false);
-      setIsAddingTodo(false);
     } catch (err: any) {
       console.error('Failed to add todo:', err);
     }
@@ -856,8 +846,8 @@ const IdeaDetail: React.FC = () => {
   return (
     <div className="pb-20 transition-all bg-[var(--ui-bg)] min-h-screen">
       {/* Sticky Header - Peninsula Style */}
-      <div className="sticky top-0 z-50 bg-white/95 backdrop-blur-md border-b border-[var(--border)] shadow-md rounded-b-[40px] max-w-[1600px] mx-auto">
-        <div className="max-w-6xl mx-auto px-8 pt-8 pb-6">
+      <div className="sticky top-0 z-50 bg-white/95 backdrop-blur-md border-b border-[var(--border)] shadow-md rounded-b-[40px] max-w-[1600px] mx-auto w-full">
+        <div className="max-w-[1600px] mx-auto px-8 pt-8 pb-6">
           <div className="flex flex-col lg:flex-row justify-between gap-10">
             
             {/* Left Header: Identification + Description + Sub-projects */}
@@ -914,13 +904,13 @@ const IdeaDetail: React.FC = () => {
               {/* Description (Gray background) */}
               {isEditingIdea ? (
                 <textarea
-                  className="w-full text-sm text-gray-700 leading-relaxed font-medium bg-gray-50 p-4 rounded-xl outline-none border border-[var(--border)]"
+                  className="w-full text-sm text-gray-700 leading-relaxed font-normal bg-gray-50 p-4 rounded-xl outline-none border border-[var(--border)]"
                   value={editedIdea.oneLiner ?? ''}
                   onChange={e => setEditedIdea({ ...editedIdea, oneLiner: e.target.value })}
                   placeholder="Describe the mission..."
                 />
               ) : idea.oneLiner && (
-                <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 text-sm text-gray-700 font-medium leading-relaxed shadow-sm flex gap-2">
+                <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 text-sm text-gray-700 font-normal leading-relaxed shadow-sm flex gap-2">
                   <span>📝</span>
                   <span className="flex-1">{idea.oneLiner}</span>
                 </div>
@@ -934,7 +924,7 @@ const IdeaDetail: React.FC = () => {
                     <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">Sub-projects</div>
                     <div className="flex flex-wrap gap-4">
                       {subProjects.map(sp => (
-                        <Link key={sp.id} to={`/ideas/${sp.id}`} className="text-sm font-semibold text-gray-600 hover:text-gray-900 flex items-center gap-1.5 transition-colors hover:bg-gray-100 px-2 py-1 rounded-md">
+                        <Link key={sp.id} to={`/ideas/${sp.id}`} className="text-xs font-bold text-gray-600 hover:text-gray-900 bg-gray-100 hover:bg-gray-200 px-3 py-1.5 rounded-full transition-colors flex items-center gap-1.5">
                           • {sp.title}
                         </Link>
                       ))}
@@ -1019,13 +1009,31 @@ const IdeaDetail: React.FC = () => {
                 <div className="text-sm text-gray-500 font-medium flex items-center gap-2">
                   <span>📅</span>
                   <span className="text-gray-400">Last update:</span> 
-                  <span>{format(new Date(idea.updatedAt), 'd MMM yyyy')}</span>
-                  <span className="text-[10px] text-gray-400">({formatDistanceToNow(new Date(idea.updatedAt))} ago)</span>
+                  {(() => {
+                    const ideaDate = new Date(idea.updatedAt).getTime();
+                    const maxNoteDate = data.notes.filter(n => n.ideaId === idea.id).reduce((max, n) => Math.max(max, new Date(n.createdAt).getTime()), 0);
+                    const maxTodoDate = linkedDailyTodos.reduce((max, t) => Math.max(max, new Date(t.updatedAt).getTime()), 0);
+                    const lastUpdateTimestamp = Math.max(ideaDate, maxNoteDate, maxTodoDate);
+                    return (
+                      <>
+                        <span>{format(new Date(lastUpdateTimestamp), 'd MMM yyyy')}</span>
+                        <span className="text-[10px] text-gray-400">({formatDistanceToNow(new Date(lastUpdateTimestamp))} ago)</span>
+                      </>
+                    );
+                  })()}
                 </div>
                 <div className="text-sm text-gray-500 font-medium flex items-center gap-2">
                   <span>📊</span>
                   <span className="text-gray-400">Current stage:</span>
-                  <span className="font-bold text-gray-800">{idea.status}</span>
+                  <select
+                    className="font-normal text-gray-800 bg-transparent outline-none cursor-pointer hover:bg-gray-50 px-1 py-0.5 rounded"
+                    value={idea.status}
+                    onChange={e => updateIdea(idea.id, { status: e.target.value } as any)}
+                  >
+                    {getStagesForType(idea.type, data.currentUser?.ideaConfigs || []).map(stage => (
+                      <option key={stage} value={stage}>{stage}</option>
+                    ))}
+                  </select>
                 </div>
               </div>
 
@@ -1081,24 +1089,14 @@ const IdeaDetail: React.FC = () => {
 
               {isAddingTodo && (
                 <div className="px-6 py-4 bg-gray-50/50 border-b border-gray-50">
-                  <form onSubmit={handleAddTodo} className="flex gap-2">
-                    <input
-                      className="flex-1 text-xs border border-[var(--border)] rounded-lg px-3 py-2 outline-none focus:ring-2 bg-white"
-                      style={{ ringColor: 'var(--primary)' }}
-                      placeholder="What needs to be done? (+ Enter to add)"
-                      value={todoInput}
-                      onChange={e => setTodoInput(e.target.value)}
-                      autoFocus
-                    />
-                    <button
-                      type="submit"
-                      disabled={!todoInput.trim()}
-                      className="text-white p-2 rounded-lg transition-all shadow-md active:scale-95 disabled:opacity-50"
-                      style={{ backgroundColor: 'var(--primary)' }}
-                    >
-                      ➕
-                    </button>
-                  </form>
+                  <TaskQuickAdd 
+                    onSubmit={async (text) => {
+                      await handleAddTodo(text);
+                      setIsAddingTodo(false);
+                    }}
+                    onCancel={() => setIsAddingTodo(false)}
+                    autoFocus
+                  />
                 </div>
               )}
 
@@ -1255,9 +1253,18 @@ const IdeaDetail: React.FC = () => {
                     <button
                       onClick={() => {
                         if (!newLinkUrl.trim()) return;
-                        const title = newLinkTitle.trim() || new URL(newLinkUrl).hostname;
+                        let title = newLinkTitle.trim();
+                        let finalUrl = newLinkUrl.trim();
+                        if (!/^https?:\/\//i.test(finalUrl)) finalUrl = 'https://' + finalUrl;
+                        if (!title) {
+                          try {
+                            title = new URL(finalUrl).hostname;
+                          } catch {
+                            title = finalUrl;
+                          }
+                        }
                         const currentLinks = idea.links || [];
-                        updateIdea(idea.id, { links: [...currentLinks, { title, url: newLinkUrl.trim() }] } as any);
+                        updateIdea(idea.id, { links: [...currentLinks, { title, url: finalUrl }] } as any);
                         setNewLinkTitle('');
                         setNewLinkUrl('');
                         setShowAddLink(false);
