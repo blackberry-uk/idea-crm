@@ -667,13 +667,18 @@ const IdeaDetail: React.FC = () => {
           </div>
         </div>
 
-        <div className={`text-xs ${currentIntent === 'follow_up' ? 'text-slate-950' : 'text-slate-700'} font-normal leading-snug mt-1 line-clamp-2`}>
-          {note.imageUrl && <span className="mr-1">📎</span>}
-          {isStructured && structuredData
-            ? renderStructuredBody(structuredData)
-            : <span>{note.body}</span>
-          }
-        </div>
+        {(() => {
+          const isShort = !isStructured && note.body.length < 120 && !note.body.includes('\n');
+          return (
+            <div className={`text-xs ${currentIntent === 'follow_up' ? 'text-slate-950' : 'text-slate-700'} font-normal leading-snug mt-1 ${isShort ? 'line-clamp-2' : 'whitespace-pre-wrap'}`}>
+              {note.imageUrl && <span className="mr-1">📎</span>}
+              {isStructured && structuredData
+                ? renderStructuredBody(structuredData)
+                : <span>{note.body}</span>
+              }
+            </div>
+          );
+        })()}
 
       </div>
     );
