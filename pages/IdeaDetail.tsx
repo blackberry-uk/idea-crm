@@ -60,6 +60,7 @@ import { MentionInput } from '../components/MentionInput';
 import ContactModal from '../components/ContactModal';
 import EntityModal from '../components/EntityModal';
 import { TaskQuickAdd } from '../components/TaskQuickAdd';
+import { extractDelimitedMentions } from '../lib/taskMentions';
 
 import { getStagesForType } from '../lib/idea-utils';
 import AICounselor from '../components/AICounselor';
@@ -78,7 +79,8 @@ const IdeaDetail: React.FC = () => {
   const {
     data, updateIdea, updateNote, togglePinNote, toggleHideNote,
     shareIdea, resendInvitation, uninviteCollaborator, deleteInvitation,
-    showToast, confirm, deleteNote, deleteIdea, leaveIdea, addComment, deleteComment
+    showToast, confirm, deleteNote, deleteIdea, leaveIdea, addComment, deleteComment,
+    addContact, addEntity
   } = useStore();
 
   const idea = data.ideas.find(i => i.id === id);
@@ -279,9 +281,41 @@ const IdeaDetail: React.FC = () => {
     setIsEditingIdea(false);
   };
 
+  const extractMentions = (text: string): string[] => {
+    return extractDelimitedMentions(text, '@');
+  };
+  
+  const extractEntityMentions = (text: string): string[] => {
+    return extractDelimitedMentions(text, '#');
+  };
+
+  const autoCreateTaskLinks = (taskText: string) => {
+    extractMentions(taskText).forEach(name => {
+      const existing = findContactByName(name);
+      if (!existing) {
+        const parts = name.split(/\s+/);
+        const firstName = parts[0];
+        const lastName = parts.slice(1).join(' ') || undefined;
+        addContact({ firstName, lastName, fullName: name })
+          .then(() => showToast(`Contact "${name}" created automatically`, 'success'))
+          .catch(err => console.error('Failed to auto-create contact:', err));
+      }
+    });
+
+    extractEntityMentions(taskText).forEach(name => {
+      const existing = findEntityByName(name);
+      if (!existing) {
+        addEntity({ name })
+          .then(() => showToast(`Entity "${name}" created automatically`, 'success'))
+          .catch(err => console.error('Failed to auto-create entity:', err));
+      }
+    });
+  };
+
   const handleAddTodo = async (text: string) => {
     if (!text.trim()) return;
     try {
+      autoCreateTaskLinks(text);
       const newTodo = await apiClient.post('/daily-todos', {
         text: text.trim(),
         date: new Date().toISOString().split('T')[0],
