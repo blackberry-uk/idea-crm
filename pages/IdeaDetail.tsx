@@ -693,7 +693,7 @@ const IdeaDetail: React.FC = () => {
           <div className="grid grid-cols-1 lg:grid-cols-[3fr_2fr] gap-4">
             
             {/* Left Header Bubble: Identification + Description + Sub-projects */}
-            <div className="min-w-0 flex flex-col gap-4 bg-white/95 backdrop-blur-md border border-[var(--border)] shadow-md rounded-2xl p-6">
+            <div className="min-w-0 flex flex-col gap-4 backdrop-blur-md border border-[var(--border)] shadow-md rounded-2xl p-6" style={{ background: 'linear-gradient(135deg, var(--primary-shadow) 0%, rgba(255,255,255,0.97) 100%)' }}>
               {/* Title and Identification */}
               <div className="flex flex-wrap items-center gap-3">
                 {isEditingIdea ? (
@@ -941,7 +941,7 @@ const IdeaDetail: React.FC = () => {
           {/* LEFT COLUMN: Task Calendar */}
           <div className="space-y-6">
             {/* Task Calendar — CENTERPIECE */}
-            <section className="bg-white rounded-2xl border shadow-sm">
+            <section className="rounded-2xl border shadow-sm" style={{ background: 'linear-gradient(180deg, #f8fafc 0%, #ffffff 40%)' }}>
               <div className="flex items-center justify-between p-6 pb-4 border-b border-gray-50">
                 <h2 className="text-sm font-black text-gray-400 uppercase tracking-widest flex items-center gap-2">
                   <span>✅</span> Checklist Calendar
