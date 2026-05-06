@@ -2,7 +2,7 @@
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { useNavigate, useParams, Link } from 'react-router-dom';
 import { useStore } from '../store/useStore';
-import { format } from 'date-fns';
+import { format, isToday, isTomorrow, isPast, addDays, parseISO, startOfDay } from 'date-fns';
 import CallMinuteModal from '../components/CallMinuteModal';
 import CallMinuteViewer from '../components/CallMinuteViewer';
 import { Note, Idea, Contact, User, IdeaType, IdeaStatus } from '../types';
@@ -47,12 +47,18 @@ import {
   ChevronRight,
   Send,
   CalendarCheck,
-  MoreHorizontal
+  MoreHorizontal,
+  FileText,
+  Link2
 } from 'lucide-react';
 import NoteComposer from '../components/NoteComposer';
 import NoteDetailModal from '../components/NoteDetailModal';
 import { getInitials, getAvatarColor } from '../lib/utils';
 import KanbanModal from '../components/KanbanModal';
+import DailyTodoItem, { DailyTodoData } from '../components/DailyTodoItem';
+import { MentionInput } from '../components/MentionInput';
+import ContactModal from '../components/ContactModal';
+import EntityModal from '../components/EntityModal';
 
 import { getStagesForType } from '../lib/idea-utils';
 import AICounselor from '../components/AICounselor';
@@ -118,6 +124,46 @@ const IdeaDetail: React.FC = () => {
   const [selectedNoteForDetail, setSelectedNoteForDetail] = useState<Note | null>(null);
   const [commentBody, setCommentBody] = useState<Record<string, string>>({});
   const [expandedNoteActionsId, setExpandedNoteActionsId] = useState<string | null>(null);
+
+  // --- Documents & Links ---
+  const [newLinkTitle, setNewLinkTitle] = useState('');
+  const [newLinkUrl, setNewLinkUrl] = useState('');
+  const [showAddLink, setShowAddLink] = useState(false);
+
+  // --- Contact/Entity modal for mention clicks ---
+  const [contactToEdit, setContactToEdit] = useState<any | null>(null);
+  const [showContactModal, setShowContactModal] = useState(false);
+  const [entityToEdit, setEntityToEdit] = useState<any | null>(null);
+  const [showEntityModal, setShowEntityModal] = useState(false);
+
+  const findContactByName = (name: string) => {
+    return data.contacts.find(c => {
+      const full = (c.fullName || '').toLowerCase();
+      const first = (c.firstName || '').toLowerCase();
+      const last = (c.lastName || '').toLowerCase();
+      return full === name.toLowerCase() || first === name.toLowerCase() || `${first} ${last}`.trim() === name.toLowerCase();
+    });
+  };
+
+  const findEntityByName = (name: string) => {
+    return data.entities?.find(e => e.name.toLowerCase() === name.toLowerCase());
+  };
+
+  const handleOpenContactByName = async (name: string) => {
+    const existing = findContactByName(name);
+    if (existing) {
+      setContactToEdit(existing);
+      setShowContactModal(true);
+    }
+  };
+
+  const handleOpenEntityByName = async (name: string) => {
+    const existing = findEntityByName(name);
+    if (existing) {
+      setEntityToEdit(existing);
+      setShowEntityModal(true);
+    }
+  };
 
   // Fetch daily todos tagged to this idea
   const [linkedDailyTodos, setLinkedDailyTodos] = useState<any[]>([]);
@@ -810,7 +856,7 @@ const IdeaDetail: React.FC = () => {
   return (
     <div className="pb-20 transition-all bg-[var(--ui-bg)] min-h-screen">
       {/* Sticky Header - Peninsula Style */}
-      <div className="sticky top-0 z-50 bg-white/95 backdrop-blur-md border-b border-[var(--border)] shadow-md rounded-b-[40px] max-w-[1170px] mx-auto">
+      <div className="sticky top-0 z-50 bg-white/95 backdrop-blur-md border-b border-[var(--border)] shadow-md rounded-b-[40px] max-w-[1600px] mx-auto">
         <div className="max-w-6xl mx-auto px-8 pt-8 pb-6">
           <div className="flex flex-col md:flex-row md:items-start justify-between gap-6">
             <div className="flex-1 min-w-0">
@@ -1028,11 +1074,242 @@ const IdeaDetail: React.FC = () => {
         </div>
       </div>
 
-      <div className="max-w-6xl mx-auto px-8 mt-12 animate-in fade-in slide-in-from-bottom-4 duration-500">
-        <div className="grid grid-cols-1 lg:grid-cols-[1fr_350px] gap-12">
-          {/* Main Content Column */}
-          <div className="idea-thread space-y-6">
-            {/* Unified Block Strategy */}
+      <div className="max-w-[1600px] mx-auto px-8 mt-12 animate-in fade-in slide-in-from-bottom-4 duration-500">
+        <div className="grid grid-cols-1 lg:grid-cols-[3fr_2fr] gap-10">
+          {/* LEFT COLUMN: Brief + Documents + Task Calendar */}
+          <div className="space-y-6">
+            {/* Program Brief */}
+            <section className="bg-white rounded-2xl border p-6 shadow-sm">
+              <h2 className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-4 flex items-center gap-2">
+                <ClipboardList className="w-4 h-4" style={{ color: 'var(--primary)' }} />
+                Program Brief
+              </h2>
+              {isEditingIdea ? (
+                <textarea
+                  className="w-full text-sm text-gray-700 leading-relaxed font-medium bg-gray-50 p-4 rounded-xl outline-none border border-[var(--border)] focus:ring-2"
+                  style={{ ringColor: 'var(--primary)' }}
+                  value={editedIdea.oneLiner ?? ''}
+                  onChange={e => setEditedIdea({ ...editedIdea, oneLiner: e.target.value })}
+                  placeholder="Describe the mission..."
+                />
+              ) : (
+                <p className="text-sm text-gray-700 leading-relaxed font-medium">
+                  {idea.oneLiner || <span className="text-gray-400 italic">No mission statement defined.</span>}
+                </p>
+              )}
+            </section>
+
+            {/* Documents & Links */}
+            <section className="bg-white rounded-2xl border p-6 shadow-sm">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-[10px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-2">
+                  <FileText className="w-4 h-4" style={{ color: 'var(--primary)' }} />
+                  Documents & Links
+                </h2>
+                <button
+                  onClick={() => setShowAddLink(!showAddLink)}
+                  className="text-[10px] font-black uppercase tracking-widest transition-all hover:underline"
+                  style={{ color: 'var(--primary)' }}
+                >
+                  {showAddLink ? '✕ Cancel' : '+ Add'}
+                </button>
+              </div>
+
+              {showAddLink && (
+                <div className="mb-4 p-3 bg-gray-50 rounded-xl border border-[var(--border)] space-y-2">
+                  <input
+                    className="w-full text-xs border border-[var(--border)] rounded-lg px-3 py-2 outline-none focus:ring-2 bg-white"
+                    style={{ ringColor: 'var(--primary)' }}
+                    placeholder="Title (e.g. Business Plan Draft)"
+                    value={newLinkTitle}
+                    onChange={e => setNewLinkTitle(e.target.value)}
+                  />
+                  <div className="flex gap-2">
+                    <input
+                      className="flex-1 text-xs border border-[var(--border)] rounded-lg px-3 py-2 outline-none focus:ring-2 bg-white"
+                      style={{ ringColor: 'var(--primary)' }}
+                      placeholder="https://docs.google.com/..."
+                      value={newLinkUrl}
+                      onChange={e => setNewLinkUrl(e.target.value)}
+                    />
+                    <button
+                      onClick={() => {
+                        if (!newLinkUrl.trim()) return;
+                        const title = newLinkTitle.trim() || new URL(newLinkUrl).hostname;
+                        const currentLinks = idea.links || [];
+                        updateIdea(idea.id, { links: [...currentLinks, { title, url: newLinkUrl.trim() }] } as any);
+                        setNewLinkTitle('');
+                        setNewLinkUrl('');
+                        setShowAddLink(false);
+                      }}
+                      disabled={!newLinkUrl.trim()}
+                      className="text-white p-2 rounded-lg transition-all shadow-md active:scale-95 disabled:opacity-40"
+                      style={{ backgroundColor: 'var(--primary)' }}
+                    >
+                      <Plus className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              <div className="space-y-2">
+                {(idea.links || []).map((link: { title: string; url: string }, idx: number) => (
+                  <div key={idx} className="group flex items-center gap-3 p-3 border border-[var(--border)] rounded-xl hover:border-[var(--primary)] transition-colors">
+                    <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" style={{ backgroundColor: 'var(--primary-shadow)' }}>
+                      <Link2 className="w-4 h-4" style={{ color: 'var(--primary)' }} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <a href={link.url} target="_blank" rel="noopener noreferrer" className="text-xs font-bold text-gray-700 hover:underline truncate block">
+                        {link.title}
+                      </a>
+                      <p className="text-[9px] text-gray-400 truncate">{link.url}</p>
+                    </div>
+                    <a href={link.url} target="_blank" rel="noopener noreferrer" className="p-1 text-gray-300 hover:text-[var(--primary)] transition-colors shrink-0">
+                      <ExternalLink className="w-3.5 h-3.5" />
+                    </a>
+                    {isOwner && (
+                      <button
+                        onClick={() => {
+                          const currentLinks = [...(idea.links || [])];
+                          currentLinks.splice(idx, 1);
+                          updateIdea(idea.id, { links: currentLinks } as any);
+                        }}
+                        className="opacity-0 group-hover:opacity-100 p-1 text-gray-300 hover:text-red-500 transition-all shrink-0"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </button>
+                    )}
+                  </div>
+                ))}
+                {(!idea.links || idea.links.length === 0) && !showAddLink && (
+                  <p className="text-[10px] text-gray-400 italic text-center py-3">No documents linked yet.</p>
+                )}
+              </div>
+            </section>
+
+            {/* Task Calendar — CENTERPIECE */}
+            <section className="bg-white rounded-2xl border shadow-sm overflow-hidden">
+              <div className="flex items-center justify-between p-6 pb-4">
+                <h2 className="text-sm font-black text-gray-400 uppercase tracking-widest flex items-center gap-2">
+                  <ListChecks className="w-4 h-4" style={{ color: 'var(--primary)' }} />
+                  Tasks
+                </h2>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setIsAddingTodo(!isAddingTodo)}
+                    className="text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-1.5 px-3 py-1.5 rounded-xl border group active:scale-95"
+                    style={{ color: 'var(--primary)', backgroundColor: 'var(--primary-shadow)', borderColor: 'var(--primary)' }}
+                  >
+                    <Plus className="w-3.5 h-3.5" /> Add Task
+                  </button>
+                  <button
+                    onClick={() => setIsKanbanOpen(true)}
+                    className="text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-1.5 px-3 py-1.5 rounded-xl border group active:scale-95"
+                    style={{ color: 'var(--primary)', backgroundColor: 'var(--primary-shadow)', borderColor: 'var(--primary)' }}
+                  >
+                    <Layout className="w-3.5 h-3.5 transition-transform group-hover:rotate-12" />
+                    Kanban
+                  </button>
+                </div>
+              </div>
+
+              {isAddingTodo && (
+                <div className="px-6 pb-4">
+                  <form onSubmit={handleAddTodo} className="flex gap-2">
+                    <input
+                      className="flex-1 text-xs border border-[var(--border)] rounded-lg px-3 py-2 outline-none focus:ring-2 bg-gray-50"
+                      style={{ ringColor: 'var(--primary)' }}
+                      placeholder="What needs to be done? (+ Enter to add)"
+                      value={todoInput}
+                      onChange={e => setTodoInput(e.target.value)}
+                      autoFocus
+                    />
+                    <button
+                      type="submit"
+                      disabled={!todoInput.trim()}
+                      className="text-white p-2 rounded-lg transition-all shadow-md active:scale-95"
+                      style={{ backgroundColor: 'var(--primary)' }}
+                    >
+                      <Plus className="w-5 h-5" />
+                    </button>
+                  </form>
+                </div>
+              )}
+
+              <div className="px-4 pb-6 space-y-1">
+                {(() => {
+                  const sorted = [...linkedDailyTodos]
+                    .filter(t => (t.status || (t.completed ? 'Done' : 'Not Started')) !== 'Archived')
+                    .sort((a, b) => {
+                      const weights: Record<string, number> = { 'Working': 0, 'Not Started': 1, 'Done': 2 };
+                      const sA = a.status || (a.completed ? 'Done' : 'Not Started');
+                      const sB = b.status || (b.completed ? 'Done' : 'Not Started');
+                      if (weights[sA] !== weights[sB]) return (weights[sA] ?? 1) - (weights[sB] ?? 1);
+                      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+                    });
+
+                  if (sorted.length === 0) {
+                    return <p className="text-[10px] text-gray-400 italic text-center py-8">No tasks yet. Ready to start?</p>;
+                  }
+
+                  return sorted.map(todo => (
+                    <DailyTodoItem
+                      key={todo.id}
+                      todo={todo as DailyTodoData}
+                      ideas={data.ideas.map(i => ({ id: i.id, title: i.title }))}
+                      onToggleComplete={async (t) => {
+                        const updated = await apiClient.put(`/daily-todos/${t.id}`, { completed: !t.completed, status: !t.completed ? 'Done' : 'Working' });
+                        setLinkedDailyTodos(prev => prev.map(x => x.id === t.id ? updated : x));
+                      }}
+                      onToggleUrgent={async (t) => {
+                        const updated = await apiClient.put(`/daily-todos/${t.id}`, { isUrgent: !t.isUrgent });
+                        setLinkedDailyTodos(prev => prev.map(x => x.id === t.id ? updated : x));
+                      }}
+                      onDelete={async (id) => {
+                        await apiClient.delete(`/daily-todos/${id}`);
+                        setLinkedDailyTodos(prev => prev.filter(x => x.id !== id));
+                      }}
+                      onSaveEdit={async (id, text) => {
+                        const updated = await apiClient.put(`/daily-todos/${id}`, { text });
+                        setLinkedDailyTodos(prev => prev.map(x => x.id === id ? updated : x));
+                      }}
+                      onTagIdea={async (todoId, ideaId) => {
+                        const updated = await apiClient.put(`/daily-todos/${todoId}`, { ideaId });
+                        setLinkedDailyTodos(prev => prev.map(x => x.id === todoId ? updated : x));
+                      }}
+                      onAddSubtask={async (parentId, text) => {
+                        const subtask = await apiClient.post('/daily-todos', {
+                          text, date: new Date().toISOString().split('T')[0],
+                          ideaId: idea.id, parentId
+                        });
+                        setLinkedDailyTodos(prev => prev.map(t =>
+                          t.id === parentId ? { ...t, children: [...(t.children || []), subtask] } : t
+                        ));
+                      }}
+                      onOpenContact={handleOpenContactByName}
+                      onOpenEntity={handleOpenEntityByName}
+                      onAssigneeChange={async (todoId, assigneeId) => {
+                        const updated = await apiClient.put(`/daily-todos/${todoId}`, { assigneeId });
+                        setLinkedDailyTodos(prev => prev.map(x => x.id === todoId ? updated : x));
+                      }}
+                      onChangeDate={async (id, dateKey) => {
+                        const updated = await apiClient.put(`/daily-todos/${id}`, { date: dateKey });
+                        setLinkedDailyTodos(prev => prev.map(x => x.id === id ? updated : x));
+                      }}
+                      onChangeTimeBlock={async (id, block) => {
+                        const updated = await apiClient.put(`/daily-todos/${id}`, { timeBlock: block });
+                        setLinkedDailyTodos(prev => prev.map(x => x.id === id ? updated : x));
+                      }}
+                    />
+                  ));
+                })()}
+              </div>
+            </section>
+          </div>
+
+          {/* RIGHT COLUMN: Activity Log + Collaborators */}
+          <div className="space-y-6">
+            {/* Activity Log */}
             <div className="bg-white rounded-[40px] border border-[var(--border)] shadow-sm overflow-hidden flex flex-col">
               {/* Working Area (Amber) */}
               {showComposer && (
@@ -1209,242 +1486,18 @@ const IdeaDetail: React.FC = () => {
                     </div>
                   )}
                 </div>
-              </div>
             </div>
-          </div>
 
-          {/* Sidebar Column */}
-          <div className="space-y-8">
-            {/* Program Brief Area */}
-            <section className="bg-white rounded-2xl border p-6 shadow-sm">
-              <h2 className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-4 flex items-center gap-2">
-                <ClipboardList className="w-4 h-4" style={{ color: 'var(--primary)' }} />
-                Program Brief
-              </h2>
-              {isEditingIdea ? (
-                <textarea
-                  className="w-full text-sm text-gray-700 leading-relaxed font-medium bg-gray-50 p-4 rounded-xl outline-none border border-[var(--border)] focus:ring-2"
-                  style={{ ringColor: 'var(--primary)' }}
-                  value={editedIdea.oneLiner ?? ''}
-                  onChange={e => setEditedIdea({ ...editedIdea, oneLiner: e.target.value })}
-                  placeholder="Describe the mission..."
-                />
-              ) : (
-                <p className="text-sm text-gray-700 leading-relaxed font-medium">
-                  {idea.oneLiner || <span className="text-gray-400 italic">No mission statement defined.</span>}
-                </p>
-              )}
-            </section>
-
-            {/* Checklist Area */}
-            <section className="bg-white rounded-2xl border p-6 shadow-sm overflow-hidden flex flex-col">
-              <div className="flex items-center justify-between mb-6">
-                <h2 className="text-sm font-black text-gray-400 uppercase tracking-widest flex items-center gap-2">
-                  <ListChecks className="w-4 h-4" style={{ color: 'var(--primary)' }} />
-                  TO DOS
-                </h2>
-                <button
-                  onClick={() => setIsKanbanOpen(true)}
-                  className="text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-1.5 px-3 py-1.5 rounded-xl border group active:scale-95"
-                  style={{ color: 'var(--primary)', backgroundColor: 'var(--primary-shadow)', borderColor: 'var(--primary)' }}
-                >
-                  <Layout className="w-3.5 h-3.5 transition-transform group-hover:rotate-12" />
-                  Kanban Board
-                </button>
-              </div>
-
-              <div className="mb-6">
-                <form
-                  onSubmit={(e) => {
-                    e.preventDefault();
-                    if (!todoInput.trim()) return;
-                    handleAddTodo(e);
-                  }}
-                  className="flex gap-2"
-                >
-                  <input
-                    className="flex-1 text-xs border border-[var(--border)] rounded-lg px-3 py-2 outline-none focus:ring-2 bg-gray-50"
-                    style={{ ringColor: 'var(--primary)' }}
-                    placeholder="What needs to be done? (+ Enter to add)"
-                    value={todoInput}
-                    onChange={e => setTodoInput(e.target.value)}
-                  />
-                  <button
-                    type="submit"
-                    disabled={!todoInput.trim()}
-                    className="text-white p-2 rounded-lg transition-all shadow-md active:scale-95"
-                    style={{ backgroundColor: 'var(--primary)' }}
-                  >
-                    <Plus className="w-5 h-5" />
-                  </button>
-                </form>
-              </div>
-
-              <div className="space-y-2 mb-6">
-                {useMemo(() => {
-                  const weights: Record<string, number> = { 'Working': 0, 'Not Started': 1, 'Done': 2, 'Archived': 3 };
-                  return [...linkedDailyTodos]
-                    .filter(t => t.status !== 'Archived')
-                    .sort((a, b) => {
-                      const statusA = a.status || (a.completed ? 'Done' : 'Not Started');
-                      const statusB = b.status || (b.completed ? 'Done' : 'Not Started');
-
-                      if (weights[statusA] !== weights[statusB]) {
-                        return (weights[statusA] ?? 1) - (weights[statusB] ?? 1);
-                      }
-                      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-                    });
-                }, [linkedDailyTodos]).map((todo, idx) => {
-                  const isUrgent = todo.isUrgent;
-                  const isDone = todo.completed;
-                  const assignee = data.users.find(u => u.id === todo.assigneeId);
-                  const isEditing = editingTodoId === todo.id;
-
-                  if (isEditing) {
-                    return (
-                      <div key={todo.id} className="bg-gray-50 p-4 rounded-xl space-y-3 border" style={{ borderColor: 'var(--primary-shadow)' }}>
-                        <input
-                          type="text"
-                          autoFocus
-                          className="w-full bg-white border border-[var(--border)] rounded-lg px-3 py-2 text-xs outline-none focus:ring-2 transition-all font-medium"
-                          style={{ ringColor: 'var(--primary)' }}
-                          value={editingTodoText}
-                          onChange={e => setEditingTodoText(e.target.value)}
-                        />
-                        <div className="grid grid-cols-2 gap-2">
-                          <div className="relative">
-                            <Calendar className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-400" />
-                            <input
-                              type="date"
-                              className="w-full pl-8 pr-3 py-1.5 bg-white border border-[var(--border)] rounded-lg text-[10px] outline-none focus:ring-2"
-                              style={{ ringColor: 'var(--primary)' }}
-                              value={editingTodoDueDate}
-                              onChange={e => setEditingTodoDueDate(e.target.value)}
-                            />
-                          </div>
-                          <div className="relative">
-                            <Users className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-400" />
-                            <select
-                              className="w-full pl-8 pr-3 py-1.5 bg-white border border-[var(--border)] rounded-lg text-[10px] outline-none focus:ring-2 appearance-none"
-                              style={{ ringColor: 'var(--primary)' }}
-                              value={editingTodoAssigneeId || ''}
-                              onChange={e => setEditingTodoAssigneeId(e.target.value)}
-                            >
-                              <option value="">Assign to...</option>
-                              <option value={owner?.id}>{owner?.name} (Owner)</option>
-                              {collaborators.map(c => (
-                                <option key={c.id} value={c.id}>{c.name}</option>
-                              ))}
-                            </select>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <button
-                            onClick={() => setEditingTodoId(null)}
-                            className="flex-1 py-1.5 rounded-lg text-[10px] font-bold border border-[var(--border)] text-gray-400 hover:bg-white transition-all flex items-center justify-center gap-1"
-                          >
-                            <X className="w-3 h-3" /> Cancel
-                          </button>
-                          <button
-                            onClick={() => handleSaveEditTodo(todo.id)}
-                            className="flex-1 py-1.5 rounded-lg text-[10px] font-bold text-white shadow-md transition-all flex items-center justify-center gap-1"
-                            style={{ backgroundColor: 'var(--primary)', boxShadow: '0 4px 6px -1px var(--primary-shadow)' }}
-                          >
-                            <Check className="w-3 h-3" /> Save
-                          </button>
-                        </div>
-                      </div>
-                    );
-                  }
-
-                  return (
-                    <div
-                      key={todo.id}
-                      draggable
-                      onDragStart={() => handleTodoDragStart(idx)}
-                      onDragOver={(e) => handleTodoDragOver(e, idx)}
-                      onDragEnd={handleTodoDragEnd}
-                      className={`group relative transition-all ${draggedTodoIndex === idx ? 'opacity-30 scale-95' : ''}`}
-                    >
-                      <div className="flex items-start gap-3">
-                        <button
-                          onClick={() => toggleTodo(todo.id)}
-                          className={`mt-0.5 transition-colors ${isDone ? 'text-green-500' : isUrgent ? 'text-red-500' : 'text-gray-300 hover:text-[var(--primary)]'}`}
-                        >
-                          {isDone ? <CheckCircle2 className="w-5 h-5" /> : isUrgent ? <AlertCircle className="w-5 h-5" /> : <Circle className="w-5 h-5" />}
-                        </button>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-start justify-between gap-2">
-                            <p
-                              className={`text-[13px] leading-snug break-words flex-1 cursor-pointer transition-colors ${isDone
-                                ? 'text-gray-300 line-through font-normal'
-                                : todo.status === 'Working'
-                                  ? 'text-gray-900 font-medium'
-                                  : 'text-gray-600 font-normal'
-                                } `}
-                              onClick={() => startEditingTodo(todo)}
-                            >
-                              {todo.text}
-                            </p>
-                            {assignee && (
-                              <div
-                                className={`w-7 h-7 rounded-lg ${getAvatarColor(assignee.id)} flex items-center justify-center text-[11px] text-white font-black shrink-0 shadow-md premium-tooltip premium-tooltip-right ring-1 ring-white/20`}
-                                data-tooltip={assignee.name}
-                              >
-                                {getInitials(assignee.name)}
-                              </div>
-                            )}
-                          </div>
-                          <div className="flex items-center gap-3 mt-1.5 flex-wrap">
-                            {todo.dueDate && (
-                              <div className={`flex items-center gap-1 text-[9px] font-bold uppercase tracking-tight ${isDone ? 'text-gray-200' : 'text-orange-500'}`}>
-                                <Calendar className="w-2.5 h-2.5" />
-                                Due {format(new Date(todo.dueDate), 'MMM d')}
-                              </div>
-                            )
-                            }
-                            <div className="flex items-center gap-2">
-                              {isUrgent && (
-                                <button
-                                  onClick={() => toggleUrgent(todo.id)}
-                                  className="text-[8px] font-black uppercase px-2 py-0.5 rounded transition-all bg-red-50 text-red-600 border border-red-100"
-                                >
-                                  Urgent
-                                </button>
-                              )}
-                              {isDone && todo.completedAt && (
-                                <span className="text-[8px] text-gray-300 font-bold uppercase tracking-tighter ml-auto">
-                                  Completed {format(new Date(todo.completedAt), 'MMM d, h:mm a')}
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-                {linkedDailyTodos.length === 0 && (
-                  <p className="text-[10px] text-gray-400 italic text-center py-4">No tasks yet. Ready to start?</p>
-                )}
-              </div>
-
-            </section>
-
-            {/* Collaborators Panel */}
+          {/* Collaborators Panel - inside right column */}
             <section className="bg-white rounded-2xl border p-6 shadow-sm">
               <h2 className="text-sm font-black text-gray-400 uppercase tracking-widest mb-6 flex items-center gap-2">
                 <Share2 className="w-4 h-4" style={{ color: 'var(--primary)' }} />
                 Collaborators
               </h2>
-
               <div className="space-y-3">
                 {collaborators.map(collab => (
                   <div key={collab.id} className="group flex items-center gap-3 p-3 border border-[var(--border)] rounded-xl transition-colors hover:border-[var(--primary)]">
-                    <div
-                      className={`w-9 h-9 rounded-lg ${getAvatarColor(collab.id)} flex items-center justify-center text-white text-[13px] font-black shadow-md premium-tooltip premium-tooltip-left ring-1 ring-white/20`}
-                      data-tooltip={collab.name}
-                    >
+                    <div className={`w-9 h-9 rounded-lg ${getAvatarColor(collab.id)} flex items-center justify-center text-white text-[13px] font-black shadow-md ring-1 ring-white/20`} title={collab.name}>
                       {getInitials(collab.name)}
                     </div>
                     <div className="min-w-0 flex-1">
@@ -1452,110 +1505,49 @@ const IdeaDetail: React.FC = () => {
                       <p className="text-[9px] text-gray-400 truncate">{collab.email}</p>
                     </div>
                     {isOwner && (
-                      <button
-                        onClick={() => {
-                          confirm({
-                            title: 'Remove Collaborator',
-                            message: `Are you sure you want to remove ${collab.name}? They will lose access to this workspace.`,
-                            confirmLabel: 'Remove',
-                            type: 'danger',
-                            onConfirm: async () => {
-                              await uninviteCollaborator(idea.id, collab.id);
-                              showToast(`${collab.name} removed from project`, 'info');
-                            }
-                          });
-                        }}
-                        className="opacity-0 group-hover:opacity-100 p-1.5 text-gray-300 hover:text-red-500 transition-all rounded-lg hover:bg-red-50"
-                        title="Uninvite"
-                      >
+                      <button onClick={() => { confirm({ title: 'Remove Collaborator', message: `Remove ${collab.name}?`, confirmLabel: 'Remove', type: 'danger', onConfirm: async () => { await uninviteCollaborator(idea.id, collab.id); showToast(`${collab.name} removed`, 'info'); } }); }}
+                        className="opacity-0 group-hover:opacity-100 p-1.5 text-gray-300 hover:text-red-500 transition-all rounded-lg hover:bg-red-50" title="Uninvite">
                         <UserMinus className="w-3.5 h-3.5" />
                       </button>
                     )}
                   </div>
                 ))}
-
-                {/* Pending Invitations */}
                 {data.invitations.filter(inv => inv.ideaId === idea.id && inv.status === 'Pending').map(inv => (
-                  <div key={inv.id} className="group flex items-center gap-3 p-3 border border-dashed border-[var(--border)] rounded-xl transition-all hover:border-[var(--primary)]">
-                    <div className="w-8 h-8 rounded-lg bg-gray-50 flex items-center justify-center text-gray-400 opacity-60">
-                      <AtSign className="w-4 h-4" />
-                    </div>
+                  <div key={inv.id} className="group flex items-center gap-3 p-3 border border-dashed border-[var(--border)] rounded-xl">
+                    <div className="w-8 h-8 rounded-lg bg-gray-50 flex items-center justify-center text-gray-400 opacity-60"><AtSign className="w-4 h-4" /></div>
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2">
                         <p className="text-xs font-bold text-gray-500 truncate">{inv.email}</p>
                         <span className="text-[8px] bg-gray-100 text-gray-400 px-1 rounded font-bold uppercase">Pending</span>
                       </div>
-                      <p className="text-[9px] text-gray-400 truncate tracking-tighter">Waiting for response...</p>
                     </div>
                     {isOwner && (
                       <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
-                        <button
-                          onClick={async () => {
-                            try {
-                              await resendInvitation(inv.id);
-                              showToast('Invitation resent successfully', 'success');
-                            } catch (err: any) {
-                              showToast(err.message || 'Failed to resend', 'error');
-                            }
-                          }}
-                          className="p-1.5 text-gray-300 transition-all rounded-lg hover:bg-[var(--primary)]/10"
-                          style={{ '--hover-color': 'var(--primary)' } as any} // This is just a reminder, tailwind text-hover won't work well without config.
-                          title="Resend Invite"
-                        >
-                          <RefreshCw className="w-3.5 h-3.5" />
-                        </button>
-                        <button
-                          onClick={() => {
-                            confirm({
-                              title: 'Revoke Invitation',
-                              message: `Delete this pending invitation for ${inv.email} ? `,
-                              confirmLabel: 'Delete',
-                              type: 'danger',
-                              onConfirm: async () => {
-                                try {
-                                  await deleteInvitation(inv.id);
-                                  showToast('Invitation deleted', 'info');
-                                } catch (err: any) {
-                                  showToast(err.message || 'Failed to delete invitation', 'error');
-                                }
-                              }
-                            });
-                          }}
-                          className="p-1.5 text-gray-300 hover:text-red-500 transition-all rounded-lg hover:bg-red-50"
-                          title="Delete Invitation"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
+                        <button onClick={async () => { try { await resendInvitation(inv.id); showToast('Resent', 'success'); } catch (err: any) { showToast(err.message || 'Failed', 'error'); } }}
+                          className="p-1.5 text-gray-300 transition-all rounded-lg" title="Resend"><RefreshCw className="w-3.5 h-3.5" /></button>
+                        <button onClick={() => { confirm({ title: 'Revoke Invitation', message: `Delete invitation for ${inv.email}?`, confirmLabel: 'Delete', type: 'danger', onConfirm: async () => { try { await deleteInvitation(inv.id); showToast('Deleted', 'info'); } catch (err: any) { showToast(err.message || 'Failed', 'error'); } } }); }}
+                          className="p-1.5 text-gray-300 hover:text-red-500 transition-all rounded-lg hover:bg-red-50" title="Delete"><Trash2 className="w-3.5 h-3.5" /></button>
                       </div>
                     )}
                   </div>
                 ))}
-
                 {collaborators.length === 0 && data.invitations.filter(i => i.ideaId === idea.id && i.status === 'Pending').length === 0 && (
                   <p className="text-[10px] text-gray-400 italic text-center py-2">Private workspace</p>
                 )}
               </div>
-
               {isOwner && (
                 <form onSubmit={handleShare} className="mt-6 pt-6 border-t border-[var(--border)] space-y-3">
                   <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Invite Collaborator</label>
                   <div className="flex gap-2">
-                    <input
-                      className="flex-1 text-xs border border-[var(--border)] rounded-lg px-3 py-2 outline-none focus:ring-2 bg-gray-50"
-                      style={{ ringColor: 'var(--primary)' }}
-                      placeholder="Email address..."
-                      value={inviteEmail}
-                      onChange={e => setInviteEmail(e.target.value)}
-                    />
-                    <button type="submit" className="text-white p-2 rounded-lg transition-all shadow-md active:scale-95" style={{ backgroundColor: 'var(--primary)' }}>
-                      <Plus className="w-5 h-5" />
-                    </button>
+                    <input className="flex-1 text-xs border border-[var(--border)] rounded-lg px-3 py-2 outline-none focus:ring-2 bg-gray-50" style={{ ringColor: 'var(--primary)' }} placeholder="Email address..." value={inviteEmail} onChange={e => setInviteEmail(e.target.value)} />
+                    <button type="submit" className="text-white p-2 rounded-lg transition-all shadow-md active:scale-95" style={{ backgroundColor: 'var(--primary)' }}><Plus className="w-5 h-5" /></button>
                   </div>
                 </form>
               )}
             </section>
           </div>
         </div>
+        {/* End of grid */}
 
         <CallMinuteModal
           isOpen={!!editingCallMinute}
@@ -1615,6 +1607,14 @@ const IdeaDetail: React.FC = () => {
             return renderBodyWithLinks(n.body, n);
           }}
         />
+
+        {showContactModal && contactToEdit && (
+          <ContactModal isOpen={showContactModal} contactToEdit={contactToEdit} onClose={() => { setShowContactModal(false); setContactToEdit(null); }} />
+        )}
+        {showEntityModal && entityToEdit && (
+          <EntityModal isOpen={showEntityModal} entityToEdit={entityToEdit} onClose={() => { setShowEntityModal(false); setEntityToEdit(null); }} />
+        )}
+      </div>
       </div>
     </div>
   );

@@ -59,6 +59,8 @@ export interface Idea {
   activityColor?: string;
   linkedContactIds?: string[];
   customNoteCategories?: string[];
+  links?: { title: string; url: string }[];
+  parentId?: string;
   createdAt: string;
   updatedAt: string;
 }

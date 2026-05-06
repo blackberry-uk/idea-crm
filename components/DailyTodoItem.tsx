@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Check, Circle, Flame, Trash2, X, Lightbulb, GripVertical, Plus, ChevronDown, ChevronRight } from 'lucide-react';
-import IdeaPickerDropdown from './IdeaPickerDropdown';
 import { TaskChevronMenu } from './TaskChevronMenu';
+import { MentionInput } from './MentionInput';
 import { useStore } from '../store/useStore';
 import { mentionVariantsForName } from '../lib/taskMentions';
 import { getInitials } from '../lib/utils';
@@ -48,6 +48,7 @@ interface DailyTodoItemProps {
   onOpenEntity?: (entityName: string) => void;
   onChangeDate?: (id: string, dateKey: string | null) => Promise<void>;
   onChangeTimeBlock?: (id: string, block: string) => Promise<void>;
+  onAssigneeChange?: (todoId: string, assigneeId: string | null) => void;
   dragHandleProps?: Record<string, any>;
   isDragging?: boolean;
   isSubtask?: boolean;
@@ -56,7 +57,7 @@ interface DailyTodoItemProps {
 }
 
 const DailyTodoItem: React.FC<DailyTodoItemProps> = ({
-  todo, ideas, onToggleComplete, onToggleUrgent, onDelete, onSaveEdit, onTagIdea, onAddSubtask, onOpenDetail, onOpenContact, onOpenEntity, onChangeDate, onChangeTimeBlock, dragHandleProps, isDragging, isSubtask, customContainerStyle, overrideDateLabel
+  todo, ideas, onToggleComplete, onToggleUrgent, onDelete, onSaveEdit, onTagIdea, onAddSubtask, onOpenDetail, onOpenContact, onOpenEntity, onChangeDate, onChangeTimeBlock, onAssigneeChange, dragHandleProps, isDragging, isSubtask, customContainerStyle, overrideDateLabel
 }) => {
   const { data } = useStore();
   const [editing, setEditing] = useState(false);
@@ -213,7 +214,7 @@ const DailyTodoItem: React.FC<DailyTodoItemProps> = ({
 
       <div
         className={`wv-task ${todo.completed ? 'wv-task--done' : ''} ${todo.isUrgent && !todo.completed ? 'wv-task--urgent' : ''} ${isDragging ? 'cl-todo-dragging' : ''} ${isSubtask ? 'wv-task--subtask' : ''}`}
-        style={{ ...(isSubtask ? { marginLeft: '1.5rem', position: 'relative', zIndex: 2 } : {}), ...customContainerStyle }}
+        style={{ position: 'relative', zIndex: menuOpen ? 50 : (isSubtask ? 2 : 1), ...(isSubtask ? { marginLeft: '1.5rem' } : {}), ...customContainerStyle }}
       >
         {/* Row 1: checkbox + text + subtask count + urgent icon */}
         <div className="wv-task-row-1">
@@ -278,8 +279,8 @@ const DailyTodoItem: React.FC<DailyTodoItemProps> = ({
           {todo.isUrgent && <Flame className="w-3 h-3" style={{ color: '#ef4444', flexShrink: 0 }} />}
         </div>
 
-        {/* Row 2: time block pill + idea tag + add subtask + chevron menu */}
-        <div className="wv-task-row-2">
+        {/* Row 2: time block pill + idea tag + add subtask + chevron menu — hidden for subtasks */}
+        <div className="wv-task-row-2" style={isSubtask ? { minHeight: 0, padding: '0 8px 4px', gap: '4px' } : {}}>
           {!isSubtask && (
             overrideDateLabel ? (
               <span className="wv-task-block wv-task-block--morning" style={{ background: '#e5e7eb', color: '#4b5563' }}>{overrideDateLabel}</span>
@@ -290,20 +291,19 @@ const DailyTodoItem: React.FC<DailyTodoItemProps> = ({
             )
           )}
 
-          {todo.ideaId && todo.idea?.title && (
+          {!isSubtask && todo.ideaId && todo.idea?.title && (
             <Link to={`/ideas/${todo.ideaId}`} className="wv-task-idea" onClick={e => e.stopPropagation()} title={todo.idea.title} style={{ margin: 0 }}>
               <Lightbulb className="w-2.5 h-2.5" />
               <span>{todo.idea.title}</span>
             </Link>
           )}
 
-          {todo.completed && todo.completedBy && (
-            <span style={{ fontSize: '10px', fontWeight: 600, color: '#9ca3af', display: 'flex', alignItems: 'center', gap: '3px' }}>
-              ✓ Completed by {todo.completedBy.name.split(' ')[0]}
-            </span>
-          )}
-
           <div style={{ display: 'flex', alignItems: 'center', gap: '30px', marginLeft: 'auto' }}>
+            {todo.completed && todo.completedBy && (
+              <span style={{ fontSize: '10px', fontWeight: 400, color: '#9ca3af', display: 'flex', alignItems: 'center', gap: '3px', whiteSpace: 'nowrap' }}>
+                ✓ {todo.completedBy.name.split(' ')[0]}
+              </span>
+            )}
             {/* Add subtask button */}
             {!isSubtask && onAddSubtask && !todo.completed && (
               <button
@@ -334,10 +334,11 @@ const DailyTodoItem: React.FC<DailyTodoItemProps> = ({
                   ideas={ideas}
                   onClose={() => setMenuOpen(false)}
                   onOpenDetail={onOpenDetail}
-                  onToggleUrgent={!isSubtask ? onToggleUrgent : undefined}
+                  onToggleUrgent={onToggleUrgent}
                   onTagIdea={onTagIdea}
                   onChangeDate={onChangeDate}
                   onChangeTimeBlock={onChangeTimeBlock}
+                  onAssigneeChange={onAssigneeChange}
                   onDelete={onDelete}
                 />
               )}
@@ -349,15 +350,13 @@ const DailyTodoItem: React.FC<DailyTodoItemProps> = ({
       {/* Subtask input */}
       {showSubtaskInput && !isSubtask && (
         <div className="daily-todo-subtask-add" style={{ marginLeft: '1.5rem', display: 'flex', alignItems: 'center', gap: '4px' }}>
-          <input
+          <MentionInput
             className="daily-todo-subtask-input"
             placeholder="Add a subtask..."
             value={subtaskText}
-            onChange={e => setSubtaskText(e.target.value)}
-            onKeyDown={e => {
-              if (e.key === 'Enter') handleAddSubtask();
-              if (e.key === 'Escape') { setShowSubtaskInput(false); setSubtaskText(''); }
-            }}
+            onChangeValue={setSubtaskText}
+            onSubmit={handleAddSubtask}
+            onCancel={() => { setShowSubtaskInput(false); setSubtaskText(''); }}
             autoFocus
             style={{ flex: 1 }}
           />
@@ -397,6 +396,11 @@ const DailyTodoItem: React.FC<DailyTodoItemProps> = ({
           onSaveEdit={onSaveEdit}
           onTagIdea={onTagIdea}
           onOpenDetail={onOpenDetail}
+          onOpenContact={onOpenContact}
+          onOpenEntity={onOpenEntity}
+          onChangeDate={onChangeDate}
+          onChangeTimeBlock={onChangeTimeBlock}
+          onAssigneeChange={onAssigneeChange}
           isSubtask
           customContainerStyle={customContainerStyle}
         />
