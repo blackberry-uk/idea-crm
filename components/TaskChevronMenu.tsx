@@ -1,8 +1,10 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { format, startOfMonth, endOfMonth, getDay, addMonths, subMonths, isToday } from 'date-fns';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { ChevronLeft, ChevronRight, User } from 'lucide-react';
 import { DailyTodoData } from './DailyTodoItem';
 import IdeaPickerDropdown from './IdeaPickerDropdown';
+import { useStore } from '../store/useStore';
+import { getInitials } from '../lib/utils';
 
 interface TaskChevronMenuProps {
   todo: DailyTodoData;
@@ -13,6 +15,7 @@ interface TaskChevronMenuProps {
   onTagIdea?: (todoId: string, ideaId: string | null) => void;
   onChangeDate?: (todoId: string, dateKey: string | null) => void;
   onChangeTimeBlock?: (todoId: string, block: string) => void;
+  onAssigneeChange?: (todoId: string, assigneeId: string | null) => void;
   onDelete?: (todoId: string) => void;
 }
 
@@ -25,11 +28,13 @@ export const TaskChevronMenu: React.FC<TaskChevronMenuProps> = ({
   onTagIdea,
   onChangeDate,
   onChangeTimeBlock,
+  onAssigneeChange,
   onDelete
 }) => {
   const [ideaSubmenu, setIdeaSubmenu] = useState(false);
   const [dateSubmenu, setDateSubmenu] = useState(false);
   const [timeSubmenu, setTimeSubmenu] = useState(false);
+  const [assigneeSubmenu, setAssigneeSubmenu] = useState(false);
   const [submenuSide, setSubmenuSide] = useState<'right' | 'left'>('right');
 
   const menuRef = useRef<HTMLDivElement>(null);
@@ -54,6 +59,7 @@ export const TaskChevronMenu: React.FC<TaskChevronMenuProps> = ({
       setIdeaSubmenu(menu === 'idea');
       setDateSubmenu(menu === 'date');
       setTimeSubmenu(menu === 'time');
+      setAssigneeSubmenu(menu === 'assignee');
     }, 150); // Delay before opening to prevent accidental triggers when moving diagonally
   };
 
@@ -64,6 +70,7 @@ export const TaskChevronMenu: React.FC<TaskChevronMenuProps> = ({
       setIdeaSubmenu(false);
       setDateSubmenu(false);
       setTimeSubmenu(false);
+      setAssigneeSubmenu(false);
     }, 250); // Generous delay to allow diagonal mouse movement
   };
 
@@ -77,6 +84,16 @@ export const TaskChevronMenu: React.FC<TaskChevronMenuProps> = ({
   for (let i = 0; i < startDow; i++) calDays.push(null);
   for (let d = 1; d <= daysInMonth; d++) calDays.push(new Date(calMonth.getFullYear(), calMonth.getMonth(), d));
   const selectedDateKey = todo.date ? String(todo.date).slice(0, 10) : '';
+
+  const { data } = useStore();
+  let projectCollaborators: any[] = [];
+  if (todo.ideaId) {
+    const idea = ideas.find(i => i.id === todo.ideaId);
+    if (idea && (idea as any).collaboratorIds && (idea as any).collaboratorIds.length > 0) {
+      const allowed = [(idea as any).ownerId, ...(idea as any).collaboratorIds];
+      projectCollaborators = data.users.filter(u => allowed.includes(u.id));
+    }
+  }
 
   return (
     <div ref={menuRef} className="wv-task-dropdown" onMouseDown={e => e.stopPropagation()} onClick={e => e.stopPropagation()}>
@@ -113,6 +130,40 @@ export const TaskChevronMenu: React.FC<TaskChevronMenuProps> = ({
                 onRemove={() => { onTagIdea(todo.id, null); onClose(); setIdeaSubmenu(false); }}
                 showRemove={!!todo.ideaId}
               />
+            </div>
+          )}
+        </div>
+      )}
+
+      {onAssigneeChange && projectCollaborators.length > 0 && (
+        <div className="wv-task-dropdown-has-sub" onMouseEnter={() => handleMouseEnter('assignee')} onMouseLeave={handleMouseLeave}>
+          <button className="wv-task-dropdown-item" style={{ justifyContent: 'space-between' }} onMouseDown={e => { e.preventDefault(); e.stopPropagation(); handleMouseEnter('assignee'); }}>
+            <span>👤 Assign to collaborator</span>
+            <span style={{ color: '#9ca3af', fontSize: '1rem' }}>›</span>
+          </button>
+          {assigneeSubmenu && (
+            <div className={`wv-task-submenu wv-task-submenu--${submenuSide}`} onMouseDown={e => e.stopPropagation()} style={{ minWidth: '180px', padding: '8px' }}>
+              <div style={{ fontSize: '10px', fontWeight: 800, color: '#9ca3af', textTransform: 'uppercase', marginBottom: '8px' }}>Assign to</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                <button 
+                   onClick={() => { onAssigneeChange(todo.id, null); onClose(); }}
+                   style={{ textAlign: 'left', padding: '6px 8px', borderRadius: '6px', fontSize: '12px', background: !todo.assigneeId ? '#f3f4f6' : 'transparent', border: 'none', cursor: 'pointer' }}
+                >
+                   Unassigned
+                </button>
+                {projectCollaborators.map(u => (
+                  <button
+                    key={u.id}
+                    onClick={() => { onAssigneeChange(todo.id, u.id); onClose(); }}
+                    style={{ textAlign: 'left', padding: '6px 8px', borderRadius: '6px', fontSize: '12px', background: todo.assigneeId === u.id ? '#f3f4f6' : 'transparent', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}
+                  >
+                    <div style={{ width: '16px', height: '16px', borderRadius: '50%', backgroundColor: u.avatarColor || '#8b5cf6', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '8px', color: '#fff', fontWeight: 800 }}>
+                      {getInitials(u.name)}
+                    </div>
+                    {u.name}
+                  </button>
+                ))}
+              </div>
             </div>
           )}
         </div>

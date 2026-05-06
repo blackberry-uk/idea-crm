@@ -1022,7 +1022,7 @@ const NoteComposer: React.FC<NoteComposerProps> = ({ onComplete, defaultIdeaId, 
         <CallMinuteModal
           isOpen={showCallMinuteModal}
           onClose={() => setShowCallMinuteModal(false)}
-          onSaved={handleCallMinuteSaved}
+          onSaved={() => { setShowCallMinuteModal(false); if (onComplete) onComplete(); }}
         />
       )}
 

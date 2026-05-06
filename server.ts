@@ -262,6 +262,7 @@ app.get('/api/data', authenticate, async (req: any, res) => {
       collaboratorIds: idea.collaborators.map(c => c.id),
       tags: JSON.parse(idea.tags || '[]'),
       todos: JSON.parse(idea.todos || '[]'),
+      links: JSON.parse((idea as any).links || '[]'),
       linkedContactIds: JSON.parse(idea.linkedContactIds || '[]'),
       customNoteCategories: JSON.parse(idea.customNoteCategories || '[]'),
     }));
@@ -328,7 +329,7 @@ app.post('/api/ideas', authenticate, async (req: any, res) => {
 app.put('/api/ideas/:id', authenticate, async (req: any, res) => {
   try {
     const {
-      tags, todos, linkedContactIds, customNoteCategories,
+      tags, todos, links, linkedContactIds, customNoteCategories,
       ownerId, collaborators, invitations, notes, owner,
       id, createdAt, updatedAt, collaboratorIds,
       children, parent,
@@ -346,6 +347,7 @@ app.put('/api/ideas/:id', authenticate, async (req: any, res) => {
 
     if (tags !== undefined) data.tags = Array.isArray(tags) ? JSON.stringify(tags) : tags;
     if (todos !== undefined) data.todos = Array.isArray(todos) ? JSON.stringify(todos) : todos;
+    if (links !== undefined) data.links = Array.isArray(links) ? JSON.stringify(links) : links;
     if (linkedContactIds !== undefined) data.linkedContactIds = Array.isArray(linkedContactIds) ? JSON.stringify(linkedContactIds) : linkedContactIds;
     if (customNoteCategories !== undefined) data.customNoteCategories = Array.isArray(customNoteCategories) ? JSON.stringify(customNoteCategories) : customNoteCategories;
 
@@ -1213,6 +1215,26 @@ app.put('/api/daily-todos/:id', authenticate, async (req: any, res) => {
         }
       }
     });
+
+    // --- Send assignment email when assignee changes to someone else ---
+    if (assigneeId !== undefined && assigneeId && assigneeId !== req.userId && assigneeId !== existing.assigneeId) {
+      try {
+        const assignee = await prisma.user.findUnique({ where: { id: assigneeId } });
+        const assigner = await prisma.user.findUnique({ where: { id: req.userId } });
+        if (assignee?.email && assigner) {
+          const projectTitle = todo.idea?.title || 'Personal Task';
+          sendTaskAssignmentEmail(
+            assignee.email,
+            projectTitle,
+            todo.text,
+            assigner.name || 'A teammate',
+            todo.idea?.id || ''
+          ).catch(err => console.error('Failed to send task assignment email:', err));
+        }
+      } catch (emailErr) {
+        console.error('Assignment email error (non-blocking):', emailErr);
+      }
+    }
 
     // --- Activity Log Sync ---
     // Uses a keyed object: { ideaNoteId?: string, contactNoteIds?: { [contactId]: noteId } }

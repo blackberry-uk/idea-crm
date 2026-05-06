@@ -14,7 +14,8 @@ import IdeaPickerDropdown from '../components/IdeaPickerDropdown';
 import TaskDetailModal from '../components/TaskDetailModal';
 import ContactModal from '../components/ContactModal';
 import EntityModal from '../components/EntityModal';
-import { extractDelimitedMentions, getActiveMentionQuery, replaceActiveMention } from '../lib/taskMentions';
+import { extractDelimitedMentions } from '../lib/taskMentions';
+import { MentionInput } from '../components/MentionInput';
 
 type DailyTodo = DailyTodoData;
 
@@ -119,68 +120,8 @@ const Dashboard: React.FC = () => {
   const wvDropdownRef = useRef<HTMLDivElement>(null);
   const [wvSubtaskInputId, setWvSubtaskInputId] = useState<string | null>(null);
   const [wvSubtaskText, setWvSubtaskText] = useState('');
-
-  // @mention state
-  const [mentionQuery, setMentionQuery] = useState<string | null>(null);
-  const [mentionCursorPos, setMentionCursorPos] = useState(0);
-  const [mentionIdx, setMentionIdx] = useState(0);
   const contacts = data.contacts || [];
-
-  // #entity mention state
-  const [entityQuery, setEntityQuery] = useState<string | null>(null);
-  const [entityCursorPos, setEntityCursorPos] = useState(0);
-  const [entityIdx, setEntityIdx] = useState(0);
   const entities = data.entities || [];
-
-  // Filtered contacts for the @mention dropdown
-  const mentionFilteredContacts = React.useMemo(() => {
-    if (mentionQuery === null) return [];
-    const q = mentionQuery.toLowerCase();
-    return contacts
-      .filter(c => {
-        const name = (c.fullName || `${c.firstName || ''} ${c.lastName || ''}`).toLowerCase();
-        return name.includes(q);
-      })
-      .slice(0, 6);
-  }, [mentionQuery, contacts]);
-
-  // Reset selected index when filter results change
-  React.useEffect(() => { setMentionIdx(0); }, [mentionFilteredContacts.length]);
-
-  // Filtered entities for #entity dropdown
-  const entityFilteredList = React.useMemo(() => {
-    if (entityQuery === null) return [];
-    const q = entityQuery.toLowerCase();
-    return entities
-      .filter(e => e.name.toLowerCase().includes(q))
-      .slice(0, 6);
-  }, [entityQuery, entities]);
-
-  React.useEffect(() => { setEntityIdx(0); }, [entityFilteredList.length]);
-
-  const showCreateMention = mentionQuery !== null && mentionQuery.trim().length >= 2 &&
-    !mentionFilteredContacts.some(c => {
-      const name = (c.fullName || `${c.firstName || ''} ${c.lastName || ''}`.trim()).toLowerCase();
-      return name === mentionQuery.trim().toLowerCase();
-    });
-
-  const showCreateEntity = entityQuery !== null && entityQuery.trim().length >= 2 &&
-    !entityFilteredList.some(e => e.name.toLowerCase() === entityQuery.trim().toLowerCase());
-
-  // Insert a selected contact name into the text
-  const insertMention = (contact: { fullName?: string; firstName?: string; lastName?: string }) => {
-    const name = contact.fullName || `${contact.firstName || ''} ${contact.lastName || ''}`.trim();
-    setNewText(replaceActiveMention(newText, mentionCursorPos, '@', name));
-    setMentionQuery(null);
-    inputRef.current?.focus();
-  };
-
-  const insertNewContactMention = () => {
-    if (!mentionQuery) return;
-    setNewText(replaceActiveMention(newText, mentionCursorPos, '@', mentionQuery.trim()));
-    setMentionQuery(null);
-    inputRef.current?.focus();
-  };
 
   // Insert a selected entity name into the text
   const handleOpenContactByName = async (name: string) => {
@@ -446,8 +387,6 @@ const Dashboard: React.FC = () => {
       setNewText('');
       setNewIdeaId('');
       setShowTagPicker(false);
-      setMentionQuery(null);
-      setEntityQuery(null);
       autoCreateTaskLinks(text);
     } catch (err: any) {
       showToast(err.message || 'Failed to add todo', 'error');
@@ -475,117 +414,6 @@ const Dashboard: React.FC = () => {
       submittingRef.current = false;
     }
   };
-
-  // Shared onChange for inline inputs — detects @mentions and #entities
-  const handleInlineChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const val = e.target.value;
-    setNewText(val);
-    const cursor = e.target.selectionStart || 0;
-    const textBeforeCursor = val.slice(0, cursor);
-
-    const activeMention = getActiveMentionQuery(textBeforeCursor, '@');
-    const activeEntity = getActiveMentionQuery(textBeforeCursor, '#');
-    const mentionStart = activeMention === null ? -1 : textBeforeCursor.lastIndexOf('@');
-    const entityStart = activeEntity === null ? -1 : textBeforeCursor.lastIndexOf('#');
-
-    if (activeMention !== null && mentionStart > entityStart) {
-      setMentionQuery(activeMention);
-      setMentionCursorPos(cursor);
-      setEntityQuery(null);
-    } else if (activeEntity !== null) {
-      setEntityQuery(activeEntity);
-      setEntityCursorPos(cursor);
-      setMentionQuery(null);
-    } else {
-      setMentionQuery(null);
-      setEntityQuery(null);
-    }
-  };
-
-  // Shared onKeyDown for inline inputs
-  const handleInlineKeyDown = (e: React.KeyboardEvent<HTMLInputElement>, submitFn: () => Promise<void>) => {
-    if (mentionQuery !== null) {
-      if (mentionFilteredContacts.length > 0) {
-        if (e.key === 'ArrowDown') { e.preventDefault(); setMentionIdx(i => Math.min(i + 1, mentionFilteredContacts.length + (showCreateMention ? 0 : -1))); return; }
-        if (e.key === 'ArrowUp') { e.preventDefault(); setMentionIdx(i => Math.max(i - 1, 0)); return; }
-        if (e.key === 'Enter') {
-          e.preventDefault();
-          if (mentionIdx < mentionFilteredContacts.length) insertMention(mentionFilteredContacts[mentionIdx]);
-          else if (showCreateMention) insertNewContactMention();
-          return;
-        }
-      } else if (showCreateMention && e.key === 'Enter') {
-        e.preventDefault();
-        insertNewContactMention();
-        return;
-      }
-      if (e.key === 'Escape') { setMentionQuery(null); return; }
-    }
-    
-    if (entityQuery !== null) {
-      if (entityFilteredList.length > 0) {
-        if (e.key === 'ArrowDown') { e.preventDefault(); setEntityIdx(i => Math.min(i + 1, entityFilteredList.length + (showCreateEntity ? 0 : -1))); return; }
-        if (e.key === 'ArrowUp') { e.preventDefault(); setEntityIdx(i => Math.max(i - 1, 0)); return; }
-        if (e.key === 'Enter') {
-          e.preventDefault();
-          if (entityIdx < entityFilteredList.length) insertEntityMention(entityFilteredList[entityIdx]);
-          else if (showCreateEntity) insertNewEntityMention();
-          return;
-        }
-      } else if (showCreateEntity && e.key === 'Enter') {
-        e.preventDefault();
-        insertNewEntityMention();
-        return;
-      }
-      if (e.key === 'Escape') { setEntityQuery(null); return; }
-    }
-    
-    if (e.key === 'Enter' && newText.trim()) { e.preventDefault(); submitFn(); }
-    if (e.key === 'Escape') { setInlineAddTarget(null); setNewText(''); setMentionQuery(null); setEntityQuery(null); }
-  };
-
-  // Renders @mention and #entity dropdowns
-  const renderMentionDropdowns = () => (
-    <>
-      {mentionQuery !== null && (
-        <div className="cl-mention-dropdown" style={{ position: 'absolute', left: 0, top: '100%', zIndex: 100 }}>
-          {mentionFilteredContacts.map((c, i) => (
-              <button key={c.id} className={`cl-mention-option ${i === mentionIdx ? 'cl-mention-option--active' : ''}`}
-                onMouseDown={e => { e.preventDefault(); insertMention(c); }}>
-                <span className="cl-mention-avatar">{(c.firstName || c.fullName || '?')[0].toUpperCase()}</span>
-                <span className="cl-mention-name">{c.fullName || `${c.firstName || ''} ${c.lastName || ''}`.trim()}</span>
-                {c.company && <span className="cl-mention-company">{c.company}</span>}
-              </button>
-          ))}
-          {showCreateMention && (
-            <button className={`cl-mention-option ${mentionIdx === mentionFilteredContacts.length ? 'cl-mention-option--active' : ''}`}
-              onMouseDown={e => { e.preventDefault(); insertNewContactMention(); }}>
-              <span className="cl-mention-avatar">+</span>
-              <span className="cl-mention-name">Create "{mentionQuery.trim()}"</span>
-            </button>
-          )}
-        </div>
-      )}
-      {entityQuery !== null && (
-        <div className="cl-mention-dropdown" style={{ position: 'absolute', left: 0, top: '100%', zIndex: 100 }}>
-          {entityFilteredList.map((ent, i) => (
-            <button key={ent.id} className={`cl-mention-option ${i === entityIdx ? 'cl-mention-option--active' : ''}`}
-              onMouseDown={e => { e.preventDefault(); insertEntityMention(ent); }}>
-              <span className="cl-mention-avatar" style={{ backgroundColor: '#eef2ff', color: '#6366f1' }}>#</span>
-              <span className="cl-mention-name">{ent.name}</span>
-            </button>
-          ))}
-          {showCreateEntity && (
-            <button className={`cl-mention-option ${entityIdx === entityFilteredList.length ? 'cl-mention-option--active' : ''}`}
-              onMouseDown={e => { e.preventDefault(); insertNewEntityMention(); }}>
-              <span className="cl-mention-avatar" style={{ backgroundColor: '#eef2ff', color: '#6366f1' }}>+</span>
-              <span className="cl-mention-name">Create "{entityQuery.trim()}"</span>
-            </button>
-          )}
-        </div>
-      )}
-    </>
-  );
 
   const toggleComplete = async (todo: DailyTodo) => {
     // Optimistic update — flip the UI immediately
@@ -917,7 +745,7 @@ const Dashboard: React.FC = () => {
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                       <button
-                        onClick={() => { setInlineAddTarget(inlineAddTarget === block ? null : block); setNewText(''); setMentionQuery(null); setEntityQuery(null); setTimeout(() => inputRef.current?.focus(), 50); }}
+                        onClick={() => { setInlineAddTarget(inlineAddTarget === block ? null : block); setNewText(''); setTimeout(() => inputRef.current?.focus(), 50); }}
                         style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '1rem', padding: '2px', borderRadius: '6px', lineHeight: 1, opacity: inlineAddTarget === block ? 1 : 0.5, transition: 'opacity 0.15s' }}
                         title="Add task"
                       >➕</button>
@@ -928,15 +756,16 @@ const Dashboard: React.FC = () => {
                   {inlineAddTarget === block && (
                     <div style={{ padding: '0 8px 8px', position: 'relative' }}>
                       <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-                        <input
+                        <MentionInput
                           ref={inputRef}
                           value={newText}
-                          onChange={handleInlineChange}
-                          onKeyDown={e => handleInlineKeyDown(e, async () => {
+                          onChangeValue={setNewText}
+                          onSubmit={async () => {
                             await inlineAddTodo(newText, toDateKey(selectedDate), block);
                             setNewText('');
                             setInlineAddTarget(null);
-                          })}
+                          }}
+                          onCancel={() => { setInlineAddTarget(null); setNewText(''); }}
                           placeholder="New task… (@ contact, # entity)"
                           style={{ flex: 1, padding: '6px 10px', borderRadius: '8px', border: '1px solid #e5e7eb', fontSize: '0.8rem', outline: 'none' }}
                           autoFocus
@@ -961,7 +790,6 @@ const Dashboard: React.FC = () => {
                           <Send className="w-3.5 h-3.5" style={{ marginLeft: '1px' }} />
                         </button>
                       </div>
-                      {renderMentionDropdowns()}
                     </div>
                   )}
                   <div className="cl-day-col-list">
@@ -974,7 +802,7 @@ const Dashboard: React.FC = () => {
                         onDragEnd={handleDragEnd}
                         className={draggingTodoId === todo.id ? 'cl-todo-dragging' : ''}
                       >
-                        <DailyTodoItem todo={todo} ideas={ideas} onOpenContact={handleOpenContactByName} onOpenEntity={handleOpenEntityByName}
+                        <DailyTodoItem todo={todo} ideas={ideas} onOpenContact={handleOpenContactByName} onOpenEntity={handleOpenEntityByName} onAssigneeChange={(id, assigneeId) => updateTodo(id, { assigneeId })}
                           onToggleComplete={toggleComplete} onToggleUrgent={toggleUrgent}
                           onDelete={deleteTodo} onSaveEdit={saveEdit} onTagIdea={tagTodoToIdea}
                           onAddSubtask={addSubtask} onOpenDetail={openDetail}
@@ -1026,7 +854,7 @@ const Dashboard: React.FC = () => {
                         <Lightbulb className="w-3 h-3" /> {group.title}
                       </div>
                       {group.todos.map((todo: any) => (
-                        <DailyTodoItem key={todo.id} todo={{ ...todo, idea: null } as any} ideas={ideas} onOpenContact={handleOpenContactByName} onOpenEntity={handleOpenEntityByName}
+                        <DailyTodoItem key={todo.id} todo={{ ...todo, idea: null } as any} ideas={ideas} onOpenContact={handleOpenContactByName} onOpenEntity={handleOpenEntityByName} onAssigneeChange={(id, assigneeId) => updateTodo(id, { assigneeId })}
                           customContainerStyle={{ background: '#fef3c7', borderColor: '#fef3c7' }}
                           overrideDateLabel={todo.dueDate ? `Due ${todo.dueDate.slice(5, 10).replace('-', '/')}` : 'No due date'}
                           onToggleComplete={async () => {
@@ -1094,7 +922,7 @@ const Dashboard: React.FC = () => {
                         {dateKey === 'No Date' ? dateKey : format(new Date(dateKey), 'EEE, MMM d')}
                       </div>
                       {todos.map(todo => (
-                        <DailyTodoItem key={todo.id} todo={todo} ideas={ideas} onOpenContact={handleOpenContactByName} onOpenEntity={handleOpenEntityByName}
+                        <DailyTodoItem key={todo.id} todo={todo} ideas={ideas} onOpenContact={handleOpenContactByName} onOpenEntity={handleOpenEntityByName} onAssigneeChange={(id, assigneeId) => updateTodo(id, { assigneeId })}
                           customContainerStyle={{ background: '#fee2e2', borderColor: '#fee2e2' }}
                           onToggleComplete={toggleComplete} onToggleUrgent={toggleUrgent}
                           onDelete={deleteTodo} onSaveEdit={saveEdit} onTagIdea={tagTodoToIdea}
@@ -1144,7 +972,7 @@ const Dashboard: React.FC = () => {
               {backburnerOpen && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                   {sortTodos(backburnerTodos).map(todo => (
-                    <DailyTodoItem key={todo.id} todo={todo} ideas={ideas} onOpenContact={handleOpenContactByName} onOpenEntity={handleOpenEntityByName}
+                    <DailyTodoItem key={todo.id} todo={todo} ideas={ideas} onOpenContact={handleOpenContactByName} onOpenEntity={handleOpenEntityByName} onAssigneeChange={(id, assigneeId) => updateTodo(id, { assigneeId })}
                       onToggleComplete={toggleComplete} onToggleUrgent={toggleUrgent}
                       onDelete={deleteTodo} onSaveEdit={saveEdit} onTagIdea={tagTodoToIdea}
                       onAddSubtask={addSubtask} onOpenDetail={openDetail}
@@ -1339,7 +1167,7 @@ const Dashboard: React.FC = () => {
                     </span>
                     <span className="wv-day-date">{format(day, 'd')}</span>
                     <button
-                      onClick={() => { setInlineAddTarget(inlineAddTarget === `wk-${dayKey}` ? null : `wk-${dayKey}`); setNewText(''); setMentionQuery(null); setEntityQuery(null); setTimeout(() => inputRef.current?.focus(), 50); }}
+                      onClick={() => { setInlineAddTarget(inlineAddTarget === `wk-${dayKey}` ? null : `wk-${dayKey}`); setNewText(''); setTimeout(() => inputRef.current?.focus(), 50); }}
                       style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.85rem', padding: '2px', borderRadius: '6px', lineHeight: 1, opacity: inlineAddTarget === `wk-${dayKey}` ? 1 : 0.5, transition: 'opacity 0.15s', marginLeft: '2px' }}
                       title="Add task"
                     >➕</button>
@@ -1352,15 +1180,16 @@ const Dashboard: React.FC = () => {
                   {inlineAddTarget === `wk-${dayKey}` && (
                     <div style={{ padding: '0 8px 6px', position: 'relative' }}>
                       <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-                        <input
+                        <MentionInput
                           ref={inputRef}
                           value={newText}
-                          onChange={handleInlineChange}
-                          onKeyDown={e => handleInlineKeyDown(e, async () => {
+                          onChangeValue={setNewText}
+                          onSubmit={async () => {
                             await inlineAddTodo(newText, dayKey);
                             setNewText('');
                             setInlineAddTarget(null);
-                          })}
+                          }}
+                          onCancel={() => { setInlineAddTarget(null); setNewText(''); }}
                           placeholder="New task… (@ contact, # entity)"
                           style={{ flex: 1, padding: '6px 10px', borderRadius: '8px', border: '1px solid #e5e7eb', fontSize: '0.78rem', outline: 'none' }}
                           autoFocus
@@ -1385,7 +1214,6 @@ const Dashboard: React.FC = () => {
                           <Send className="w-3.5 h-3.5" style={{ marginLeft: '1px' }} />
                         </button>
                       </div>
-                      {renderMentionDropdowns()}
                     </div>
                   )}
                   <div className="wv-day-list">
@@ -1545,6 +1373,46 @@ const Dashboard: React.FC = () => {
                                         </div>
                                       )}
                                     </div>
+                                    {todo.ideaId && (() => {
+                                      const linkedIdea = ideas.find(i => i.id === todo.ideaId);
+                                      const collabs = linkedIdea && (linkedIdea as any).collaboratorIds?.length > 0 
+                                        ? data.users.filter(u => [(linkedIdea as any).ownerId, ...(linkedIdea as any).collaboratorIds].includes(u.id))
+                                        : [];
+                                      if (collabs.length === 0) return null;
+                                      return (
+                                        <div className="wv-task-dropdown-has-sub" onMouseEnter={() => openWvSubmenu('assignee')} onMouseLeave={cancelWvSubmenuTimer}>
+                                          <button className="wv-task-dropdown-item" style={{ justifyContent: 'space-between' }} onMouseDown={e => { e.preventDefault(); e.stopPropagation(); setWvActionSubmenu(wvActionSubmenu === 'assignee' ? null : 'assignee'); }}>
+                                            <span>👤 Assign to collaborator</span>
+                                            <span style={{ color: '#9ca3af', fontSize: '1rem' }}>›</span>
+                                          </button>
+                                          {wvActionSubmenu === 'assignee' && (
+                                            <div className={`wv-task-submenu wv-task-submenu--${wvSubmenuSide}`} onMouseDown={e => e.stopPropagation()} style={{ minWidth: '180px', padding: '8px' }}>
+                                              <div style={{ fontSize: '10px', fontWeight: 800, color: '#9ca3af', textTransform: 'uppercase', marginBottom: '8px' }}>Assign to</div>
+                                              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                                <button 
+                                                   onClick={() => { updateTodo(todo.id, { assigneeId: null }); setWvActionMenuId(null); setWvActionSubmenu(null); }}
+                                                   style={{ textAlign: 'left', padding: '6px 8px', borderRadius: '6px', fontSize: '12px', background: !todo.assigneeId ? '#f3f4f6' : 'transparent', border: 'none', cursor: 'pointer' }}
+                                                >
+                                                   Unassigned
+                                                </button>
+                                                {collabs.map(u => (
+                                                  <button
+                                                    key={u.id}
+                                                    onClick={() => { updateTodo(todo.id, { assigneeId: u.id }); setWvActionMenuId(null); setWvActionSubmenu(null); }}
+                                                    style={{ textAlign: 'left', padding: '6px 8px', borderRadius: '6px', fontSize: '12px', background: todo.assigneeId === u.id ? '#f3f4f6' : 'transparent', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}
+                                                  >
+                                                    <div style={{ width: '16px', height: '16px', borderRadius: '50%', backgroundColor: u.avatarColor || '#8b5cf6', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '8px', color: '#fff', fontWeight: 800 }}>
+                                                      {getInitials(u.name)}
+                                                    </div>
+                                                    {u.name}
+                                                  </button>
+                                                ))}
+                                              </div>
+                                            </div>
+                                          )}
+                                        </div>
+                                      );
+                                    })()}
                                     <div className="wv-task-dropdown-has-sub" onMouseEnter={() => openWvSubmenu('date')} onMouseLeave={cancelWvSubmenuTimer}>
                                       <button className="wv-task-dropdown-item" style={{ justifyContent: 'space-between' }} onMouseDown={e => { e.preventDefault(); e.stopPropagation(); setWvActionSubmenu(wvActionSubmenu === 'date' ? null : 'date'); setWvCalMonth(todo.date ? new Date(todo.date) : new Date()); }}>
                                         <span>📅 Move to different date</span>
@@ -1658,21 +1526,19 @@ const Dashboard: React.FC = () => {
                           {/* Subtask Input */}
                           {wvSubtaskInputId === todo.id && (
                             <div className="daily-todo-subtask-add" style={{ margin: '0 8px 4px 20px', padding: '0', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                              <input
+                              <MentionInput
                                 className="daily-todo-subtask-input"
                                 placeholder="Add a subtask..."
                                 value={wvSubtaskText}
-                                onChange={e => setwvSubtaskText(e.target.value)}
-                                onKeyDown={e => {
-                                  if (e.key === 'Enter') {
-                                    if (wvSubtaskText.trim()) {
-                                      addSubtask(todo.id, wvSubtaskText.trim());
-                                      setWvSubtaskText('');
-                                      setWvSubtaskInputId(null);
-                                    }
+                                onChangeValue={setWvSubtaskText}
+                                onSubmit={() => {
+                                  if (wvSubtaskText.trim()) {
+                                    addSubtask(todo.id, wvSubtaskText.trim());
+                                    setWvSubtaskText('');
+                                    setWvSubtaskInputId(null);
                                   }
-                                  if (e.key === 'Escape') { setWvSubtaskInputId(null); setWvSubtaskText(''); }
                                 }}
+                                onCancel={() => { setWvSubtaskInputId(null); setWvSubtaskText(''); }}
                                 autoFocus
                                 style={{ flex: 1 }}
                               />
