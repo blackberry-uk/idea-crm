@@ -83,12 +83,18 @@ const ContactsPage: React.FC = () => {
   });
 
   const filteredContacts = contactsWithNoteCount
-    .filter(c =>
-      c.fullName.toLowerCase().includes(filterQuery.toLowerCase()) ||
-      (c.org || '').toLowerCase().includes(filterQuery.toLowerCase()) ||
-      (c.role || '').toLowerCase().includes(filterQuery.toLowerCase()) ||
-      (c.notes || '').toLowerCase().includes(filterQuery.toLowerCase())
-    )
+    .filter(c => {
+      const entitiesText = (c.linkedEntityIds || []).map(eid => {
+        const e = data.entities.find((ent: any) => ent.id === eid);
+        return e ? e.name : '';
+      }).join(' ');
+
+      return c.fullName.toLowerCase().includes(filterQuery.toLowerCase()) ||
+        (c.org || '').toLowerCase().includes(filterQuery.toLowerCase()) ||
+        (c.role || '').toLowerCase().includes(filterQuery.toLowerCase()) ||
+        (c.notes || '').toLowerCase().includes(filterQuery.toLowerCase()) ||
+        entitiesText.toLowerCase().includes(filterQuery.toLowerCase());
+    })
     .sort((a, b) => {
       let comparison = 0;
       if (sortField === 'fullName') {
@@ -137,9 +143,17 @@ const ContactsPage: React.FC = () => {
           const ent = data.entities.find((e: any) => e.id === eid);
           if (!ent) return null;
           return (
-            <span key={eid} style={ENTITY_PILL_STYLE}>
+            <button 
+              key={eid} 
+              style={{ ...ENTITY_PILL_STYLE, cursor: 'pointer', border: 'none', outline: 'none' }}
+              className="hover:opacity-80 transition-opacity active:scale-95"
+              onClick={(e) => {
+                e.stopPropagation();
+                setFilterQuery(ent.name);
+              }}
+            >
               #{ent.name}
-            </span>
+            </button>
           );
         })}
       </div>
@@ -186,7 +200,7 @@ const ContactsPage: React.FC = () => {
             <p className="text-sm font-medium">No contacts found</p>
           </div>
         ) : (
-          <table className="w-full" style={{ tableLayout: 'fixed' }}>
+          <table className="w-full lg:w-3/4" style={{ tableLayout: 'fixed' }}>
             <thead>
               <tr className="border-b border-gray-100 text-[10px] font-black text-gray-400 uppercase tracking-widest">
                 <th className="text-left px-4 py-3 cursor-pointer hover:text-gray-600 transition-colors relative group" style={{ width: colWidths.date || 100 }} onClick={() => handleSort('createdAt')}>

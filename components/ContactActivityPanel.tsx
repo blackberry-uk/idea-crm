@@ -25,8 +25,8 @@ const ContactActivityPanel: React.FC<ContactActivityPanelProps> = ({ contact }) 
     .filter(n => n.contactId === contact.id || n.taggedContactIds?.includes(contact.id))
     .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
-  // Deduplicate notes by ID
-  const contactNotes = Array.from(new Map(rawContactNotes.map(n => [n.id, n])).values());
+  // Deduplicate notes by their exact content to prevent identical auto-generated notes from appearing twice
+  const contactNotes = Array.from(new Map(rawContactNotes.map(n => [n.body.trim(), n])).values());
 
   const renderNote = (note: Note) => {
     const isStructured = note.body.startsWith('{') && note.body.includes('"template"');
