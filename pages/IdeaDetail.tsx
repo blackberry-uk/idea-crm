@@ -1064,7 +1064,7 @@ const IdeaDetail: React.FC = () => {
           {/* LEFT COLUMN: Task Calendar */}
           <div className="space-y-6">
             {/* Task Calendar — CENTERPIECE */}
-            <section className="bg-white rounded-2xl border shadow-sm overflow-hidden">
+            <section className="bg-white rounded-2xl border shadow-sm">
               <div className="flex items-center justify-between p-6 pb-4 border-b border-gray-50">
                 <h2 className="text-sm font-black text-gray-400 uppercase tracking-widest flex items-center gap-2">
                   <span>✅</span> Checklist Calendar
@@ -1127,7 +1127,13 @@ const IdeaDetail: React.FC = () => {
                     groups[d].push(t);
                   });
 
-                  return Object.entries(groups).map(([dateStr, todos]) => {
+                  const sortedGroups = Object.entries(groups).sort((a, b) => {
+                    if (a[0] === 'No Date') return 1;
+                    if (b[0] === 'No Date') return -1;
+                    return b[0].localeCompare(a[0]); // Most recent date first
+                  });
+
+                  return sortedGroups.map(([dateStr, todos]) => {
                     let displayDay = dateStr;
                     let displayDate = "";
                     let isTodayFlag = false;
