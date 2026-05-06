@@ -36,9 +36,9 @@ const ContactsPage: React.FC = () => {
   const [colWidths, setColWidths] = useState<Record<string, number>>(() => {
     try {
       const saved = localStorage.getItem('contacts_col_widths');
-      return saved ? JSON.parse(saved) : { date: 100, name: 200, role: 150, entities: 300 };
+      return saved ? JSON.parse(saved) : { date: 100, name: 200, role: 150, entities: 250, projects: 250 };
     } catch {
-      return { date: 100, name: 200, role: 150, entities: 300 };
+      return { date: 100, name: 200, role: 150, entities: 250, projects: 250 };
     }
   });
 
@@ -135,6 +135,40 @@ const ContactsPage: React.FC = () => {
     });
   };
 
+  const renderProjectPills = (contact: any) => {
+    const projIds = new Set<string>();
+    
+    data.notes.forEach(n => {
+      if (n.ideaId && (n.contactId === contact.id || n.taggedContactIds?.includes(contact.id))) {
+        projIds.add(n.ideaId);
+      }
+    });
+    
+    let linked: string[] = [];
+    try {
+      if (Array.isArray(contact.linkedIdeaIds)) linked = contact.linkedIdeaIds;
+      else if (typeof contact.linkedIdeaIds === 'string') linked = JSON.parse(contact.linkedIdeaIds || '[]');
+    } catch {}
+    
+    linked.forEach(id => projIds.add(id));
+
+    if (projIds.size === 0) return <span className="text-gray-300 text-xs">—</span>;
+
+    return (
+      <div className="flex flex-wrap gap-1.5">
+        {Array.from(projIds).map(id => {
+          const idea = data.ideas.find((i: any) => i.id === id);
+          if (!idea) return null;
+          return (
+            <span key={id} className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold bg-indigo-50 text-indigo-600 truncate max-w-[120px]" title={idea.title}>
+              {idea.title}
+            </span>
+          );
+        })}
+      </div>
+    );
+  };
+
   const renderEntityPills = (entityIds: string[]) => {
     if (!entityIds || entityIds.length === 0) return <span className="text-gray-300 text-xs">—</span>;
     return (
@@ -193,14 +227,14 @@ const ContactsPage: React.FC = () => {
         </div>
       </div>
 
-      <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-visible">
+      <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-visible max-w-[85%]">
         {filteredContacts.length === 0 ? (
           <div className="text-center py-16 text-gray-400">
             <UserPlus className="w-12 h-12 mx-auto mb-4 opacity-30" />
             <p className="text-sm font-medium">No contacts found</p>
           </div>
         ) : (
-          <table className="w-full lg:w-3/4" style={{ tableLayout: 'fixed' }}>
+          <table className="w-full" style={{ tableLayout: 'fixed' }}>
             <thead>
               <tr className="border-b border-gray-100 text-[10px] font-black text-gray-400 uppercase tracking-widest">
                 <th className="text-left px-4 py-3 cursor-pointer hover:text-gray-600 transition-colors relative group" style={{ width: colWidths.date || 100 }} onClick={() => handleSort('createdAt')}>
@@ -215,9 +249,13 @@ const ContactsPage: React.FC = () => {
                   Role {sortField === 'org' && (sortDirection === 'asc' ? '↑' : '↓')}
                   <div className="absolute right-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-[var(--primary)] transition-colors z-10" onClick={e => e.stopPropagation()} onMouseDown={e => handleResizeStart(e, 'role')} />
                 </th>
-                <th className="text-left px-6 py-3 relative group" style={{ width: colWidths.entities || 300 }}>
+                <th className="text-left px-6 py-3 relative group" style={{ width: colWidths.entities || 250 }}>
                   Entities
                   <div className="absolute right-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-[var(--primary)] transition-colors z-10" onClick={e => e.stopPropagation()} onMouseDown={e => handleResizeStart(e, 'entities')} />
+                </th>
+                <th className="text-left px-6 py-3 relative group" style={{ width: colWidths.projects || 250 }}>
+                  Projects
+                  <div className="absolute right-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-[var(--primary)] transition-colors z-10" onClick={e => e.stopPropagation()} onMouseDown={e => handleResizeStart(e, 'projects')} />
                 </th>
               </tr>
             </thead>
@@ -281,8 +319,12 @@ const ContactsPage: React.FC = () => {
                         )}
                       </td>
                       {/* Entities */}
-                      <td className="px-6 py-3 truncate" style={{ maxWidth: colWidths.entities || 300 }}>
+                      <td className="px-6 py-3 truncate" style={{ maxWidth: colWidths.entities || 250 }}>
                         {renderEntityPills(contact.linkedEntityIds)}
+                      </td>
+                      {/* Projects */}
+                      <td className="px-6 py-3 truncate" style={{ maxWidth: colWidths.projects || 250 }}>
+                        {renderProjectPills(contact)}
                       </td>
                 </tr>
               ))}

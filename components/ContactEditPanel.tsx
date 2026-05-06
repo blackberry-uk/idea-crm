@@ -66,6 +66,10 @@ const ContactEditPanel: React.FC<ContactEditPanelProps> = ({
   const [entityDropdownOpen, setEntityDropdownOpen] = useState(false);
   const [saving, setSaving] = useState(false);
 
+  const isReadOnly = contact && contact.ownerId !== data.currentUser?.id;
+
+  const isReadOnly = contact && contact.ownerId !== data.currentUser?.id;
+
   useEffect(() => {
     if (contact) {
       setFirstName(contact.firstName || '');
@@ -146,11 +150,11 @@ const ContactEditPanel: React.FC<ContactEditPanelProps> = ({
       <div style={row}>
         <div style={half}>
           <label style={LABEL}>First Name *</label>
-          <input value={firstName} onChange={e => setFirstName(e.target.value)} style={INPUT} placeholder="Jane" />
+          <input disabled={isReadOnly} value={firstName} onChange={e => setFirstName(e.target.value)} style={INPUT} placeholder="Jane" autoFocus={!isReadOnly} />
         </div>
         <div style={half}>
           <label style={LABEL}>Last Name</label>
-          <input value={lastName} onChange={e => setLastName(e.target.value)} style={INPUT} placeholder="Doe" />
+          <input disabled={isReadOnly} value={lastName} onChange={e => setLastName(e.target.value)} style={INPUT} placeholder="Doe" />
         </div>
       </div>
 
@@ -158,11 +162,11 @@ const ContactEditPanel: React.FC<ContactEditPanelProps> = ({
       <div style={row}>
         <div style={half}>
           <label style={LABEL}>Role</label>
-          <input value={role} onChange={e => setRole(e.target.value)} style={INPUT} placeholder="Job Title" />
+          <input disabled={isReadOnly} value={role} onChange={e => setRole(e.target.value)} style={INPUT} placeholder="Job Title" />
         </div>
         <div style={half}>
           <label style={LABEL}>Email</label>
-          <input value={email} onChange={e => setEmail(e.target.value)} style={INPUT} placeholder="jane@company.com" type="email" />
+          <input disabled={isReadOnly} value={email} onChange={e => setEmail(e.target.value)} style={INPUT} placeholder="jane@company.com" type="email" />
         </div>
       </div>
 
@@ -170,7 +174,7 @@ const ContactEditPanel: React.FC<ContactEditPanelProps> = ({
       <div>
         <label style={LABEL}>LinkedIn URL</label>
         <div style={{ position: 'relative' }}>
-          <input value={linkedinUrl} onChange={e => setLinkedinUrl(e.target.value)} placeholder="https://linkedin.com/in/..." style={{ ...INPUT, paddingLeft: '32px' }} />
+          <input disabled={isReadOnly} value={linkedinUrl} onChange={e => setLinkedinUrl(e.target.value)} placeholder="https://linkedin.com/in/..." style={{ ...INPUT, paddingLeft: '32px' }} />
           <span style={{ position: 'absolute', left: '10px', top: '9px', fontSize: '13px' }}>🔗</span>
         </div>
       </div>
@@ -185,19 +189,21 @@ const ContactEditPanel: React.FC<ContactEditPanelProps> = ({
             return (
               <span key={eId} style={ENTITY_PILL_STYLE}>
                 #{ent.name}
-                <button onClick={() => setLinkedEntityIds(ids => ids.filter(id => id !== eId))} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#be185d', fontSize: '13px', padding: '0 2px', lineHeight: 1 }}>×</button>
+                {!isReadOnly && <button onClick={() => setLinkedEntityIds(ids => ids.filter(id => id !== eId))} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#be185d', fontSize: '13px', padding: '0 2px', lineHeight: 1 }}>×</button>}
               </span>
             );
           })}
         </div>
-        <input
-          value={entitySearch}
-          onChange={e => { setEntitySearch(e.target.value); setEntityDropdownOpen(true); }}
-          onFocus={() => setEntityDropdownOpen(true)}
-          onBlur={() => setTimeout(() => setEntityDropdownOpen(false), 200)}
-          placeholder="Search or create entity..."
-          style={INPUT}
-        />
+        {!isReadOnly && (
+          <input
+            value={entitySearch}
+            onChange={e => { setEntitySearch(e.target.value); setEntityDropdownOpen(true); }}
+            onFocus={() => setEntityDropdownOpen(true)}
+            onBlur={() => setTimeout(() => setEntityDropdownOpen(false), 200)}
+            placeholder="Search or create entity..."
+            style={INPUT}
+          />
+        )}
         {entityDropdownOpen && (availableEntities.length > 0 || showCreate) && (
           <div style={{ position: 'absolute', top: '100%', left: 0, zIndex: 70, width: '100%', background: '#fff', borderRadius: '12px', boxShadow: '0 10px 25px rgba(0,0,0,0.15)', border: '1px solid #e5e7eb', overflow: 'hidden', marginTop: '4px', maxHeight: '200px', overflowY: 'auto' }}>
             {availableEntities.map(ent => (
@@ -233,26 +239,26 @@ const ContactEditPanel: React.FC<ContactEditPanelProps> = ({
       {/* Notes */}
       <div>
         <label style={LABEL}>Details / Notes</label>
-        <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={3} style={{ ...INPUT, resize: 'none' }} placeholder="Background, professional bio..." />
+        <textarea disabled={isReadOnly} value={notes} onChange={e => setNotes(e.target.value)} rows={3} style={{ ...INPUT, resize: 'none' }} placeholder="Background, professional bio..." />
       </div>
 
       {/* Checkboxes */}
       <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap', marginTop: '4px' }}>
-        <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', fontWeight: 700, color: '#6b7280', cursor: 'pointer' }}>
-          <input type="checkbox" checked={isWhatsApp} onChange={e => setIsWhatsApp(e.target.checked)} style={{ cursor: 'pointer' }} /> WhatsApp contact
+        <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', fontWeight: 700, color: '#6b7280', cursor: isReadOnly ? 'default' : 'pointer' }}>
+          <input disabled={isReadOnly} type="checkbox" checked={isWhatsApp} onChange={e => setIsWhatsApp(e.target.checked)} style={{ cursor: isReadOnly ? 'default' : 'pointer' }} /> WhatsApp contact
         </label>
-        <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', fontWeight: 700, color: '#6b7280', cursor: 'pointer' }}>
-          <input type="checkbox" checked={isF2F} onChange={e => setIsF2F(e.target.checked)} style={{ cursor: 'pointer' }} /> F2F contact
+        <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', fontWeight: 700, color: '#6b7280', cursor: isReadOnly ? 'default' : 'pointer' }}>
+          <input disabled={isReadOnly} type="checkbox" checked={isF2F} onChange={e => setIsF2F(e.target.checked)} style={{ cursor: isReadOnly ? 'default' : 'pointer' }} /> F2F contact
         </label>
-        <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', fontWeight: 700, color: '#6b7280', cursor: 'pointer' }}>
-          <input type="checkbox" checked={isExColleague} onChange={e => setIsExColleague(e.target.checked)} style={{ cursor: 'pointer' }} /> ex-colleague
+        <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', fontWeight: 700, color: '#6b7280', cursor: isReadOnly ? 'default' : 'pointer' }}>
+          <input disabled={isReadOnly} type="checkbox" checked={isExColleague} onChange={e => setIsExColleague(e.target.checked)} style={{ cursor: isReadOnly ? 'default' : 'pointer' }} /> ex-colleague
         </label>
       </div>
 
       {/* Save / Cancel / Delete */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '4px' }}>
         <div>
-          {contact && (
+          {contact && !isReadOnly && (
             <button
               onClick={() => {
                 confirm({
@@ -280,13 +286,17 @@ const ContactEditPanel: React.FC<ContactEditPanelProps> = ({
         </div>
         <div style={{ display: 'flex', gap: '8px' }}>
           {onCancel && (
-            <button onClick={onCancel} style={{ padding: '6px 16px', fontSize: '12px', fontWeight: 700, borderRadius: '6px', border: '1px solid #d1d5db', background: '#fff', cursor: 'pointer', color: '#6b7280' }}>Cancel</button>
+            <button onClick={onCancel} style={{ padding: '6px 16px', fontSize: '12px', fontWeight: 700, borderRadius: '6px', border: '1px solid #d1d5db', background: '#fff', cursor: 'pointer', color: '#6b7280' }}>
+              {isReadOnly ? 'Close' : 'Cancel'}
+            </button>
           )}
-          <button onClick={handleSave} disabled={saving}
-            style={{ padding: '6px 16px', backgroundColor: '#16a34a', color: '#fff', fontSize: '12px', fontWeight: 700, borderRadius: '6px', border: 'none', cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.6 : 1 }}
-          >
-            {saving ? 'Saving...' : contact ? 'Save Details' : 'Create Contact'}
-          </button>
+          {!isReadOnly && (
+            <button onClick={handleSave} disabled={saving}
+              style={{ padding: '6px 16px', backgroundColor: '#16a34a', color: '#fff', fontSize: '12px', fontWeight: 700, borderRadius: '6px', border: 'none', cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.6 : 1 }}
+            >
+              {saving ? 'Saving...' : contact ? 'Save Details' : 'Create Contact'}
+            </button>
+          )}
         </div>
       </div>
     </div>

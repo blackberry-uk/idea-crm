@@ -20,9 +20,9 @@ const ContactActivityPanel: React.FC<ContactActivityPanelProps> = ({ contact }) 
   const { data } = useStore();
   const [showComposer, setShowComposer] = useState(false);
 
-  // Find all notes linked to this contact (either directly via contactId or tagged)
+  // Find all notes directly linked to this contact (omits Idea-specific notes where they are just tagged)
   const rawContactNotes = data.notes
-    .filter(n => n.contactId === contact.id || n.taggedContactIds?.includes(contact.id))
+    .filter(n => n.contactId === contact.id)
     .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
   // Deduplicate notes by their exact content to prevent identical auto-generated notes from appearing twice
