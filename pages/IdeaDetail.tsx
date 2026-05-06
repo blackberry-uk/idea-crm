@@ -941,7 +941,7 @@ const IdeaDetail: React.FC = () => {
           {/* LEFT COLUMN: Task Calendar */}
           <div className="space-y-6">
             {/* Task Calendar — CENTERPIECE */}
-            <section className="rounded-2xl border shadow-sm" style={{ background: '#e0eed8' }}>
+            <section className="rounded-2xl border shadow-sm" style={{ background: '#fef9e7' }}>
               <div className="flex items-center justify-between p-6 pb-4 border-b border-gray-50">
                 <h2 className="text-sm font-black text-gray-400 uppercase tracking-widest flex items-center gap-2">
                   <span>✅</span> Checklist Calendar
