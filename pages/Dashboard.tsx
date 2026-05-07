@@ -873,11 +873,32 @@ const Dashboard: React.FC = () => {
           {/* Date nav */}
           <div className="cl-date-nav">
             <button onClick={goPrev} className="cl-date-nav-btn"><ChevronLeft className="w-4 h-4" /></button>
-            <span className="cl-date-nav-label">
+            <span className="cl-date-nav-label" style={{ position: 'relative' }}>
               {viewMode === 'day'
                 ? (isSelectedToday ? `Today — ${format(selectedDate, 'EEEE, do MMMM yyyy')}` : format(selectedDate, 'EEEE, do MMMM yyyy'))
                 : `${format(weekDays[0], 'MMM d')} – ${format(weekDays[weekDays.length - 1], 'MMM d')}`
               }
+              {viewMode === 'day' && (
+                <input
+                  type="date"
+                  value={format(selectedDate, 'yyyy-MM-dd')}
+                  onChange={(e) => {
+                    if (e.target.value) {
+                      const [y, m, d] = e.target.value.split('-');
+                      setSelectedDate(new Date(parseInt(y), parseInt(m) - 1, parseInt(d)));
+                    }
+                  }}
+                  style={{
+                    position: 'absolute',
+                    inset: 0,
+                    opacity: 0,
+                    cursor: 'pointer',
+                    width: '100%',
+                    height: '100%'
+                  }}
+                  title="Pick a date"
+                />
+              )}
             </span>
             <button onClick={goNext} className="cl-date-nav-btn"><ChevronRight className="w-4 h-4" /></button>
           </div>
