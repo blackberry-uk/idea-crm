@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useStore } from '../store/useStore';
 import { format, startOfWeek, addDays as dateAddDays, isSameDay, isToday, isBefore, startOfDay, startOfMonth, endOfMonth, getDay, addMonths, subMonths, parseISO } from 'date-fns';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import {
   CalendarDays, Calendar, Loader2, Plus, Send, Tag, ArrowDownToLine,
   ChevronLeft, ChevronRight, Flame, AlertTriangle, ChevronDown, ChevronUp,
@@ -74,9 +74,26 @@ const Dashboard: React.FC = () => {
   useEffect(() => {
     localStorage.setItem('ideaCrm_viewMode', viewMode);
   }, [viewMode]);
+  const location = useLocation();
   const [selectedDate, setSelectedDate] = useState(() => {
+    const params = new URLSearchParams(location.search);
+    const dateParam = params.get('date');
+    if (dateParam) {
+      const [y, m, d] = dateParam.split('-');
+      return new Date(parseInt(y), parseInt(m) - 1, parseInt(d));
+    }
     const d = new Date(); d.setHours(0, 0, 0, 0); return d;
   });
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const dateParam = params.get('date');
+    if (dateParam) {
+      const [y, m, d] = dateParam.split('-');
+      setSelectedDate(new Date(parseInt(y), parseInt(m) - 1, parseInt(d)));
+      setViewMode('day');
+    }
+  }, [location.search]);
   const [allTodos, setAllTodos] = useState<DailyTodo[]>([]);
   const [loading, setLoading] = useState(true);
   const [carrying, setCarrying] = useState(false);
