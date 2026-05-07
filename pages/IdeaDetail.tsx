@@ -138,6 +138,11 @@ const IdeaDetail: React.FC = () => {
   const [previewLink, setPreviewLink] = useState<{title: string, url: string} | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const [editingLinkId, setEditingLinkId] = useState<number | null>(null);
+  const [editLinkTitle, setEditLinkTitle] = useState('');
+  const [editingAttachmentId, setEditingAttachmentId] = useState<string | null>(null);
+  const [editAttachmentTitle, setEditAttachmentTitle] = useState('');
+
   const getGoogleIframeUrl = (url: string) => {
     try {
       const u = new URL(url);
@@ -1483,28 +1488,64 @@ const IdeaDetail: React.FC = () => {
                       <div className={`w-6 h-6 rounded flex items-center justify-center shrink-0 text-white text-[9px] font-black shadow-sm ${iconBg}`}>
                         {iconText}
                       </div>
-                      <button 
-                        onClick={(e) => { e.preventDefault(); setPreviewLink(link); }}
-                        className="flex-1 min-w-0 pr-6 text-left text-[10px] font-bold text-gray-700 hover:text-black truncate"
-                      >
-                        {link.title}
-                      </button>
-                      {link.createdAt && (
-                        <div className="absolute -top-2 right-1 text-[8px] bg-white border border-gray-200 text-gray-400 font-bold px-1 rounded shadow-sm">
+                      {editingLinkId === idx ? (
+                        <input 
+                          autoFocus
+                          value={editLinkTitle}
+                          onChange={(e) => setEditLinkTitle(e.target.value)}
+                          onBlur={() => {
+                            if (editLinkTitle.trim() && editLinkTitle !== link.title) {
+                              const currentLinks = [...(idea.links || [])];
+                              currentLinks[idx] = { ...currentLinks[idx], title: editLinkTitle.trim() };
+                              updateIdea(idea.id, { links: currentLinks } as any);
+                            }
+                            setEditingLinkId(null);
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') e.currentTarget.blur();
+                            if (e.key === 'Escape') setEditingLinkId(null);
+                          }}
+                          className="flex-1 min-w-0 pr-6 text-left text-[10px] font-bold text-gray-700 bg-white border border-[var(--primary)] rounded px-1 outline-none"
+                        />
+                      ) : (
+                        <button 
+                          onClick={(e) => { e.preventDefault(); setPreviewLink(link); }}
+                          className="flex-1 min-w-0 pr-6 text-left text-[10px] font-bold text-gray-700 hover:text-black truncate"
+                        >
+                          {link.title}
+                        </button>
+                      )}
+                      {link.createdAt ? (
+                        <div className="absolute -top-2 right-1 text-[8px] bg-white border border-gray-200 text-gray-400 font-bold px-1 rounded shadow-sm z-10">
                           {format(parseISO(link.createdAt), 'MMM d')}
                         </div>
+                      ) : (
+                        <div className="absolute -top-2 right-1 text-[8px] bg-white border border-gray-200 text-gray-400 font-bold px-1 rounded shadow-sm z-10">
+                          Legacy Link
+                        </div>
                       )}
-                      {isOwner && (
-                        <button
-                          onClick={() => {
-                            const currentLinks = [...(idea.links || [])];
-                            currentLinks.splice(idx, 1);
-                            updateIdea(idea.id, { links: currentLinks } as any);
-                          }}
-                          className="opacity-0 group-hover:opacity-100 absolute right-1.5 p-1 text-gray-400 hover:text-red-500 transition-all shrink-0 bg-gray-50 rounded"
-                        >
-                          ✕
-                        </button>
+                      {isOwner && editingLinkId !== idx && (
+                        <div className="opacity-0 group-hover:opacity-100 absolute right-1.5 flex gap-1 transition-all shrink-0 bg-gray-50 rounded z-20">
+                          <button
+                            onClick={() => {
+                              setEditingLinkId(idx);
+                              setEditLinkTitle(link.title);
+                            }}
+                            className="p-1 text-gray-400 hover:text-[var(--primary)] transition-colors"
+                          >
+                            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
+                          </button>
+                          <button
+                            onClick={() => {
+                              const currentLinks = [...(idea.links || [])];
+                              currentLinks.splice(idx, 1);
+                              updateIdea(idea.id, { links: currentLinks } as any);
+                            }}
+                            className="p-1 text-gray-400 hover:text-red-500 transition-colors"
+                          >
+                            ✕
+                          </button>
+                        </div>
                       )}
                     </div>
                   );
@@ -1526,20 +1567,57 @@ const IdeaDetail: React.FC = () => {
                           {iconText}
                         </div>
                         <div className="flex-1 min-w-0 pr-6">
-                          <div className="text-[10px] font-bold text-gray-700 truncate">{att.title}</div>
+                          {editingAttachmentId === att.id ? (
+                            <input 
+                              autoFocus
+                              value={editAttachmentTitle}
+                              onChange={(e) => setEditAttachmentTitle(e.target.value)}
+                              onClick={(e) => e.stopPropagation()}
+                              onBlur={async () => {
+                                if (editAttachmentTitle.trim() && editAttachmentTitle !== att.title) {
+                                  try {
+                                    const updated = await apiClient.put(`/attachments/${att.id}`, { title: editAttachmentTitle.trim() });
+                                    setAttachments(prev => prev.map(a => a.id === att.id ? updated : a));
+                                  } catch (e) {
+                                    console.error('Failed to update attachment title', e);
+                                  }
+                                }
+                                setEditingAttachmentId(null);
+                              }}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') e.currentTarget.blur();
+                                if (e.key === 'Escape') setEditingAttachmentId(null);
+                              }}
+                              className="text-[10px] font-bold text-gray-700 w-full bg-white border border-[var(--primary)] rounded px-1 outline-none mb-0.5"
+                            />
+                          ) : (
+                            <div className="text-[10px] font-bold text-gray-700 truncate">{att.title}</div>
+                          )}
                           <div className="text-[8px] text-gray-400 font-medium truncate">{att.fileName} • {(att.fileSize / 1024 / 1024).toFixed(1)}MB</div>
                         </div>
                       </div>
                       <div className="text-[8px] text-gray-400 font-medium text-right mt-0.5">
                         Uploaded {format(parseISO(att.createdAt), 'MMM d, h:mm a')}
                       </div>
-                      {isOwner && (
-                        <button
-                          onClick={(e) => deleteAttachment(e, att.id)}
-                          className="opacity-0 group-hover:opacity-100 absolute top-1.5 right-1.5 p-1 text-gray-400 hover:text-red-500 transition-all shrink-0 bg-white shadow-sm rounded"
-                        >
-                          ✕
-                        </button>
+                      {isOwner && editingAttachmentId !== att.id && (
+                        <div className="opacity-0 group-hover:opacity-100 absolute top-1.5 right-1.5 flex gap-1 transition-all shrink-0 bg-white shadow-sm rounded z-20">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setEditingAttachmentId(att.id);
+                              setEditAttachmentTitle(att.title);
+                            }}
+                            className="p-1 text-gray-400 hover:text-[var(--primary)] transition-colors"
+                          >
+                            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
+                          </button>
+                          <button
+                            onClick={(e) => deleteAttachment(e, att.id)}
+                            className="p-1 text-gray-400 hover:text-red-500 transition-colors"
+                          >
+                            ✕
+                          </button>
+                        </div>
                       )}
                     </div>
                   );
