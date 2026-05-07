@@ -205,10 +205,15 @@ app.get('/api/data', authenticate, async (req: any, res) => {
     });
     console.log('[API /data] Ideas fetched:', rawIdeas.length);
 
+    const userIdeaIds = rawIdeas.map((i: any) => i.id);
     console.log('[API /data] Fetching contacts...');
     const contacts = await prisma.contact.findMany({
       where: {
-        ownerId: userId
+        OR: [
+          { ownerId: userId },
+          { associatedNotes: { some: { ideaId: { in: userIdeaIds } } } },
+          { taggedInNotes: { some: { ideaId: { in: userIdeaIds } } } }
+        ]
       } as any
     });
     console.log('[API /data] Contacts fetched:', contacts.length);

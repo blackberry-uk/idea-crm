@@ -60,6 +60,7 @@ const ContactEditPanel: React.FC<ContactEditPanelProps> = ({
   const [isWhatsApp, setIsWhatsApp] = useState(false);
   const [isF2F, setIsF2F] = useState(false);
   const [isExColleague, setIsExColleague] = useState(false);
+  const [isPrivateDetails, setIsPrivateDetails] = useState(false);
   const [linkedEntityIds, setLinkedEntityIds] = useState<string[]>([]);
   const [linkedIdeaIds, setLinkedIdeaIds] = useState<string[]>([]);
   const [entitySearch, setEntitySearch] = useState('');
@@ -80,6 +81,7 @@ const ContactEditPanel: React.FC<ContactEditPanelProps> = ({
       const tags = Array.isArray(contact.tags) ? contact.tags : [];
       setIsF2F(tags.includes('F2F contact'));
       setIsExColleague(tags.includes('ex-colleague'));
+      setIsPrivateDetails(!!contact.isPrivateDetails);
       setLinkedEntityIds(parseEntityIds((contact as any).linkedEntityIds));
       setLinkedIdeaIds(parseIds(contact.linkedIdeaIds));
     } else {
@@ -102,7 +104,9 @@ const ContactEditPanel: React.FC<ContactEditPanelProps> = ({
     const payload: any = {
       firstName, lastName, fullName, role, email,
       linkedinUrl,
-      notes, isWhatsApp, tags, linkedEntityIds,
+      notes, isWhatsApp, tags, 
+      linkedEntityIds: JSON.stringify(linkedEntityIds),
+      isPrivateDetails,
       linkedIdeaIds: JSON.stringify(linkedIdeaIds),
       org: linkedEntityIds.length > 0
         ? linkedEntityIds.map(eId => entities.find(e => e.id === eId)?.name).filter(Boolean).join(', ')
@@ -156,8 +160,14 @@ const ContactEditPanel: React.FC<ContactEditPanelProps> = ({
         </div>
       </div>
 
-      {/* Role + Email */}
-      <div style={row}>
+      {(isReadOnly && contact?.isPrivateDetails) ? (
+        <div style={{ padding: '12px', background: '#fef2f2', color: '#991b1b', borderRadius: '8px', fontSize: '12px', fontWeight: 500, margin: '8px 0' }}>
+          This contact's details are private. Only the name and description are shared.
+        </div>
+      ) : (
+        <>
+          {/* Role + Email */}
+          <div style={row}>
         <div style={half}>
           <label style={LABEL}>Role</label>
           <input disabled={isReadOnly} value={role} onChange={e => setRole(e.target.value)} style={INPUT} placeholder="Job Title" />
@@ -233,6 +243,8 @@ const ContactEditPanel: React.FC<ContactEditPanelProps> = ({
           </div>
         )}
       </div>
+        </>
+      )}
 
       {/* Notes */}
       <div>
@@ -241,17 +253,28 @@ const ContactEditPanel: React.FC<ContactEditPanelProps> = ({
       </div>
 
       {/* Checkboxes */}
-      <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap', marginTop: '4px' }}>
-        <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', fontWeight: 700, color: '#6b7280', cursor: isReadOnly ? 'default' : 'pointer' }}>
-          <input disabled={isReadOnly} type="checkbox" checked={isWhatsApp} onChange={e => setIsWhatsApp(e.target.checked)} style={{ cursor: isReadOnly ? 'default' : 'pointer' }} /> WhatsApp contact
-        </label>
-        <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', fontWeight: 700, color: '#6b7280', cursor: isReadOnly ? 'default' : 'pointer' }}>
-          <input disabled={isReadOnly} type="checkbox" checked={isF2F} onChange={e => setIsF2F(e.target.checked)} style={{ cursor: isReadOnly ? 'default' : 'pointer' }} /> F2F contact
-        </label>
-        <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', fontWeight: 700, color: '#6b7280', cursor: isReadOnly ? 'default' : 'pointer' }}>
-          <input disabled={isReadOnly} type="checkbox" checked={isExColleague} onChange={e => setIsExColleague(e.target.checked)} style={{ cursor: isReadOnly ? 'default' : 'pointer' }} /> ex-colleague
-        </label>
-      </div>
+      {!(isReadOnly && contact?.isPrivateDetails) && (
+        <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap', marginTop: '4px' }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', fontWeight: 700, color: '#6b7280', cursor: isReadOnly ? 'default' : 'pointer' }}>
+            <input disabled={isReadOnly} type="checkbox" checked={isWhatsApp} onChange={e => setIsWhatsApp(e.target.checked)} style={{ cursor: isReadOnly ? 'default' : 'pointer' }} /> WhatsApp contact
+          </label>
+          <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', fontWeight: 700, color: '#6b7280', cursor: isReadOnly ? 'default' : 'pointer' }}>
+            <input disabled={isReadOnly} type="checkbox" checked={isF2F} onChange={e => setIsF2F(e.target.checked)} style={{ cursor: isReadOnly ? 'default' : 'pointer' }} /> F2F contact
+          </label>
+          <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', fontWeight: 700, color: '#6b7280', cursor: isReadOnly ? 'default' : 'pointer' }}>
+            <input disabled={isReadOnly} type="checkbox" checked={isExColleague} onChange={e => setIsExColleague(e.target.checked)} style={{ cursor: isReadOnly ? 'default' : 'pointer' }} /> ex-colleague
+          </label>
+        </div>
+      )}
+
+      {!isReadOnly && (
+        <div style={{ marginTop: '8px', padding: '10px', background: '#fef2f2', borderRadius: '8px', border: '1px dashed #fca5a5' }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', fontWeight: 700, color: '#991b1b', cursor: 'pointer' }}>
+            <input type="checkbox" checked={isPrivateDetails} onChange={e => setIsPrivateDetails(e.target.checked)} style={{ cursor: 'pointer' }} /> 
+            Do not share contact details with project collaborators
+          </label>
+        </div>
+      )}
 
       {/* Save / Cancel / Delete */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '4px' }}>
