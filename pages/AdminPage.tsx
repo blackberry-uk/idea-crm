@@ -10,7 +10,7 @@ export default function AdminPage() {
   const [users, setUsers] = useState<any[]>([]);
   const [invitations, setInvitations] = useState<any[]>([]);
   const [activeTab, setActiveTab] = useState<'users' | 'invitations'>('users');
-  const [userSort, setUserSort] = useState<{ field: string, dir: 'asc' | 'desc' }>({ field: 'createdAt', dir: 'desc' });
+  const [userSort, setUserSort] = useState<{ field: string, dir: 'asc' | 'desc' }>({ field: 'lastLoginAt', dir: 'desc' });
   const [invSort, setInvSort] = useState<{ field: string, dir: 'asc' | 'desc' }>({ field: 'createdAt', dir: 'desc' });
 
   const MASTER_EMAIL = 'fernando.mora.uk@gmail.com';
