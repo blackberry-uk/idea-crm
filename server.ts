@@ -560,6 +560,27 @@ app.get('/api/attachments/:id/content', authenticate, async (req: any, res) => {
   }
 });
 
+app.put('/api/attachments/:id', authenticate, async (req: any, res) => {
+  try {
+    const { title } = req.body;
+    const attachment = await prisma.fileAttachment.findUnique({
+      where: { id: req.params.id },
+      include: { idea: { include: { collaborators: true } } }
+    });
+    if (!attachment || !attachment.idea) return res.status(404).json({ error: 'Not found' });
+    const hasAccess = attachment.idea.ownerId === req.userId || attachment.idea.collaborators.some(c => c.id === req.userId);
+    if (!hasAccess) return res.status(403).json({ error: 'Access denied' });
+
+    const updated = await prisma.fileAttachment.update({
+      where: { id: req.params.id },
+      data: { title }
+    });
+    res.json(updated);
+  } catch (err: any) {
+    res.status(500).json({ error: 'Failed to update attachment' });
+  }
+});
+
 app.delete('/api/attachments/:id', authenticate, async (req: any, res) => {
   try {
     const attachment = await prisma.fileAttachment.findUnique({
