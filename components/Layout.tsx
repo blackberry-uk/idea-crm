@@ -152,7 +152,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
               className={`w-9 h-9 rounded-lg ${getAvatarColor(data.currentUser.id)} flex items-center justify-center text-white text-[13px] font-black shadow-md premium-tooltip premium-tooltip-left ring-1 ring-white/20`}
               data-tooltip={data.currentUser.name}
             >
-              {data.currentUser.avatarUrl ? data.currentUser.avatarUrl.toUpperCase().slice(0,3) : getInitials(data.currentUser.name)}
+              {data.currentUser.avatarUrl ? data.currentUser.avatarUrl.slice(0,3) : getInitials(data.currentUser.name)}
             </div>
             <div className="min-w-0">
               <p className="text-xs font-bold truncate">{data.currentUser.name}</p>

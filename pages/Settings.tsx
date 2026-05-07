@@ -172,7 +172,7 @@ const Settings: React.FC = () => {
           </div>
           <div className="flex flex-col sm:flex-row items-start sm:items-center gap-6 mb-6">
             <div className={`w-20 h-20 shrink-0 rounded-2xl ${data.currentUser?.avatarColor || 'bg-gray-600'} flex items-center justify-center text-white text-3xl font-bold overflow-hidden shadow-sm border border-gray-100`}>
-              {avatarUrl ? avatarUrl.toUpperCase() : (userName?.[0]?.toUpperCase() || data.currentUser?.name?.[0]?.toUpperCase() || 'U')}
+              {avatarUrl ? avatarUrl : (userName?.[0]?.toUpperCase() || data.currentUser?.name?.[0]?.toUpperCase() || 'U')}
             </div>
             <div className="flex-1 w-full space-y-4">
               <div>
@@ -192,10 +192,10 @@ const Settings: React.FC = () => {
                   type="text"
                   maxLength={3}
                   value={avatarUrl}
-                  onChange={(e) => setAvatarUrl(e.target.value.toUpperCase())}
-                  className="w-full sm:w-32 bg-gray-50 border border-gray-200 rounded-lg px-4 py-2 text-sm font-bold text-gray-900 focus:bg-white focus:ring-2 outline-none transition-all uppercase tracking-widest text-center"
+                  onChange={(e) => setAvatarUrl(e.target.value)}
+                  className="w-full sm:w-32 bg-gray-50 border border-gray-200 rounded-lg px-4 py-2 text-sm font-bold text-gray-900 focus:bg-white focus:ring-2 outline-none transition-all tracking-widest text-center"
                   style={{ '--tw-ring-color': 'var(--primary)' } as any}
-                  placeholder="e.g. FM"
+                  placeholder="e.g. Fm"
                 />
               </div>
               <div>
