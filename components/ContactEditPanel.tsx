@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useStore } from '../store/useStore';
 import { Contact } from '../types';
-import { X, Plus, Trash2 } from 'lucide-react';
+import { X, Plus, Trash2, Edit2, Mail, Phone, Linkedin } from 'lucide-react';
 
 const ENTITY_PILL_STYLE: React.CSSProperties = {
   display: 'inline-flex', alignItems: 'center', gap: '4px',
@@ -54,7 +54,9 @@ const ContactEditPanel: React.FC<ContactEditPanelProps> = ({
   const [lastName, setLastName] = useState('');
   const [role, setRole] = useState('');
   const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
   const [linkedinUrl, setLinkedinUrl] = useState('');
+  const [isEditing, setIsEditing] = useState(!contact);
 
   const [notes, setNotes] = useState('');
   const [isWhatsApp, setIsWhatsApp] = useState(false);
@@ -75,6 +77,7 @@ const ContactEditPanel: React.FC<ContactEditPanelProps> = ({
       setLastName(contact.lastName || '');
       setRole(contact.role || '');
       setEmail(contact.email || '');
+      setPhone(contact.phone || '');
       setLinkedinUrl(contact.linkedinUrl || '');
       setNotes(contact.notes || '');
       setIsWhatsApp(!!contact.isWhatsApp);
@@ -84,9 +87,10 @@ const ContactEditPanel: React.FC<ContactEditPanelProps> = ({
       setIsPrivateDetails(!!contact.isPrivateDetails);
       setLinkedEntityIds(parseEntityIds((contact as any).linkedEntityIds));
       setLinkedIdeaIds(parseIds(contact.linkedIdeaIds));
+      setIsEditing(false);
     } else {
-      setFirstName(''); setLastName(''); setRole(''); setEmail(''); setLinkedinUrl(''); setNotes(''); setIsWhatsApp(false); setIsF2F(false);
-      setIsExColleague(false); setLinkedEntityIds([]); setLinkedIdeaIds([]);
+      setFirstName(''); setLastName(''); setRole(''); setEmail(''); setPhone(''); setLinkedinUrl(''); setNotes(''); setIsWhatsApp(false); setIsF2F(false);
+      setIsExColleague(false); setLinkedEntityIds([]); setLinkedIdeaIds([]); setIsEditing(true);
     }
     setEntitySearch(''); setEntityDropdownOpen(false);
   }, [contact]);
@@ -102,7 +106,7 @@ const ContactEditPanel: React.FC<ContactEditPanelProps> = ({
     if (isExColleague) tags.push('ex-colleague');
 
     const payload: any = {
-      firstName, lastName, fullName, role, email,
+      firstName, lastName, fullName, role, email, phone,
       linkedinUrl,
       notes, isWhatsApp, tags, 
       linkedEntityIds: JSON.stringify(linkedEntityIds),
@@ -146,6 +150,86 @@ const ContactEditPanel: React.FC<ContactEditPanelProps> = ({
   const row: React.CSSProperties = { display: 'flex', gap: '12px' };
   const half: React.CSSProperties = { flex: 1 };
 
+  if (!isEditing || isReadOnly) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+            <div>
+               <h2 className="text-xl font-bold text-gray-900">{firstName} {lastName}</h2>
+               {role && <div className="text-sm text-gray-500">{role}</div>}
+            </div>
+            {!isReadOnly && (
+               <button onClick={() => setIsEditing(true)} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500 hover:text-gray-900 transition-colors">
+                 <Edit2 className="w-4 h-4" />
+               </button>
+            )}
+         </div>
+
+         {isReadOnly && contact?.isPrivateDetails && (
+           <div style={{ padding: '12px', background: '#fef2f2', color: '#991b1b', borderRadius: '8px', fontSize: '12px', fontWeight: 500, marginBottom: '12px' }}>
+             Email and phone are hidden by the contact owner.
+           </div>
+         )}
+         
+         <div className="space-y-3 text-sm">
+           {email && !(isReadOnly && contact?.isPrivateDetails) && (
+             <div className="flex items-center gap-2">
+               <Mail className="w-4 h-4 text-gray-400" />
+               <a href={`mailto:${email}`} className="text-indigo-600 hover:underline">{email}</a>
+             </div>
+           )}
+           {phone && !(isReadOnly && contact?.isPrivateDetails) && (
+             <div className="flex items-center gap-2">
+               <Phone className="w-4 h-4 text-gray-400" />
+               <a href={`tel:${phone}`} className="text-indigo-600 hover:underline">{phone}</a>
+             </div>
+           )}
+           {linkedinUrl && (
+             <div className="flex items-center gap-2">
+               <Linkedin className="w-4 h-4 text-gray-400" />
+               <a href={linkedinUrl} target="_blank" rel="noopener noreferrer" className="text-indigo-600 hover:underline">
+                 {linkedinUrl.replace(/^https?:\/\/(www\.)?linkedin\.com\/in\//, '').replace(/\/$/, '')}
+               </a>
+             </div>
+           )}
+           
+           {linkedEntityIds.length > 0 && (
+             <div className="flex flex-wrap gap-1.5 mt-2">
+               {linkedEntityIds.map(eid => {
+                 const ent = entities.find(e => e.id === eid);
+                 if (!ent) return null;
+                 return <span key={eid} style={ENTITY_PILL_STYLE}>#{ent.name}</span>;
+               })}
+             </div>
+           )}
+
+           {(isWhatsApp || isF2F || isExColleague) && !(isReadOnly && contact?.isPrivateDetails) && (
+             <div className="flex gap-4 text-[10px] font-bold text-gray-500 mt-3 uppercase tracking-wider">
+                {isWhatsApp && <span className="flex items-center gap-1 text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-md">WhatsApp</span>}
+                {isF2F && <span className="flex items-center gap-1 text-blue-600 bg-blue-50 px-2 py-0.5 rounded-md">F2F</span>}
+                {isExColleague && <span className="flex items-center gap-1 text-purple-600 bg-purple-50 px-2 py-0.5 rounded-md">Ex-Colleague</span>}
+             </div>
+           )}
+         </div>
+         
+         {notes && (
+           <div className="mt-2">
+             <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5">Description</div>
+             <div className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">{notes}</div>
+           </div>
+         )}
+
+         {onCancel && (
+            <div className="mt-2 flex justify-end">
+              <button onClick={onCancel} style={{ padding: '6px 16px', fontSize: '12px', fontWeight: 700, borderRadius: '6px', border: '1px solid #d1d5db', background: '#fff', cursor: 'pointer', color: '#6b7280' }}>
+                Close
+              </button>
+            </div>
+         )}
+      </div>
+    );
+  }
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
       {/* Name */}
@@ -173,17 +257,22 @@ const ContactEditPanel: React.FC<ContactEditPanelProps> = ({
           <input disabled={isReadOnly} value={role} onChange={e => setRole(e.target.value)} style={INPUT} placeholder="Job Title" />
         </div>
         <div style={half}>
-          <label style={LABEL}>Email</label>
-          <input disabled={isReadOnly} value={email} onChange={e => setEmail(e.target.value)} style={INPUT} placeholder="jane@company.com" type="email" />
+          <label style={LABEL}>Phone</label>
+          <input disabled={isReadOnly} value={phone} onChange={e => setPhone(e.target.value)} style={INPUT} placeholder="+1 234 567 8900" type="tel" />
         </div>
       </div>
 
-      {/* LinkedIn */}
-      <div>
-        <label style={LABEL}>LinkedIn URL</label>
-        <div style={{ position: 'relative' }}>
-          <input disabled={isReadOnly} value={linkedinUrl} onChange={e => setLinkedinUrl(e.target.value)} placeholder="https://linkedin.com/in/..." style={{ ...INPUT, paddingLeft: '32px' }} />
-          <span style={{ position: 'absolute', left: '10px', top: '9px', fontSize: '13px' }}>🔗</span>
+      <div style={row}>
+        <div style={half}>
+          <label style={LABEL}>Email</label>
+          <input disabled={isReadOnly} value={email} onChange={e => setEmail(e.target.value)} style={INPUT} placeholder="jane@company.com" type="email" />
+        </div>
+        <div style={half}>
+          <label style={LABEL}>LinkedIn URL</label>
+          <div style={{ position: 'relative' }}>
+            <input disabled={isReadOnly} value={linkedinUrl} onChange={e => setLinkedinUrl(e.target.value)} placeholder="https://linkedin.com/in/..." style={{ ...INPUT, paddingLeft: '32px' }} />
+            <span style={{ position: 'absolute', left: '10px', top: '9px', fontSize: '13px' }}>🔗</span>
+          </div>
         </div>
       </div>
 

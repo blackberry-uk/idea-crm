@@ -295,36 +295,30 @@ const ContactsPage: React.FC = () => {
                                 {contact.notes}
                               </p>
                             )}
-                            {!isPrivate && (
-                              <div className="flex flex-col gap-1.5 pt-2 border-t border-gray-100">
-                                {contact.email ? (
-                                  <a href={`mailto:${contact.email}`} className="text-indigo-500 hover:underline flex items-center gap-1.5 text-xs truncate">
-                                    <Mail className="w-3 h-3 shrink-0" /> {contact.email}
-                                  </a>
-                                ) : null}
-                                {contact.linkedinUrl ? (
-                                  <a href={contact.linkedinUrl} target="_blank" rel="noopener noreferrer" className="text-indigo-500 hover:underline flex items-center gap-1.5 text-xs truncate">
-                                    <Linkedin className="w-3 h-3 shrink-0" /> {contact.linkedinUrl.replace(/^https?:\/\/(www\.)?linkedin\.com\/in\//, '').replace(/\/$/, '')}
-                                  </a>
-                                ) : null}
-                                {!contact.email && !contact.linkedinUrl && (
-                                  <span className="text-gray-400 text-[10px] italic">No contact info</span>
-                                )}
-                              </div>
-                            )}
-                            {isPrivate && (
-                              <div className="pt-2 border-t border-gray-100">
-                                <span className="text-red-400 text-[10px] italic">Details hidden by owner</span>
-                              </div>
-                            )}
+                            <div className="flex flex-col gap-1.5 pt-2 border-t border-gray-100">
+                              {contact.email && !isPrivate ? (
+                                <a href={`mailto:${contact.email}`} className="text-indigo-500 hover:underline flex items-center gap-1.5 text-xs truncate">
+                                  <Mail className="w-3 h-3 shrink-0" /> {contact.email}
+                                </a>
+                              ) : null}
+                              {contact.linkedinUrl ? (
+                                <a href={contact.linkedinUrl} target="_blank" rel="noopener noreferrer" className="text-indigo-500 hover:underline flex items-center gap-1.5 text-xs truncate">
+                                  <Linkedin className="w-3 h-3 shrink-0" /> {contact.linkedinUrl.replace(/^https?:\/\/(www\.)?linkedin\.com\/in\//, '').replace(/\/$/, '')}
+                                </a>
+                              ) : null}
+                              {!contact.email && !contact.linkedinUrl && (
+                                <span className="text-gray-400 text-[10px] italic">No contact info</span>
+                              )}
+                              {isPrivate && contact.email && (
+                                <span className="text-red-400 text-[10px] italic">Email hidden by owner</span>
+                              )}
+                            </div>
                           </div>
                         </div>
                       </td>
                       {/* Role */}
                       <td className="px-4 py-3 truncate" style={{ maxWidth: colWidths.role || 150 }}>
-                        {isPrivate ? (
-                          <span className="text-gray-300 text-xs italic">Hidden</span>
-                        ) : contact.role ? (
+                        {contact.role ? (
                           <span className="text-sm font-medium text-gray-700">{contact.role}</span>
                         ) : (
                           <span className="text-gray-300 text-xs">—</span>
@@ -332,7 +326,7 @@ const ContactsPage: React.FC = () => {
                       </td>
                       {/* Entities */}
                       <td className="px-6 py-3 truncate" style={{ maxWidth: colWidths.entities || 250 }}>
-                        {isPrivate ? <span className="text-gray-300 text-xs italic">Hidden</span> : renderEntityPills(contact.linkedEntityIds)}
+                        {renderEntityPills(contact.linkedEntityIds)}
                       </td>
                       {/* Projects */}
                       <td className="px-6 py-3 truncate" style={{ maxWidth: colWidths.projects || 250 }}>

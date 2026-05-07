@@ -218,9 +218,22 @@ app.get('/api/data', authenticate, async (req: any, res) => {
     });
     console.log('[API /data] Contacts fetched:', contacts.length);
 
+    const linkedEntityIds = new Set<string>();
+    contacts.forEach((c: any) => {
+      try {
+        const ids = typeof c.linkedEntityIds === 'string' ? JSON.parse(c.linkedEntityIds || '[]') : c.linkedEntityIds;
+        if (Array.isArray(ids)) ids.forEach(id => linkedEntityIds.add(id));
+      } catch {}
+    });
+
     console.log('[API /data] Fetching entities...');
     const entities = await prisma.entity.findMany({
-      where: { ownerId: userId } as any
+      where: { 
+        OR: [
+          { ownerId: userId },
+          { id: { in: Array.from(linkedEntityIds) } }
+        ]
+      } as any
     });
     console.log('[API /data] Entities fetched:', entities.length);
 
