@@ -1226,11 +1226,7 @@ const IdeaDetail: React.FC = () => {
                       const dateB = b.date || '9999-12-31';
                       if (dateA !== dateB) return dateA.localeCompare(dateB);
                       
-                      const weights: Record<string, number> = { 'Working': 0, 'Not Started': 1, 'Done': 2 };
-                      const sA = a.status || (a.completed ? 'Done' : 'Not Started');
-                      const sB = b.status || (b.completed ? 'Done' : 'Not Started');
-                      if (weights[sA] !== weights[sB]) return (weights[sA] ?? 1) - (weights[sB] ?? 1);
-                      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+                      return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
                     });
 
                   if (sorted.length === 0) {

@@ -428,7 +428,6 @@ const DailyTodoItem: React.FC<DailyTodoItemProps> = ({
 
       {/* Render subtasks */}
       {!isSubtask && subtasksExpanded && children.sort((a, b) => {
-        if (a.completed !== b.completed) return a.completed ? 1 : -1;
         if (a.sortOrder !== b.sortOrder) return a.sortOrder - b.sortOrder;
         return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
       }).map(child => (
