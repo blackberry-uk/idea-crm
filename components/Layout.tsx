@@ -62,7 +62,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   if (!data.currentUser) return <>{children}</>;
 
   return (
-    <div className="flex h-screen bg-[var(--ui-bg)] text-gray-900 overflow-hidden transition-colors duration-500">
+    <div className="flex h-screen bg-transparent text-gray-900 overflow-hidden transition-colors duration-500">
       {/* Sidebar */}
       {isSidebarOpen ? (
         <aside className="w-64 border-r border-gray-200 bg-white flex flex-col hidden md:flex shrink-0">
