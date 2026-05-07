@@ -1431,6 +1431,123 @@ app.delete('/api/daily-todos/:id', authenticate, async (req: any, res) => {
   }
 });
 
+app.post('/api/daily-todos/:id/duplicate', authenticate, async (req: any, res) => {
+  try {
+    const { id } = req.params;
+    const todo = await (prisma as any).dailyTodo.findUnique({
+      where: { id, userId: req.userId },
+      include: { children: true }
+    });
+    
+    if (!todo) return res.status(404).json({ error: 'Todo not found' });
+    
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    tomorrow.setHours(12, 0, 0, 0);
+
+    // Helper to get next order
+    const getNextOrder = async (parentId: string | null) => {
+      const minOrder = await (prisma as any).dailyTodo.aggregate({
+        where: { userId: req.userId, date: tomorrow, parentId: parentId || null },
+        _min: { sortOrder: true }
+      });
+      return (minOrder._min.sortOrder ?? 0) - 1;
+    };
+
+    let newParentId: string | null = null;
+    let newlyCreated = [];
+
+    if (todo.parentId) {
+      // It's a subtask. Bring the parent along.
+      const parent = await (prisma as any).dailyTodo.findUnique({
+        where: { id: todo.parentId }
+      });
+      
+      if (parent) {
+        // Check if parent already duplicated for tomorrow
+        let existingParent = await (prisma as any).dailyTodo.findFirst({
+          where: { userId: req.userId, date: tomorrow, text: parent.text, parentId: null }
+        });
+        
+        if (!existingParent) {
+          existingParent = await (prisma as any).dailyTodo.create({
+            data: {
+              text: parent.text,
+              date: tomorrow,
+              isUrgent: parent.isUrgent,
+              sortOrder: await getNextOrder(null),
+              ideaId: parent.ideaId,
+              timeBlock: parent.timeBlock,
+              userId: req.userId,
+              assigneeId: parent.assigneeId
+            }
+          });
+          newlyCreated.push(existingParent);
+        }
+        newParentId = existingParent.id;
+      }
+      
+      // Now duplicate the subtask under the parent
+      const newSubtask = await (prisma as any).dailyTodo.create({
+        data: {
+          text: todo.text,
+          date: tomorrow,
+          isUrgent: todo.isUrgent,
+          sortOrder: await getNextOrder(newParentId),
+          ideaId: todo.ideaId,
+          parentId: newParentId,
+          timeBlock: todo.timeBlock,
+          userId: req.userId,
+          assigneeId: todo.assigneeId
+        },
+        include: { idea: { select: { id: true, title: true } } }
+      });
+      newlyCreated.push(newSubtask);
+      
+    } else {
+      // It's a parent task. Duplicate it and its children.
+      const newParent = await (prisma as any).dailyTodo.create({
+        data: {
+          text: todo.text,
+          date: tomorrow,
+          isUrgent: todo.isUrgent,
+          sortOrder: await getNextOrder(null),
+          ideaId: todo.ideaId,
+          timeBlock: todo.timeBlock,
+          userId: req.userId,
+          assigneeId: todo.assigneeId
+        },
+        include: { idea: { select: { id: true, title: true } } }
+      });
+      newlyCreated.push(newParent);
+      
+      if (todo.children && todo.children.length > 0) {
+        for (const child of todo.children) {
+          const newChild = await (prisma as any).dailyTodo.create({
+            data: {
+              text: child.text,
+              date: tomorrow,
+              isUrgent: child.isUrgent,
+              sortOrder: await getNextOrder(newParent.id),
+              ideaId: child.ideaId,
+              parentId: newParent.id,
+              timeBlock: child.timeBlock,
+              userId: req.userId,
+              assigneeId: child.assigneeId
+            }
+          });
+          newlyCreated.push(newChild);
+        }
+      }
+    }
+    
+    res.json(newlyCreated);
+  } catch (err: any) {
+    console.error('Duplicate error:', err);
+    res.status(500).json({ error: 'Failed to duplicate task', details: err.message });
+  }
+});
+
 app.post('/api/daily-todos/carry-forward', authenticate, async (req: any, res) => {
   try {
     const today = new Date();

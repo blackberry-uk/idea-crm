@@ -16,6 +16,7 @@ interface TaskChevronMenuProps {
   onChangeDate?: (todoId: string, dateKey: string | null) => void;
   onChangeTimeBlock?: (todoId: string, block: string) => void;
   onAssigneeChange?: (todoId: string, assigneeId: string | null) => void;
+  onDuplicate?: (todoId: string) => void;
   onDelete?: (todoId: string) => void;
 }
 
@@ -29,6 +30,7 @@ export const TaskChevronMenu: React.FC<TaskChevronMenuProps> = ({
   onChangeDate,
   onChangeTimeBlock,
   onAssigneeChange,
+  onDuplicate,
   onDelete
 }) => {
   const [ideaSubmenu, setIdeaSubmenu] = useState(false);
@@ -106,6 +108,12 @@ export const TaskChevronMenu: React.FC<TaskChevronMenuProps> = ({
       {onOpenDetail && (
         <button className="wv-task-dropdown-item" onMouseDown={e => { e.preventDefault(); e.stopPropagation(); onOpenDetail(todo); onClose(); }}>
           <span>✏️ Edit task details</span>
+        </button>
+      )}
+
+      {onDuplicate && (
+        <button className="wv-task-dropdown-item" onMouseDown={e => { e.preventDefault(); e.stopPropagation(); onDuplicate(todo.id); onClose(); }}>
+          <span>📋 Duplicate for tomorrow</span>
         </button>
       )}
 

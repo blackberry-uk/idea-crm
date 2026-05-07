@@ -481,6 +481,16 @@ const Dashboard: React.FC = () => {
     }
   };
 
+  const duplicateTodo = async (id: string) => {
+    try {
+      await apiClient.post(`/daily-todos/${id}/duplicate`, {});
+      await fetchTodos();
+      showToast('Duplicated for tomorrow', 'success');
+    } catch (err: any) {
+      showToast(err.message || 'Failed to duplicate', 'error');
+    }
+  };
+
   const saveEdit = async (id: string, text: string) => {
     try {
       const updated = await apiClient.put(`/daily-todos/${id}`, { text });
@@ -1426,6 +1436,9 @@ const Dashboard: React.FC = () => {
                                     </button>
                                     <button className="wv-task-dropdown-item" onMouseDown={e => { e.preventDefault(); e.stopPropagation(); openDetail(todo); setWvActionMenuId(null); }}>
                                       ✏️ Edit task details
+                                    </button>
+                                    <button className="wv-task-dropdown-item" onMouseDown={e => { e.preventDefault(); e.stopPropagation(); duplicateTodo(todo.id); setWvActionMenuId(null); }}>
+                                      📋 Duplicate for tomorrow
                                     </button>
                                     <button className="wv-task-dropdown-item" onMouseDown={e => { e.preventDefault(); e.stopPropagation(); updateTodo(todo.id, { isUrgent: !todo.isUrgent }); setWvActionMenuId(null); }}>
                                       🔥 Toggle priority

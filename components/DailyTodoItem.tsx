@@ -50,6 +50,7 @@ interface DailyTodoItemProps {
   onChangeDate?: (id: string, dateKey: string | null) => Promise<void>;
   onChangeTimeBlock?: (id: string, block: string) => Promise<void>;
   onAssigneeChange?: (todoId: string, assigneeId: string | null) => void;
+  onDuplicate?: (id: string) => Promise<void>;
   dragHandleProps?: Record<string, any>;
   isDragging?: boolean;
   isSubtask?: boolean;
@@ -58,7 +59,7 @@ interface DailyTodoItemProps {
 }
 
 const DailyTodoItem: React.FC<DailyTodoItemProps> = ({
-  todo, ideas, onToggleComplete, onToggleUrgent, onDelete, onSaveEdit, onTagIdea, onAddSubtask, onReorderSubtask, onOpenDetail, onOpenContact, onOpenEntity, onChangeDate, onChangeTimeBlock, onAssigneeChange, dragHandleProps, isDragging, isSubtask, customContainerStyle, overrideDateLabel
+  todo, ideas, onToggleComplete, onToggleUrgent, onDelete, onSaveEdit, onTagIdea, onAddSubtask, onReorderSubtask, onOpenDetail, onOpenContact, onOpenEntity, onChangeDate, onChangeTimeBlock, onAssigneeChange, onDuplicate, dragHandleProps, isDragging, isSubtask, customContainerStyle, overrideDateLabel
 }) => {
   const { data } = useStore();
   const [editing, setEditing] = useState(false);
@@ -377,6 +378,7 @@ const DailyTodoItem: React.FC<DailyTodoItemProps> = ({
                     onChangeDate={onChangeDate}
                     onChangeTimeBlock={onChangeTimeBlock}
                     onAssigneeChange={onAssigneeChange}
+                    onDuplicate={onDuplicate}
                     onDelete={onDelete}
                   />
                 )}
@@ -456,6 +458,7 @@ const DailyTodoItem: React.FC<DailyTodoItemProps> = ({
             onChangeDate={onChangeDate}
             onChangeTimeBlock={onChangeTimeBlock}
             onAssigneeChange={onAssigneeChange}
+            onDuplicate={onDuplicate}
             isSubtask
             customContainerStyle={customContainerStyle}
           />
