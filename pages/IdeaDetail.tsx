@@ -1,5 +1,5 @@
 
-import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { useNavigate, useParams, Link } from 'react-router-dom';
 import { useStore } from '../store/useStore';
 import { format, isToday, isTomorrow, isPast, addDays, parseISO, startOfDay, formatDistanceToNow } from 'date-fns';
@@ -141,9 +141,10 @@ const IdeaDetail: React.FC = () => {
     if (!idea) return;
     try {
       const res = await apiClient.get(`/ideas/${idea.id}/attachments`);
-      setAttachments(res);
+      setAttachments(Array.isArray(res) ? res : []);
     } catch (err) {
       console.error(err);
+      setAttachments([]);
     }
   }, [idea?.id]);
 
@@ -1462,7 +1463,7 @@ const IdeaDetail: React.FC = () => {
                     </div>
                   );
                 })}
-                {attachments.map((att: any) => {
+                {(Array.isArray(attachments) ? attachments : []).map((att: any) => {
                   let iconText = '📄';
                   let iconBg = 'bg-gray-400';
                   const lowerType = att.fileType.toLowerCase();
@@ -1497,7 +1498,7 @@ const IdeaDetail: React.FC = () => {
                     </div>
                   );
                 })}
-                {(!idea.links || idea.links.length === 0) && attachments.length === 0 && !showAddLink && (
+                {(!idea.links || idea.links.length === 0) && (Array.isArray(attachments) ? attachments : []).length === 0 && !showAddLink && (
                   <div className="col-span-2 text-[10px] text-gray-400 italic text-center py-3">No documents or attachments yet.</div>
                 )}
               </div>
