@@ -147,7 +147,7 @@ export default function AdminPage() {
                     <div className="flex items-center gap-1">Joined <ArrowUpDown className="w-3 h-3" /></div>
                   </th>
                   <th className="px-6 py-4 font-black text-[10px] text-gray-400 uppercase tracking-widest cursor-pointer hover:text-gray-700" onClick={() => toggleUserSort('lastLoginAt')}>
-                    <div className="flex items-center gap-1">Last Login <ArrowUpDown className="w-3 h-3" /></div>
+                    <div className="flex items-center gap-1">Last Used <ArrowUpDown className="w-3 h-3" /></div>
                   </th>
                 </tr>
               </thead>
