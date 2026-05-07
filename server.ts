@@ -64,7 +64,7 @@ app.get("/health", (_req, res) => {
 // Auth Middleware
 const authenticate = (req: any, res: any, next: any) => {
   const authHeader = req.headers.authorization;
-  const token = authHeader?.startsWith('Bearer ') ? authHeader.split(' ')[1] : null;
+  const token = authHeader?.startsWith('Bearer ') ? authHeader.split(' ')[1] : (req.query.token as string | null);
 
   if (!token) return res.status(401).json({ error: 'Unauthorized' });
   try {
@@ -517,6 +517,30 @@ app.get('/api/ideas/:id/attachments', authenticate, async (req: any, res) => {
     res.json(attachments);
   } catch (err: any) {
     res.status(500).json({ error: 'Failed to fetch attachments', details: err.message });
+  }
+});
+
+app.get('/api/attachments/:id/raw/:filename', authenticate, async (req: any, res) => {
+  try {
+    const attachment = await prisma.fileAttachment.findUnique({
+      where: { id: req.params.id },
+      include: { idea: { include: { collaborators: true } } }
+    });
+    if (!attachment) return res.status(404).send('Not found');
+    
+    const hasAccess = attachment.idea.ownerId === req.userId || attachment.idea.collaborators.some(c => c.id === req.userId);
+    if (!hasAccess) return res.status(403).send('Access denied');
+
+    const base64Data = attachment.content.split(';base64,').pop();
+    if (!base64Data) return res.status(400).send('Invalid file format');
+    
+    const buffer = Buffer.from(base64Data, 'base64');
+    
+    res.setHeader('Content-Type', attachment.fileType);
+    res.setHeader('Content-Disposition', `inline; filename="${attachment.fileName}"`);
+    res.send(buffer);
+  } catch (err: any) {
+    res.status(500).send('Error loading file');
   }
 });
 
