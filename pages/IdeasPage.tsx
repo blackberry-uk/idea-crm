@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useStore } from '../store/useStore.ts';
 import { Link } from 'react-router-dom';
-import { Plus, Lightbulb, MessageSquare, ShieldCheck, ArrowUpDown, Archive, ChevronRight, ChevronDown } from 'lucide-react';
+import { Plus, Lightbulb, MessageSquare, ShieldCheck, ArrowUpDown, Archive, ChevronRight, ChevronDown, Search, X } from 'lucide-react';
 import IdeaModal from '../components/IdeaModal';
 import QuickNoteModal from '../components/QuickNoteModal';
 import { apiClient } from '../lib/api/client';
@@ -19,6 +19,7 @@ const IdeasPage: React.FC = () => {
   const [inviteMsg, setInviteMsg] = useState('');
   const [showAddForm, setShowAddForm] = useState(false);
   const [activeEntity, setActiveEntity] = useState('All');
+  const [searchQuery, setSearchQuery] = useState('');
   const [quickNoteIdea, setQuickNoteIdea] = useState<{ id: string, title: string } | null>(() => {
     const saved = localStorage.getItem('active_quick_note_idea');
     return saved ? JSON.parse(saved) : null;
@@ -143,6 +144,7 @@ const IdeasPage: React.FC = () => {
   const sortedIdeas = topLevelIdeas
     .filter(idea => activeEntity === 'All' || idea.entity === activeEntity)
     .filter(idea => showArchived ? idea.status === 'Archived' : idea.status !== 'Archived')
+    .filter(idea => !searchQuery || idea.title.toLowerCase().includes(searchQuery.toLowerCase()) || (idea.entity && idea.entity.toLowerCase().includes(searchQuery.toLowerCase())))
     .sort((a, b) => {
       const dir = sortDir === 'asc' ? 1 : -1;
       switch (sortCol) {
@@ -166,6 +168,9 @@ const IdeasPage: React.FC = () => {
   );
 
   const archivedCount = processedIdeas.filter(i => i.status === 'Archived' && !i.parentId).length;
+  const getIdeaCount = (ent: string) => {
+    return topLevelIdeas.filter(i => (ent === 'All' || i.entity === ent) && i.status !== 'Archived').length;
+  };
 
   // Get all top-level, non-archived ideas for the "Move under" submenu
   const moveTargets = processedIdeas.filter(i => !i.parentId && i.status !== 'Archived');
@@ -241,6 +246,16 @@ const IdeasPage: React.FC = () => {
         <tr className={`ideas-row ${idea.status === 'Archived' ? 'ideas-row--archived' : ''} ${depth > 0 ? 'ideas-row--child' : ''}`}>
           <td className="ideas-td" style={depth > 0 ? { paddingLeft: `${depth * 2}rem` } : undefined}>
             <div className="ideas-title-cell" style={{ position: 'relative' }}>
+              <div 
+                className={`w-2 h-2 rounded-full flex-shrink-0 ${
+                  ['Ideation', 'Scoping', 'Backlog'].includes(idea.status) ? 'bg-yellow-400' :
+                  ['Launched', 'Execution', 'Active', 'Done'].includes(idea.status) ? 'bg-green-500' :
+                  ['Prototype', 'Proposal', 'Business Plan', 'Testing', 'Approval', 'Capital Raise'].includes(idea.status) ? 'bg-indigo-500' :
+                  idea.status === 'Dead' || idea.status === 'Archived' ? 'bg-red-500' : 'bg-gray-300'
+                }`} 
+                style={{ marginRight: '6px' }}
+                title={idea.status}
+              />
               {depth > 0 && <span className="ideas-tree-connector">└</span>}
               {depth === 0 && hasChildren ? (
                 <button className="ideas-expand-btn" onClick={() => toggleExpanded(idea.id)}>
@@ -257,7 +272,14 @@ const IdeasPage: React.FC = () => {
               {hasChildren && <span className="ideas-child-count">{activeChildren.length}</span>}
             </div>
           </td>
-          <td className="ideas-td ideas-td--hide-mobile"><span className="ideas-entity-badge">{idea.entity}</span></td>
+          <td className="ideas-td ideas-td--hide-mobile">
+            <span 
+              className="ideas-entity-badge"
+              style={idea.entity === 'INTERFRONTERA' ? { background: '#dcfce7', color: '#166534', borderColor: '#bbf7d0' } : { background: '#f3f4f6', color: '#4b5563', borderColor: '#e5e7eb' }}
+            >
+              <span className="opacity-50 mr-1">•</span>{idea.entity}
+            </span>
+          </td>
           <td className="ideas-td ideas-td--center ideas-td--muted">{format(new Date(idea.lastActivityDate), 'MMM d')}</td>
           <td className="ideas-td ideas-td--center"><span className="ideas-count" style={{ color: 'var(--primary)' }}><MessageSquare className="w-3 h-3" />{idea.noteCount}</span></td>
           <td className="ideas-td ideas-td--center"><span className="ideas-count ideas-count--amber"><ShieldCheck className="w-3 h-3" />{idea.todoCount}</span></td>
@@ -297,45 +319,85 @@ const IdeasPage: React.FC = () => {
 
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Project Pipeline</h1>
-          <p className="text-sm text-gray-400">{sortedIdeas.length} Projects</p>
+          <h1 className="text-4xl font-bold text-gray-900 tracking-tight" style={{ fontFamily: 'Georgia, "Times New Roman", serif' }}>Project Pipeline</h1>
+          <div className="flex items-center gap-2 mt-2 text-[10px] uppercase font-bold tracking-wider text-gray-400">
+            <span className="bg-white border border-gray-200 text-gray-600 px-2 py-0.5 rounded-full flex items-center gap-1.5"><div className="w-1.5 h-1.5 bg-green-500 rounded-full"></div>{sortedIdeas.length} active projects</span>
+            <span>•</span>
+            <span>Last sync · just now</span>
+            <span>•</span>
+            <span>Sorted by {sortCol} · {sortDir}</span>
+          </div>
         </div>
-        <button
-          onClick={() => setShowAddForm(true)}
-          className="flex items-center justify-center gap-2 text-white px-5 py-2 rounded-xl font-semibold shadow-lg transition-all active:scale-95 text-sm"
-          style={{ backgroundColor: 'var(--primary)', boxShadow: '0 10px 15px -3px var(--primary-shadow)' }}
-        >
-          <Plus className="w-4 h-4" />
-          New Project
-        </button>
+        <div className="flex items-center gap-2">
+          <button className="flex items-center justify-center gap-2 bg-white text-gray-600 border border-gray-200 px-3 py-1.5 rounded-lg text-[11px] font-bold shadow-sm transition-all hover:bg-gray-50 active:scale-95">
+            Filter
+          </button>
+          <button className="flex items-center justify-center gap-2 bg-white text-gray-600 border border-gray-200 px-3 py-1.5 rounded-lg text-[11px] font-bold shadow-sm transition-all hover:bg-gray-50 active:scale-95">
+            <ArrowUpDown className="w-3.5 h-3.5" />
+            Group
+          </button>
+          <button
+            onClick={() => setShowAddForm(true)}
+            className="flex items-center justify-center gap-1.5 text-white px-4 py-1.5 rounded-lg font-bold shadow-md transition-all active:scale-95 text-[11px]"
+            style={{ backgroundColor: '#111827', boxShadow: '0 4px 6px -1px rgba(17, 24, 39, 0.2)' }}
+          >
+            <Plus className="w-3.5 h-3.5" />
+            New Project
+          </button>
+        </div>
       </div>
 
-      {/* Entity Filters */}
-      <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-hide">
-        {entities.map(entity => (
+      {/* Entity Filters & Search */}
+      <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4 bg-white px-2 py-2 rounded-2xl shadow-sm border border-gray-100">
+        <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-hide pb-1 xl:pb-0">
+          {entities.map(entity => {
+            const count = getIdeaCount(entity);
+            return (
+              <button
+                key={entity}
+                onClick={() => { setActiveEntity(entity); setShowArchived(false); }}
+                className={`flex items-center gap-2 px-4 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider whitespace-nowrap transition-all border ${activeEntity === entity && !showArchived
+                  ? 'bg-[#111827] text-white border-[#111827] shadow-md'
+                  : 'bg-white border-transparent text-gray-500 hover:bg-gray-50'
+                }`}
+              >
+                {entity}
+                <span className={`px-1.5 py-0.5 rounded-full text-[9px] ${activeEntity === entity && !showArchived ? 'bg-white/20 text-white' : 'bg-gray-100 text-gray-500'}`}>{count}</span>
+              </button>
+            );
+          })}
+          <span className="mx-1 text-gray-200">|</span>
           <button
-            key={entity}
-            onClick={() => { setActiveEntity(entity); setShowArchived(false); }}
-            className={`px-4 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider whitespace-nowrap transition-all border shadow-sm ${activeEntity === entity && !showArchived
-              ? 'text-white'
-              : 'bg-white border-gray-100 text-gray-400 hover:border-[var(--primary)]'
+            onClick={() => setShowArchived(!showArchived)}
+            className={`flex items-center gap-2 px-4 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider whitespace-nowrap transition-all border ${showArchived
+              ? 'bg-[#111827] text-white border-[#111827] shadow-md'
+              : 'bg-white border-transparent text-gray-500 hover:bg-gray-50'
             }`}
-            style={activeEntity === entity && !showArchived ? { backgroundColor: 'var(--primary)', borderColor: 'var(--primary)' } : {}}
           >
-            {entity}
+            <Archive className="w-3 h-3" />
+            Archived
+            <span className={`px-1.5 py-0.5 rounded-full text-[9px] ${showArchived ? 'bg-white/20 text-white' : 'bg-gray-100 text-gray-500'}`}>{archivedCount}</span>
           </button>
-        ))}
-        <span className="mx-1 text-gray-200">|</span>
-        <button
-          onClick={() => setShowArchived(!showArchived)}
-          className={`px-4 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider whitespace-nowrap transition-all border shadow-sm flex items-center gap-1.5 ${showArchived
-            ? 'bg-gray-700 border-gray-700 text-white'
-            : 'bg-white border-gray-100 text-gray-400 hover:border-gray-300'
-          }`}
-        >
-          <Archive className="w-3 h-3" />
-          Archived ({archivedCount})
-        </button>
+        </div>
+
+        <div className="relative w-full xl:w-72 flex-shrink-0">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
+          <input
+            type="text"
+            placeholder="Search projects, people, notes..."
+            className="w-full pl-9 pr-8 py-1.5 bg-white border border-gray-200 rounded-lg text-[11px] font-semibold transition-all focus:outline-none focus:ring-2 focus:ring-gray-200"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
+          {searchQuery && (
+            <button 
+              onClick={() => setSearchQuery('')} 
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 p-0.5 rounded-full hover:bg-gray-100 transition-colors"
+            >
+              <X className="w-3 h-3" />
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Sortable Ideas Table */}
