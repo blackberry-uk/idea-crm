@@ -202,6 +202,10 @@ const ThemeWrapper: React.FC<{ children: React.ReactNode }> = ({ children }) => 
   const { data } = useStore();
   const theme = getTheme(data.currentUser?.theme, data.currentUser?.customTheme);
 
+  React.useEffect(() => {
+    document.body.style.backgroundColor = theme.appBg;
+  }, [theme.appBg]);
+
   const style = {
     '--primary': theme.primary,
     '--primary-shadow': theme.primary + '33', // ~20% opacity hex
@@ -216,10 +220,11 @@ const ThemeWrapper: React.FC<{ children: React.ReactNode }> = ({ children }) => 
     '--text-main': theme.textMain,
     '--border': theme.border,
     '--ui-bg': theme.uiBg,
+    '--app-bg': theme.appBg,
   } as React.CSSProperties;
 
   return (
-    <div style={style} className="min-h-screen bg-[var(--ui-bg)] transition-colors duration-500">
+    <div style={style} className="min-h-screen bg-[var(--app-bg)] transition-colors duration-500">
       {children}
     </div>
   );
