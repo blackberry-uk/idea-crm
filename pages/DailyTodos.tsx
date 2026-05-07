@@ -445,8 +445,20 @@ const DailyTodos: React.FC = () => {
         {dateSlots.map(dateKey => {
           const { day, weekday, monthYear, isToday, isPast } = formatDateHeader(dateKey);
           const dayTodos = grouped.get(dateKey) || [];
-          const completedCount = dayTodos.filter(t => t.completed).length;
-          const totalCount = dayTodos.length;
+          const getTaskCounts = (tasks: DailyTodo[]) => {
+            let total = 0;
+            let completed = 0;
+            const count = (list: DailyTodo[]) => {
+              list.forEach(t => {
+                total++;
+                if (t.completed) completed++;
+                if (t.children && t.children.length > 0) count(t.children);
+              });
+            };
+            count(tasks);
+            return { total, completed };
+          };
+          const { completed: completedCount, total: totalCount } = getTaskCounts(dayTodos);
           const isCollapsed = collapsedDays.has(dateKey) && !isToday;
 
           return (
