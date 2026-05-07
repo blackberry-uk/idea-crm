@@ -1435,7 +1435,7 @@ const IdeaDetail: React.FC = () => {
                           }
                         }
                         const currentLinks = idea.links || [];
-                        updateIdea(idea.id, { links: [...currentLinks, { title, url: finalUrl }] } as any);
+                        updateIdea(idea.id, { links: [...currentLinks, { title, url: finalUrl, createdAt: new Date().toISOString() }] } as any);
                         setNewLinkTitle('');
                         setNewLinkUrl('');
                         setShowAddLink(false);
@@ -1468,7 +1468,7 @@ const IdeaDetail: React.FC = () => {
               )}
 
               <div className="grid grid-cols-2 gap-2">
-                {(idea.links || []).map((link: { title: string; url: string }, idx: number) => {
+                {(idea.links || []).map((link: { title: string; url: string; createdAt?: string }, idx: number) => {
                   let iconText = '🔗';
                   let iconBg = 'bg-gray-400';
                   const lowerUrl = link.url.toLowerCase();
@@ -1489,6 +1489,11 @@ const IdeaDetail: React.FC = () => {
                       >
                         {link.title}
                       </button>
+                      {link.createdAt && (
+                        <div className="absolute -top-2 right-1 text-[8px] bg-white border border-gray-200 text-gray-400 font-bold px-1 rounded shadow-sm">
+                          {format(parseISO(link.createdAt), 'MMM d')}
+                        </div>
+                      )}
                       {isOwner && (
                         <button
                           onClick={() => {
