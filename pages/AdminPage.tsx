@@ -57,6 +57,17 @@ export default function AdminPage() {
     }
   };
 
+  const handleDeleteUser = async (id: string, name: string) => {
+    if (!window.confirm(`CRITICAL WARNING: Are you completely sure you want to permanently delete user "${name}" and ALL their associated data (Projects, Notes, Contacts)? This cannot be undone.`)) return;
+    try {
+      await apiClient.delete(`/admin/users/${id}`);
+      showToast('User deleted successfully', 'success');
+      fetchAdminData();
+    } catch (err: any) {
+      showToast(err.response?.data?.error || 'Failed to delete user', 'error');
+    }
+  };
+
   if (!isAdmin) {
     return (
       <div className="flex flex-col items-center justify-center h-full">
@@ -149,6 +160,7 @@ export default function AdminPage() {
                   <th className="px-6 py-4 font-black text-[10px] text-gray-400 uppercase tracking-widest cursor-pointer hover:text-gray-700" onClick={() => toggleUserSort('lastLoginAt')}>
                     <div className="flex items-center gap-1">Last Used <ArrowUpDown className="w-3 h-3" /></div>
                   </th>
+                  <th className="px-6 py-4 font-black text-[10px] text-gray-400 uppercase tracking-widest text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
@@ -175,6 +187,17 @@ export default function AdminPage() {
                       </td>
                       <td className="px-6 py-4 font-medium text-gray-600">
                         {u.lastLoginAt ? format(new Date(u.lastLoginAt), 'MMM d, yyyy h:mm a') : <span className="text-gray-400 italic">Never</span>}
+                      </td>
+                      <td className="px-6 py-4 text-right">
+                        {u.email !== MASTER_EMAIL && (
+                          <button
+                            onClick={() => handleDeleteUser(u.id, u.name || u.email)}
+                            className="inline-flex items-center justify-center p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
+                            title="Delete User"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        )}
                       </td>
                     </tr>
                   );

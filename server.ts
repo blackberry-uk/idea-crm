@@ -276,6 +276,46 @@ app.delete('/api/admin/invitations/:id', authenticate, async (req: any, res) => 
   }
 });
 
+app.delete('/api/admin/users/:id', authenticate, async (req: any, res) => {
+  try {
+    const admin = await prisma.user.findUnique({ where: { id: req.userId } });
+    if (admin?.email !== 'fernando.mora.uk@gmail.com') return res.status(403).json({ error: 'Forbidden' });
+
+    const userIdToDelete = req.params.id;
+    if (userIdToDelete === req.userId) return res.status(400).json({ error: 'Cannot delete yourself' });
+
+    // Identify owned ideas to manually cascade delete related entities without onDelete:Cascade
+    const ownedIdeas = await prisma.idea.findMany({ where: { ownerId: userIdToDelete }, select: { id: true } });
+    const ideaIds = ownedIdeas.map(i => i.id);
+
+    await prisma.$transaction([
+      // Clean up idea relations
+      prisma.fileAttachment.deleteMany({ where: { ideaId: { in: ideaIds } } }),
+      prisma.interaction.deleteMany({ where: { relatedIdeaId: { in: ideaIds } } }),
+      prisma.invitation.deleteMany({ where: { ideaId: { in: ideaIds } } }),
+      
+      // Clean up direct user relations
+      prisma.reminderImage.deleteMany({ where: { userId: userIdToDelete } }),
+      prisma.comment.deleteMany({ where: { authorId: userIdToDelete } }),
+      prisma.interaction.deleteMany({ where: { createdById: userIdToDelete } }),
+      prisma.invitation.deleteMany({ where: { senderId: userIdToDelete } }),
+      prisma.dailyTodo.deleteMany({ where: { userId: userIdToDelete } }),
+      prisma.note.deleteMany({ where: { ownerId: userIdToDelete } }),
+      prisma.contact.deleteMany({ where: { ownerId: userIdToDelete } }),
+      prisma.entity.deleteMany({ where: { ownerId: userIdToDelete } }),
+      prisma.idea.deleteMany({ where: { ownerId: userIdToDelete } }),
+      
+      // Finally delete the user
+      prisma.user.delete({ where: { id: userIdToDelete } })
+    ]);
+
+    res.json({ success: true });
+  } catch (err: any) {
+    console.error('Admin delete user error:', err);
+    res.status(500).json({ error: 'Failed to delete user' });
+  }
+});
+
 // --- DATA ROUTES ---
 app.get('/api/data', authenticate, async (req: any, res) => {
   const userId = req.userId;
