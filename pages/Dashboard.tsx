@@ -790,14 +790,26 @@ const Dashboard: React.FC = () => {
     );
   }
 
+  const getTaskCounts = (tasks: DailyTodoData[]) => {
+    let total = 0;
+    let completed = 0;
+    const count = (list: DailyTodoData[]) => {
+      list.forEach(t => {
+        total++;
+        if (t.completed) completed++;
+        if (t.children && t.children.length > 0) count(t.children);
+      });
+    };
+    count(tasks);
+    return { total, completed };
+  };
+
   const selectedDayTodos = sortTodos(todosForDate(selectedDate));
-  const completedCount = selectedDayTodos.filter(t => t.completed).length;
-  const totalCount = selectedDayTodos.length;
+  const { total: totalCount, completed: completedCount } = getTaskCounts(selectedDayTodos);
   const isSelectedToday = isToday(selectedDate);
 
   const weekTodos = allTodos.filter(t => t.date && weekDays.some(wd => toDateKey(wd) === String(t.date).slice(0, 10)) && t.status !== 'Archived');
-  const weekCompletedCount = weekTodos.filter(t => t.completed).length;
-  const weekTotalCount = weekTodos.length;
+  const { total: weekTotalCount, completed: weekCompletedCount } = getTaskCounts(weekTodos);
 
   const activeTotal = viewMode === 'day' ? totalCount : weekTotalCount;
   const activeCompleted = viewMode === 'day' ? completedCount : weekCompletedCount;
