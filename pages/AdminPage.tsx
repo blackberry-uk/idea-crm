@@ -141,6 +141,7 @@ export default function AdminPage() {
               <thead className="bg-white sticky top-0 z-10 border-b border-gray-200">
                 <tr>
                   <th className="px-6 py-4 font-black text-[10px] text-gray-400 uppercase tracking-widest">Name & Email</th>
+                  <th className="px-6 py-4 font-black text-[10px] text-gray-400 uppercase tracking-widest">Invited By</th>
                   <th className="px-6 py-4 font-black text-[10px] text-gray-400 uppercase tracking-widest text-center">Projects (Own / Collab)</th>
                   <th className="px-6 py-4 font-black text-[10px] text-gray-400 uppercase tracking-widest cursor-pointer hover:text-gray-700" onClick={() => toggleUserSort('createdAt')}>
                     <div className="flex items-center gap-1">Joined <ArrowUpDown className="w-3 h-3" /></div>
@@ -151,27 +152,33 @@ export default function AdminPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {sortedUsers.map(u => (
-                  <tr key={u.id} className="hover:bg-gray-50 transition-colors">
-                    <td className="px-6 py-4">
-                      <div className="font-bold text-gray-900">{u.name || 'Unnamed User'}</div>
-                      <div className="text-xs text-gray-500">{u.email}</div>
-                    </td>
-                    <td className="px-6 py-4 text-center">
-                      <div className="inline-flex items-center gap-2 bg-gray-100 px-3 py-1 rounded-full text-xs font-bold text-gray-700">
-                        <span>{u._count?.ideasOwned || 0}</span>
-                        <span className="text-gray-300">/</span>
-                        <span>{u._count?.ideasCollaborating || 0}</span>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 font-medium text-gray-600">
-                      {format(new Date(u.createdAt), 'MMM d, yyyy')}
-                    </td>
-                    <td className="px-6 py-4 font-medium text-gray-600">
-                      {u.lastLoginAt ? format(new Date(u.lastLoginAt), 'MMM d, yyyy h:mm a') : <span className="text-gray-400 italic">Never</span>}
-                    </td>
-                  </tr>
-                ))}
+                {sortedUsers.map(u => {
+                  const invite = invitations.slice().reverse().find(i => i.email.toLowerCase() === u.email.toLowerCase());
+                  return (
+                    <tr key={u.id} className="hover:bg-gray-50 transition-colors">
+                      <td className="px-6 py-4">
+                        <div className="font-bold text-gray-900">{u.name || 'Unnamed User'}</div>
+                        <div className="text-xs text-gray-500">{u.email}</div>
+                      </td>
+                      <td className="px-6 py-4 text-xs font-medium text-gray-400">
+                        {invite ? invite.sender?.name : 'Self-registered'}
+                      </td>
+                      <td className="px-6 py-4 text-center">
+                        <div className="inline-flex items-center gap-2 bg-gray-100 px-3 py-1 rounded-full text-xs font-bold text-gray-700">
+                          <span>{u._count?.ideasOwned || 0}</span>
+                          <span className="text-gray-300">/</span>
+                          <span>{u._count?.ideasCollaborating || 0}</span>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 font-medium text-gray-600">
+                        {format(new Date(u.createdAt), 'MMM d, yyyy')}
+                      </td>
+                      <td className="px-6 py-4 font-medium text-gray-600">
+                        {u.lastLoginAt ? format(new Date(u.lastLoginAt), 'MMM d, yyyy h:mm a') : <span className="text-gray-400 italic">Never</span>}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           ) : (
