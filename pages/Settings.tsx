@@ -104,7 +104,7 @@ const Settings: React.FC = () => {
       }
     }, 1500);
     return () => clearTimeout(timer);
-  }, [personalEntities, ideaConfigs, categories, theme, customTheme, userName, avatarUrl]);
+  }, [personalEntities, ideaConfigs, categories, theme, customTheme, userName, avatarUrl, avatarColor]);
 
   const addIdeaType = () => {
     setIdeaConfigs([...ideaConfigs, { type: 'New Type', stages: ['Backlog', 'Done'] }]);
