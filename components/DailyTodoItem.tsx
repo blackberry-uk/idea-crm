@@ -5,7 +5,7 @@ import { TaskChevronMenu } from './TaskChevronMenu';
 import { MentionInput } from './MentionInput';
 import { useStore } from '../store/useStore';
 import { mentionVariantsForName } from '../lib/taskMentions';
-import { getInitials } from '../lib/utils';
+import { getInitials, getAvatarColor } from '../lib/utils';
 
 export interface DailyTodoData {
   id: string;
@@ -261,13 +261,13 @@ const DailyTodoItem: React.FC<DailyTodoItemProps> = ({
                   title={`Assigned to ${todo.assignee.name}`}
                   style={{
                     width: '16px', height: '16px', borderRadius: '50%',
-                    backgroundColor: todo.assignee.avatarColor || '#ec4899', // Default to bright pink if no color
+                    backgroundColor: getAvatarColor(todo.assignee.id), // Fetch determinist color
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                     fontSize: '9px', fontWeight: 800, color: '#fff', marginLeft: '6px',
                     flexShrink: 0
                   }}
                 >
-                  {getInitials(todo.assignee.name)}
+                  {todo.assignee.avatarUrl ? todo.assignee.avatarUrl.slice(0,3) : getInitials(todo.assignee.name)}
                 </div>
               )}
             </div>

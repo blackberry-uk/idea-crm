@@ -10,7 +10,7 @@ import { DailyTodoData } from './DailyTodoItem';
 import { useStore } from '../store/useStore';
 import { format, startOfMonth, endOfMonth, getDay, addMonths, subMonths, isToday } from 'date-fns';
 import { extractDelimitedMentions, getActiveMentionQuery, replaceActiveMention } from '../lib/taskMentions';
-import { getInitials } from '../lib/utils';
+import { getInitials, getAvatarColor } from '../lib/utils';
 
 interface TaskDetailModalProps {
   todo: DailyTodoData;
@@ -634,8 +634,8 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                   {todo.assigneeId ? (() => {
                     const assigneeUser = data.users.find(u => u.id === todo.assigneeId);
                     return (
-                      <div style={{ width: '18px', height: '18px', borderRadius: '50%', backgroundColor: assigneeUser?.avatarColor || '#8b5cf6', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '9px', color: '#fff', fontWeight: 800 }}>
-                        {getInitials(assigneeUser?.name || '')}
+                      <div style={{ width: '18px', height: '18px', borderRadius: '50%', backgroundColor: getAvatarColor(assigneeUser?.id || ''), display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '9px', color: '#fff', fontWeight: 800 }}>
+                        {assigneeUser?.avatarUrl ? assigneeUser.avatarUrl.slice(0,3) : getInitials(assigneeUser?.name || '')}
                       </div>
                     );
                   })() : <User className="w-4 h-4 text-gray-500" />}
@@ -665,8 +665,8 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                             onClick={async () => { setSaving(true); await onUpdate(todo.id, { assigneeId: u.id }); setSaving(false); setShowAssigneePicker(false); }}
                             style={{ textAlign: 'left', padding: '6px 8px', borderRadius: '6px', fontSize: '12px', background: todo.assigneeId === u.id ? '#f3f4f6' : 'transparent', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}
                           >
-                            <div style={{ width: '16px', height: '16px', borderRadius: '50%', backgroundColor: u.avatarColor || '#8b5cf6', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '8px', color: '#fff', fontWeight: 800 }}>
-                              {getInitials(u.name)}
+                            <div style={{ width: '16px', height: '16px', borderRadius: '50%', backgroundColor: getAvatarColor(u.id), display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '8px', color: '#fff', fontWeight: 800 }}>
+                              {u.avatarUrl ? u.avatarUrl.slice(0,3) : getInitials(u.name)}
                             </div>
                             {u.name}
                           </button>

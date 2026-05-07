@@ -20,7 +20,7 @@ import {
 import { DEFAULT_IDEA_CONFIGS } from '../lib/idea-utils';
 import { IdeaConfig, ThemePalette } from '../types';
 import { THEMES } from '../lib/themes';
-
+import { getAvatarColor } from '../lib/utils';
 
 const CSS_COLORS = [
   "AliceBlue", "AntiqueWhite", "Aqua", "Aquamarine", "Azure", "Beige", "Bisque", "Black", "BlanchedAlmond", "Blue", "BlueViolet", "Brown", "BurlyWood", "CadetBlue", "Chartreuse", "Chocolate", "Coral", "CornflowerBlue", "Cornsilk", "Crimson", "Cyan", "DarkBlue", "DarkCyan", "DarkGoldenRod", "DarkGray", "DarkGreen", "DarkKhaki", "DarkMagenta", "DarkOliveGreen", "DarkOrange", "DarkOrchid", "DarkRed", "DarkSalmon", "DarkSeaGreen", "DarkSlateBlue", "DarkSlateGray", "DarkViolet", "DeepPink", "DeepSkyBlue", "DimGray", "DodgerBlue", "FireBrick", "FloralWhite", "ForestGreen", "Fuchsia", "Gainsboro", "GhostWhite", "Gold", "GoldenRod", "Gray", "Green", "GreenYellow", "HoneyDew", "HotPink", "IndianRed", "Indigo", "Ivory", "Khaki", "Lavender", "LavenderBlush", "LawnGreen", "LemonChiffon", "LightBlue", "LightCoral", "LightCyan", "LightGoldenRodYellow", "LightGray", "LightGreen", "LightPink", "LightSalmon", "LightSeaGreen", "LightSkyBlue", "LightSlateGray", "LightSteelBlue", "LightYellow", "Lime", "LimeGreen", "Linen", "Magenta", "Maroon", "MediumAquaMarine", "MediumBlue", "MediumOrchid", "MediumPurple", "MediumSeaGreen", "MediumSlateBlue", "MediumSpringGreen", "MediumTurquoise", "MediumVioletRed", "MidnightBlue", "MintCream", "MistyRose", "Moccasin", "NavajoWhite", "Navy", "OldLace", "Olive", "OliveDrab", "Orange", "OrangeRed", "Orchid", "PaleGoldenRod", "PaleGreen", "PaleTurquoise", "PaleVioletRed", "PapayaWhip", "PeachPuff", "Peru", "Pink", "Plum", "PowderBlue", "Purple", "RebeccaPurple", "Red", "RosyBrown", "RoyalBlue", "SaddleBrown", "Salmon", "SandyBrown", "SeaGreen", "SeaShell", "Sienna", "Silver", "SkyBlue", "SlateBlue", "SlateGray", "Snow", "SpringGreen", "SteelBlue", "Tan", "Teal", "Thistle", "Tomato", "Turquoise", "Violet", "Wheat", "White", "WhiteSmoke", "Yellow", "YellowGreen"
@@ -171,7 +171,7 @@ const Settings: React.FC = () => {
             <h2 className="text-lg font-bold">Personal Profile</h2>
           </div>
           <div className="flex flex-col sm:flex-row items-start sm:items-center gap-6 mb-6">
-            <div className={`w-20 h-20 shrink-0 rounded-2xl ${data.currentUser?.avatarColor || 'bg-gray-600'} flex items-center justify-center text-white text-3xl font-bold overflow-hidden shadow-sm border border-gray-100`}>
+            <div className={`w-20 h-20 shrink-0 rounded-2xl ${getAvatarColor(data.currentUser?.id || '')} flex items-center justify-center text-white text-3xl font-bold overflow-hidden shadow-sm border border-gray-100`}>
               {avatarUrl ? avatarUrl : (userName?.[0]?.toUpperCase() || data.currentUser?.name?.[0]?.toUpperCase() || 'U')}
             </div>
             <div className="flex-1 w-full space-y-4">
