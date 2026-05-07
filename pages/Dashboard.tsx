@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useStore } from '../store/useStore';
-import { format, startOfWeek, addDays as dateAddDays, isSameDay, isToday, isBefore, startOfDay, startOfMonth, endOfMonth, getDay, addMonths, subMonths } from 'date-fns';
+import { format, startOfWeek, addDays as dateAddDays, isSameDay, isToday, isBefore, startOfDay, startOfMonth, endOfMonth, getDay, addMonths, subMonths, parseISO } from 'date-fns';
 import { Link, useNavigate } from 'react-router-dom';
 import {
   CalendarDays, Calendar, Loader2, Plus, Send, Tag, ArrowDownToLine,
@@ -1243,13 +1243,18 @@ const Dashboard: React.FC = () => {
                     }}
                   >
                     {(!reminderImages[0].fileType || reminderImages[0].fileType.startsWith('image/')) ? (
-                      <img
-                        src={reminderImages[0].imageData}
-                        alt={reminderImages[0].caption || 'Reminder'}
-                        className="cl-gallery-img cl-gallery-img--pinned"
-                        style={{ transform: `rotate(${reminderImages[0].rotation || 0}deg)`, cursor: 'pointer' }}
-                        onClick={() => setPreviewContent(reminderImages[0])}
-                      />
+                      <div className="relative h-full w-full">
+                        <img
+                          src={reminderImages[0].imageData}
+                          alt={reminderImages[0].caption || 'Reminder'}
+                          className="cl-gallery-img cl-gallery-img--pinned h-full w-full object-cover"
+                          style={{ transform: `rotate(${reminderImages[0].rotation || 0}deg)`, cursor: 'pointer' }}
+                          onClick={() => setPreviewContent(reminderImages[0])}
+                        />
+                        <div className="absolute top-2 left-2 bg-black/60 text-white text-[9px] font-bold px-1.5 py-0.5 rounded backdrop-blur-sm pointer-events-none">
+                          {format(parseISO(reminderImages[0].createdAt), 'MMM d')}
+                        </div>
+                      </div>
                     ) : (
                       <div 
                         className="cl-gallery-img cl-gallery-img--pinned flex flex-col items-center justify-center bg-gray-100 cursor-pointer hover:bg-gray-200 transition-colors"
@@ -1258,6 +1263,9 @@ const Dashboard: React.FC = () => {
                       >
                         <div className="text-5xl mb-2">{getIconForFile(reminderImages[0].fileType || '', reminderImages[0].fileName || '')}</div>
                         <div className="text-sm font-bold text-gray-700 px-4 text-center truncate w-full">{reminderImages[0].fileName || 'Document'}</div>
+                        <div className="text-[10px] text-gray-400 font-medium text-center truncate w-full mt-1">
+                          Added {format(parseISO(reminderImages[0].createdAt), 'MMM d, h:mm a')}
+                        </div>
                       </div>
                     )}
                     <div className="cl-gallery-card-footer">
@@ -1310,13 +1318,18 @@ const Dashboard: React.FC = () => {
                           <GripVertical className="w-3 h-3" />
                         </div>
                         {(!img.fileType || img.fileType.startsWith('image/')) ? (
-                          <img
-                            src={img.imageData}
-                            alt={img.caption || 'Reminder'}
-                            className="cl-gallery-img cl-gallery-img--clickable"
-                            style={{ transform: `rotate(${img.rotation || 0}deg)` }}
-                            onClick={() => reorderReminderImages(img.id, reminderImages[0].id)}
-                          />
+                          <div className="relative h-full w-full">
+                            <img
+                              src={img.imageData}
+                              alt={img.caption || 'Reminder'}
+                              className="cl-gallery-img cl-gallery-img--clickable h-full w-full object-cover"
+                              style={{ transform: `rotate(${img.rotation || 0}deg)` }}
+                              onClick={() => reorderReminderImages(img.id, reminderImages[0].id)}
+                            />
+                            <div className="absolute top-1 right-1 bg-black/60 text-white text-[8px] font-bold px-1 py-0.5 rounded backdrop-blur-sm pointer-events-none z-10">
+                              {format(parseISO(img.createdAt), 'MMM d')}
+                            </div>
+                          </div>
                         ) : (
                           <div 
                             className="cl-gallery-img cl-gallery-img--clickable flex flex-col items-center justify-center bg-gray-100 h-full"
@@ -1325,6 +1338,9 @@ const Dashboard: React.FC = () => {
                           >
                             <div className="text-3xl mb-1">{getIconForFile(img.fileType || '', img.fileName || '')}</div>
                             <div className="text-[10px] font-bold text-gray-700 px-2 text-center truncate w-full">{img.fileName || 'Doc'}</div>
+                            <div className="text-[8px] text-gray-400 font-medium text-center truncate w-full mt-0.5">
+                              {format(parseISO(img.createdAt), 'MMM d')}
+                            </div>
                           </div>
                         )}
                         <div className="cl-gallery-card-footer">
