@@ -79,7 +79,32 @@ const ContactsPage: React.FC = () => {
     const noteCount = (data.notes || []).filter(n => 
       n.contactId === c.id || (Array.isArray(n.taggedContactIds) && n.taggedContactIds.includes(c.id))
     ).length;
-    return { ...c, noteCount, linkedEntityIds: parseEntityIds((c as any).linkedEntityIds) };
+
+    const projIds = new Set<string>();
+    data.notes.forEach(n => {
+      if (n.ideaId && (n.contactId === c.id || (Array.isArray(n.taggedContactIds) && n.taggedContactIds.includes(c.id)))) {
+        projIds.add(n.ideaId);
+      }
+    });
+    let linked: string[] = [];
+    try {
+      if (Array.isArray(c.linkedIdeaIds)) linked = c.linkedIdeaIds;
+      else if (typeof c.linkedIdeaIds === 'string') linked = JSON.parse(c.linkedIdeaIds || '[]');
+    } catch {}
+    linked.forEach(id => projIds.add(id));
+
+    const projectTitles = Array.from(projIds).map(id => {
+      const idea = data.ideas.find((i: any) => i.id === id);
+      return idea ? idea.title : '';
+    });
+
+    return { 
+      ...c, 
+      noteCount, 
+      linkedEntityIds: parseEntityIds((c as any).linkedEntityIds),
+      projIds: Array.from(projIds),
+      projectTitles 
+    };
   });
 
   const filteredContacts = contactsWithNoteCount
@@ -88,12 +113,14 @@ const ContactsPage: React.FC = () => {
         const e = data.entities.find((ent: any) => ent.id === eid);
         return e ? e.name : '';
       }).join(' ');
+      const projectsText = c.projectTitles.join(' ');
 
       return c.fullName.toLowerCase().includes(filterQuery.toLowerCase()) ||
         (c.org || '').toLowerCase().includes(filterQuery.toLowerCase()) ||
         (c.role || '').toLowerCase().includes(filterQuery.toLowerCase()) ||
         (c.notes || '').toLowerCase().includes(filterQuery.toLowerCase()) ||
-        entitiesText.toLowerCase().includes(filterQuery.toLowerCase());
+        entitiesText.toLowerCase().includes(filterQuery.toLowerCase()) ||
+        projectsText.toLowerCase().includes(filterQuery.toLowerCase());
     })
     .sort((a, b) => {
       let comparison = 0;
@@ -136,33 +163,26 @@ const ContactsPage: React.FC = () => {
   };
 
   const renderProjectPills = (contact: any) => {
-    const projIds = new Set<string>();
-    
-    data.notes.forEach(n => {
-      if (n.ideaId && (n.contactId === contact.id || n.taggedContactIds?.includes(contact.id))) {
-        projIds.add(n.ideaId);
-      }
-    });
-    
-    let linked: string[] = [];
-    try {
-      if (Array.isArray(contact.linkedIdeaIds)) linked = contact.linkedIdeaIds;
-      else if (typeof contact.linkedIdeaIds === 'string') linked = JSON.parse(contact.linkedIdeaIds || '[]');
-    } catch {}
-    
-    linked.forEach(id => projIds.add(id));
-
-    if (projIds.size === 0) return <span className="text-gray-300 text-xs">—</span>;
+    const projIds = contact.projIds || [];
+    if (projIds.length === 0) return <span className="text-gray-300 text-xs">—</span>;
 
     return (
       <div className="flex flex-wrap gap-1.5">
-        {Array.from(projIds).map(id => {
+        {projIds.map((id: string) => {
           const idea = data.ideas.find((i: any) => i.id === id);
           if (!idea) return null;
           return (
-            <span key={id} className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold bg-indigo-50 text-indigo-600 truncate max-w-[120px]" title={idea.title}>
+            <button 
+              key={id} 
+              className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold bg-indigo-50 text-indigo-600 truncate max-w-[120px] hover:opacity-80 transition-opacity active:scale-95 cursor-pointer border-none outline-none" 
+              title={idea.title}
+              onClick={(e) => {
+                e.stopPropagation();
+                setFilterQuery(idea.title);
+              }}
+            >
               {idea.title}
-            </span>
+            </button>
           );
         })}
       </div>
@@ -218,12 +238,20 @@ const ContactsPage: React.FC = () => {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
           <input
             type="text"
-            placeholder="Filter by name, role, entity, description..."
-            className="w-full pl-10 pr-4 py-2 bg-gray-50 border-none rounded-lg text-sm transition-all focus:outline-none focus:ring-2"
+            placeholder="Filter by name, role, entity, project, description..."
+            className="w-full pl-10 pr-10 py-2 bg-gray-50 border-none rounded-lg text-sm transition-all focus:outline-none focus:ring-2"
             style={{ ringColor: 'var(--primary)' }}
             value={filterQuery}
             onChange={(e) => setFilterQuery(e.target.value)}
           />
+          {filterQuery && (
+            <button 
+              onClick={() => setFilterQuery('')} 
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 p-1 rounded-full hover:bg-gray-200 transition-colors"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          )}
         </div>
       </div>
 
@@ -303,7 +331,7 @@ const ContactsPage: React.FC = () => {
                               ) : null}
                               {contact.linkedinUrl ? (
                                 <a href={contact.linkedinUrl} target="_blank" rel="noopener noreferrer" className="text-indigo-500 hover:underline flex items-center gap-1.5 text-xs truncate">
-                                  <Linkedin className="w-3 h-3 shrink-0" /> {contact.linkedinUrl.replace(/^https?:\/\/(www\.)?linkedin\.com\/in\//, '').replace(/\/$/, '')}
+                                  <Linkedin className="w-3 h-3 shrink-0" /> {contact.linkedinUrl}
                                 </a>
                               ) : null}
                               {!contact.email && !contact.linkedinUrl && (
