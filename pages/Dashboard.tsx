@@ -211,6 +211,13 @@ const Dashboard: React.FC = () => {
   // Reminder gallery
   type ReminderImage = { id: string; imageData: string; caption: string | null; rotation: number; sortOrder: number };
   const [reminderImages, setReminderImages] = useState<ReminderImage[]>([]);
+  const [previewContent, setPreviewContent] = useState<any | null>(null);
+
+  const isMicrosoftFile = (fileType: string, fileName: string) => {
+    const lowerType = fileType?.toLowerCase() || '';
+    const lowerName = fileName?.toLowerCase() || '';
+    return lowerType.includes('word') || lowerType.includes('excel') || lowerType.includes('spreadsheet') || lowerType.includes('presentation') || lowerType.includes('powerpoint') || lowerName.match(/\.(doc|docx|xls|xlsx|ppt|pptx)$/i);
+  };
   const [galleryDragId, setGalleryDragId] = useState<string | null>(null);
   const galleryFileRef = useRef<HTMLInputElement>(null);
 
@@ -226,18 +233,52 @@ const Dashboard: React.FC = () => {
   // removed global click listener
 
   const uploadReminderImage = async (file: File) => {
-    return new Promise<void>((resolve) => {
-      const reader = new FileReader();
-      reader.onload = async () => {
-        try {
-          const img = await apiClient.post('/reminder-images', { imageData: reader.result as string });
-          setReminderImages(prev => [...prev, img]);
-          showToast('Image added', 'success');
-        } catch (err) { showToast('Failed to upload', 'error'); }
-        resolve();
-      };
-      reader.readAsDataURL(file);
-    });
+    if (file.size > 15 * 1024 * 1024) {
+      showToast('File size must be under 15MB', 'error');
+      return;
+    }
+    
+    try {
+      const base64 = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+
+      const CHUNK_SIZE = 3 * 1024 * 1024;
+      const numChunks = Math.ceil(base64.length / CHUNK_SIZE);
+
+      if (numChunks === 1) {
+        const img = await apiClient.post('/reminder-images', { 
+          imageData: base64,
+          fileType: file.type || 'application/octet-stream',
+          fileName: file.name,
+          fileSize: file.size
+        });
+        setReminderImages(prev => [...prev, img]);
+      } else {
+        const uploadId = Math.random().toString(36).substring(2) + Date.now().toString(36);
+        for (let i = 0; i < numChunks; i++) {
+          const chunk = base64.slice(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE);
+          await apiClient.post('/reminder-images/chunk', {
+            uploadId,
+            chunkIndex: i,
+            content: chunk
+          });
+        }
+        const img = await apiClient.post('/reminder-images/finalize', {
+          uploadId,
+          fileType: file.type || 'application/octet-stream',
+          fileName: file.name,
+          fileSize: file.size
+        });
+        setReminderImages(prev => [...prev, img]);
+      }
+      showToast('File added successfully', 'success');
+    } catch (err) {
+      showToast('Failed to upload file', 'error');
+    }
   };
 
   const deleteReminderImage = async (id: string) => {
@@ -1093,12 +1134,12 @@ const Dashboard: React.FC = () => {
               </div>
               <button className="cl-gallery-upload-btn" onClick={() => galleryFileRef.current?.click()}>
                 <Plus className="w-3.5 h-3.5" />
-                Add Image
+                Add File/Image
               </button>
               <input
                 ref={galleryFileRef}
                 type="file"
-                accept="image/*"
+                accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx"
                 multiple
                 style={{ display: 'none' }}
                 onChange={async (e) => {
@@ -1127,12 +1168,24 @@ const Dashboard: React.FC = () => {
                       setGalleryDragId(null);
                     }}
                   >
-                    <img
-                      src={reminderImages[0].imageData}
-                      alt={reminderImages[0].caption || 'Reminder'}
-                      className="cl-gallery-img cl-gallery-img--pinned"
-                      style={{ transform: `rotate(${reminderImages[0].rotation || 0}deg)` }}
-                    />
+                    {(!reminderImages[0].fileType || reminderImages[0].fileType.startsWith('image/')) ? (
+                      <img
+                        src={reminderImages[0].imageData}
+                        alt={reminderImages[0].caption || 'Reminder'}
+                        className="cl-gallery-img cl-gallery-img--pinned"
+                        style={{ transform: `rotate(${reminderImages[0].rotation || 0}deg)`, cursor: 'pointer' }}
+                        onClick={() => setPreviewContent(reminderImages[0])}
+                      />
+                    ) : (
+                      <div 
+                        className="cl-gallery-img cl-gallery-img--pinned flex flex-col items-center justify-center bg-gray-100 cursor-pointer hover:bg-gray-200 transition-colors"
+                        onClick={() => setPreviewContent(reminderImages[0])}
+                        style={{ height: '300px', display: 'flex', width: '100%' }}
+                      >
+                        <div className="text-5xl mb-2">{reminderImages[0].fileType.includes('pdf') ? '📕' : isMicrosoftFile(reminderImages[0].fileType, reminderImages[0].fileName || '') ? '📘' : '📄'}</div>
+                        <div className="text-sm font-bold text-gray-700 px-4 text-center truncate w-full">{reminderImages[0].fileName || 'Document'}</div>
+                      </div>
+                    )}
                     <div className="cl-gallery-card-footer">
                       <input
                         className="cl-gallery-caption"
@@ -1182,13 +1235,24 @@ const Dashboard: React.FC = () => {
                         <div className="cl-gallery-card-grip">
                           <GripVertical className="w-3 h-3" />
                         </div>
-                        <img
-                          src={img.imageData}
-                          alt={img.caption || 'Reminder'}
-                          className="cl-gallery-img cl-gallery-img--clickable"
-                          style={{ transform: `rotate(${img.rotation || 0}deg)` }}
-                          onClick={() => reorderReminderImages(img.id, reminderImages[0].id)}
-                        />
+                        {(!img.fileType || img.fileType.startsWith('image/')) ? (
+                          <img
+                            src={img.imageData}
+                            alt={img.caption || 'Reminder'}
+                            className="cl-gallery-img cl-gallery-img--clickable"
+                            style={{ transform: `rotate(${img.rotation || 0}deg)` }}
+                            onClick={() => reorderReminderImages(img.id, reminderImages[0].id)}
+                          />
+                        ) : (
+                          <div 
+                            className="cl-gallery-img cl-gallery-img--clickable flex flex-col items-center justify-center bg-gray-100 h-full"
+                            onClick={() => reorderReminderImages(img.id, reminderImages[0].id)}
+                            style={{ minHeight: '100px' }}
+                          >
+                            <div className="text-3xl mb-1">{img.fileType.includes('pdf') ? '📕' : isMicrosoftFile(img.fileType, img.fileName || '') ? '📘' : '📄'}</div>
+                            <div className="text-[10px] font-bold text-gray-700 px-2 text-center truncate w-full">{img.fileName || 'Doc'}</div>
+                          </div>
+                        )}
                         <div className="cl-gallery-card-footer">
                           <input
                             className="cl-gallery-caption"
@@ -1703,6 +1767,79 @@ const Dashboard: React.FC = () => {
       }}
       entityToEdit={entityToEdit}
     />
+
+      {/* Attachment Preview Modal */}
+      {previewContent && (
+        <div className="fixed inset-0 bg-black/60 z-[100] flex items-center justify-center p-4 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl w-[90vw] h-[90vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between p-4 border-b border-gray-100 bg-gray-50">
+              <h3 className="font-black text-gray-800 text-lg flex items-center gap-2">
+                <span>📄</span> {previewContent.fileName || previewContent.caption || 'Preview'}
+              </h3>
+              <div className="flex items-center gap-3">
+                <a 
+                  href={previewContent.imageData} 
+                  download={previewContent.fileName || 'reminder-image'}
+                  className="text-sm font-bold text-[var(--primary)] hover:underline"
+                >
+                  Download
+                </a>
+                <button
+                  onClick={() => setPreviewContent(null)}
+                  className="p-2 text-gray-400 hover:text-gray-600 bg-white rounded-lg shadow-sm border border-gray-200"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+            <div className="flex-1 bg-gray-100 p-4 overflow-auto flex items-center justify-center">
+              {(!previewContent.fileType || previewContent.fileType.startsWith('image/')) ? (
+                <img src={previewContent.imageData} className="max-w-full max-h-full object-contain shadow-sm rounded-xl" style={{ transform: `rotate(${previewContent.rotation || 0}deg)` }} alt="Preview" />
+              ) : previewContent.fileType.includes('pdf') ? (
+                <iframe src={previewContent.imageData} className="w-full h-full rounded-xl shadow-sm bg-white" title="Document Preview" />
+              ) : isMicrosoftFile(previewContent.fileType, previewContent.fileName || '') ? (
+                window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? (
+                  <div className="flex flex-col items-center gap-4 text-gray-500 bg-white p-12 rounded-2xl shadow-sm">
+                    <div className="text-6xl">🚧</div>
+                    <h4 className="text-xl font-black text-gray-800">Localhost Detected</h4>
+                    <p className="text-center max-w-sm text-sm leading-relaxed">
+                      The Microsoft Office viewer requires a public URL to function. It cannot preview files while you are developing locally. Please download the file instead.
+                    </p>
+                    <a 
+                      href={previewContent.imageData} 
+                      download={previewContent.fileName}
+                      className="mt-4 px-8 py-3 bg-[var(--primary)] text-white rounded-xl font-black shadow-md hover:scale-105 transition-transform"
+                    >
+                      Download File
+                    </a>
+                  </div>
+                ) : (
+                  <iframe 
+                    src={`https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(`${window.location.origin}/api/reminder-images/${previewContent.id}/raw/${encodeURIComponent(previewContent.fileName || 'document.docx')}?token=${apiClient.getToken()}`)}`} 
+                    className="w-full h-full rounded-xl shadow-sm bg-white" 
+                    title="Microsoft Office Preview" 
+                  />
+                )
+              ) : (
+                <div className="flex flex-col items-center gap-4 text-gray-500 bg-white p-12 rounded-2xl shadow-sm">
+                  <div className="text-6xl">📝</div>
+                  <h4 className="text-xl font-black text-gray-800">Preview not available</h4>
+                  <p className="text-center max-w-sm text-sm leading-relaxed">
+                    Browser native preview is currently limited to PDFs and Images. For this file type, please download to view.
+                  </p>
+                  <a 
+                    href={previewContent.imageData} 
+                    download={previewContent.fileName}
+                    className="mt-4 px-8 py-3 bg-[var(--primary)] text-white rounded-xl font-black shadow-md hover:scale-105 transition-transform"
+                  >
+                    Download File
+                  </a>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 };
