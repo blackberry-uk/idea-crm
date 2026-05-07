@@ -148,6 +148,12 @@ const IdeaDetail: React.FC = () => {
     return url;
   };
 
+  const isMicrosoftFile = (fileType: string, fileName: string) => {
+    const lowerType = fileType?.toLowerCase() || '';
+    const lowerName = fileName?.toLowerCase() || '';
+    return lowerType.includes('word') || lowerType.includes('excel') || lowerType.includes('spreadsheet') || lowerType.includes('presentation') || lowerType.includes('powerpoint') || lowerName.match(/\.(doc|docx|xls|xlsx|ppt|pptx)$/i);
+  };
+
   const loadAttachments = useCallback(async () => {
     if (!idea) return;
     try {
@@ -1814,12 +1820,35 @@ const IdeaDetail: React.FC = () => {
                 <iframe src={previewContent.content} className="w-full h-full rounded-xl shadow-sm bg-white" title="Document Preview" />
               ) : previewContent.fileType.startsWith('image/') ? (
                 <img src={previewContent.content} className="max-w-full max-h-full object-contain shadow-sm rounded-xl" alt="Preview" />
+              ) : isMicrosoftFile(previewContent.fileType, previewContent.fileName) ? (
+                window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? (
+                  <div className="flex flex-col items-center gap-4 text-gray-500 bg-white p-12 rounded-2xl shadow-sm">
+                    <div className="text-6xl">🚧</div>
+                    <h4 className="text-xl font-black text-gray-800">Localhost Detected</h4>
+                    <p className="text-center max-w-sm text-sm leading-relaxed">
+                      The Microsoft Office viewer requires a public URL to function. It cannot preview files while you are developing locally. Please download the file instead.
+                    </p>
+                    <a 
+                      href={previewContent.content} 
+                      download={previewContent.fileName}
+                      className="mt-4 px-8 py-3 bg-[var(--primary)] text-white rounded-xl font-black shadow-md hover:scale-105 transition-transform"
+                    >
+                      Download File
+                    </a>
+                  </div>
+                ) : (
+                  <iframe 
+                    src={`https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(`${window.location.origin}/api/attachments/${previewAttachmentId}/raw/${encodeURIComponent(previewContent.fileName)}?token=${apiClient.getToken()}`)}`} 
+                    className="w-full h-full rounded-xl shadow-sm bg-white" 
+                    title="Microsoft Office Preview" 
+                  />
+                )
               ) : (
                 <div className="flex flex-col items-center gap-4 text-gray-500 bg-white p-12 rounded-2xl shadow-sm">
                   <div className="text-6xl">📝</div>
                   <h4 className="text-xl font-black text-gray-800">Preview not available</h4>
                   <p className="text-center max-w-sm text-sm leading-relaxed">
-                    Browser native preview is currently limited to PDFs and Images. For Word, Excel, and PowerPoint files, please download to view.
+                    Browser native preview is currently limited to PDFs and Images. For this file type, please download to view.
                   </p>
                   <a 
                     href={previewContent.content} 
