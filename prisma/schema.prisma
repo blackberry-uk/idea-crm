@@ -24,6 +24,7 @@ model User {
   themeAdjustments Json?
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
+  lastLoginAt      DateTime?
 
   ideasOwned         Idea[]        @relation("IdeasOwned")
   ideasCollaborating Idea[]        @relation("IdeaCollaborators")

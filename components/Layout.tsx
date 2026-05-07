@@ -21,7 +21,7 @@ import {
   ChevronLeft,
   Star
 } from 'lucide-react';
-import { CalendarCheck } from 'lucide-react';
+import { CalendarCheck, ShieldCheck } from 'lucide-react';
 import { useStore } from '../store/useStore.ts';
 import { getInitials, getAvatarColor } from '../lib/utils';
 import NoteComposer from './NoteComposer';
@@ -59,6 +59,10 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     { name: 'Training', path: '/?training=true', icon: Brain },
     { name: 'Settings', path: '/settings', icon: SettingsIcon },
   ];
+
+  if (data.currentUser?.email === 'fernando.mora.uk@gmail.com') {
+    navItems.push({ name: 'Admin', path: '/admin', icon: ShieldCheck });
+  }
 
   if (!data.currentUser) return <>{children}</>;
 
