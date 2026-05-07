@@ -90,6 +90,15 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
               isActive = hasTrainingParam;
             } else if (isChecklistItem) {
               isActive = location.pathname === '/' && !hasTrainingParam;
+            } else if (item.name === 'Projects') {
+              const isSpecificIdea = location.pathname.startsWith('/ideas/');
+              if (isSpecificIdea) {
+                const ideaId = location.pathname.split('/')[2];
+                const idea = data.ideas.find(i => i.id === ideaId);
+                isActive = !idea?.isFavorite; 
+              } else {
+                isActive = location.pathname === '/ideas';
+              }
             } else {
               isActive = location.pathname.startsWith(item.path);
             }
@@ -113,17 +122,18 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                   ) : null}
                 </Link>
                 {item.name === 'Projects' && data.ideas.filter(i => i.isFavorite && i.status !== 'Archived').length > 0 && (
-                  <div className="pl-11 pr-3 py-0.5 space-y-1.5 mb-1">
+                  <div className="pl-8 pr-3 py-0.5 space-y-0.5 mb-1 mt-1">
                     {data.ideas.filter(i => i.isFavorite && i.status !== 'Archived').map(idea => {
                       const isIdeaActive = location.pathname === `/ideas/${idea.id}`;
                       return (
                         <Link
                           key={idea.id}
                           to={`/ideas/${idea.id}`}
-                          className={`block text-[0.8rem] transition-colors truncate ${isIdeaActive
-                            ? 'text-gray-900 font-semibold'
-                            : 'text-gray-500 hover:text-gray-800 font-medium'
+                          className={`block text-[0.8rem] px-3 py-1.5 rounded-md transition-colors truncate ${isIdeaActive
+                            ? 'text-white font-medium shadow-md shadow-[var(--primary)]/20'
+                            : 'text-gray-500 hover:text-gray-800 hover:bg-gray-100 font-medium'
                             }`}
+                          style={isIdeaActive ? { backgroundColor: 'var(--primary)' } : {}}
                         >
                           {idea.title}
                         </Link>
