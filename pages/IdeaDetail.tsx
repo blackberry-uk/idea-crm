@@ -135,7 +135,18 @@ const IdeaDetail: React.FC = () => {
   const [uploadingFile, setUploadingFile] = useState(false);
   const [previewAttachmentId, setPreviewAttachmentId] = useState<string | null>(null);
   const [previewContent, setPreviewContent] = useState<any | null>(null);
+  const [previewLink, setPreviewLink] = useState<{title: string, url: string} | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const getGoogleIframeUrl = (url: string) => {
+    try {
+      const u = new URL(url);
+      if (u.hostname.includes('docs.google.com') || u.hostname.includes('drive.google.com')) {
+        return url.replace(/\/(edit|view)(\?.*|#.*)?$/, '/preview');
+      }
+    } catch (e) {}
+    return url;
+  };
 
   const loadAttachments = useCallback(async () => {
     if (!idea) return;
@@ -1470,9 +1481,12 @@ const IdeaDetail: React.FC = () => {
                       <div className={`w-6 h-6 rounded flex items-center justify-center shrink-0 text-white text-[9px] font-black shadow-sm ${iconBg}`}>
                         {iconText}
                       </div>
-                      <a href={link.url} target="_blank" rel="noopener noreferrer" className="flex-1 min-w-0 pr-6 text-[10px] font-bold text-gray-700 hover:text-black truncate">
+                      <button 
+                        onClick={(e) => { e.preventDefault(); setPreviewLink(link); }}
+                        className="flex-1 min-w-0 pr-6 text-left text-[10px] font-bold text-gray-700 hover:text-black truncate"
+                      >
                         {link.title}
-                      </a>
+                      </button>
                       {isOwner && (
                         <button
                           onClick={() => {
@@ -1816,6 +1830,43 @@ const IdeaDetail: React.FC = () => {
                   </a>
                 </div>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Link Preview Modal */}
+      {previewLink && (
+        <div className="fixed inset-0 bg-black/60 z-[100] flex items-center justify-center p-4 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl w-[90vw] h-[90vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between p-4 border-b border-gray-100 bg-gray-50">
+              <h3 className="font-black text-gray-800 text-lg flex items-center gap-2">
+                <span>🔗</span> {previewLink.title}
+              </h3>
+              <div className="flex items-center gap-3">
+                <a 
+                  href={previewLink.url} 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="text-sm font-bold text-[var(--primary)] hover:underline flex items-center gap-1"
+                >
+                  <ExternalLink className="w-4 h-4" /> Open Original
+                </a>
+                <button
+                  onClick={() => setPreviewLink(null)}
+                  className="p-2 text-gray-400 hover:text-gray-600 bg-white rounded-lg shadow-sm border border-gray-200"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+            <div className="flex-1 bg-gray-100 p-2 overflow-auto flex items-center justify-center">
+              <iframe 
+                src={getGoogleIframeUrl(previewLink.url)} 
+                className="w-full h-full rounded-xl shadow-sm bg-white border border-gray-200" 
+                title="Link Preview" 
+                sandbox="allow-scripts allow-same-origin allow-popups allow-forms"
+              />
             </div>
           </div>
         </div>
