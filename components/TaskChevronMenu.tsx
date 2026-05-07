@@ -165,7 +165,7 @@ export const TaskChevronMenu: React.FC<TaskChevronMenuProps> = ({
                     onClick={() => { onAssigneeChange(todo.id, u.id); onClose(); }}
                     style={{ textAlign: 'left', padding: '6px 8px', borderRadius: '6px', fontSize: '12px', background: todo.assigneeId === u.id ? '#f3f4f6' : 'transparent', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}
                   >
-                    <div style={{ width: '16px', height: '16px', borderRadius: '50%', backgroundColor: getAvatarColor(u.id), display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '8px', color: '#fff', fontWeight: 800 }}>
+                    <div className={getAvatarColor(u.id)} style={{ width: '16px', height: '16px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '8px', color: '#fff', fontWeight: 800 }}>
                       {u.avatarUrl ? u.avatarUrl.slice(0,3) : getInitials(u.name)}
                     </div>
                     {u.name}

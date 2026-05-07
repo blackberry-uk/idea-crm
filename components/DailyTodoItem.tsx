@@ -258,10 +258,10 @@ const DailyTodoItem: React.FC<DailyTodoItemProps> = ({
               </span>
               {todo.assignee && (
                 <div
+                  className={getAvatarColor(todo.assignee.id)}
                   title={`Assigned to ${todo.assignee.name}`}
                   style={{
                     width: '16px', height: '16px', borderRadius: '50%',
-                    backgroundColor: getAvatarColor(todo.assignee.id), // Fetch determinist color
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                     fontSize: '9px', fontWeight: 800, color: '#fff', marginLeft: '6px',
                     flexShrink: 0

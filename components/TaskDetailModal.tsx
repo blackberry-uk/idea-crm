@@ -634,7 +634,7 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                   {todo.assigneeId ? (() => {
                     const assigneeUser = data.users.find(u => u.id === todo.assigneeId);
                     return (
-                      <div style={{ width: '18px', height: '18px', borderRadius: '50%', backgroundColor: getAvatarColor(assigneeUser?.id || ''), display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '9px', color: '#fff', fontWeight: 800 }}>
+                      <div className={getAvatarColor(assigneeUser?.id || '')} style={{ width: '18px', height: '18px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '9px', color: '#fff', fontWeight: 800 }}>
                         {assigneeUser?.avatarUrl ? assigneeUser.avatarUrl.slice(0,3) : getInitials(assigneeUser?.name || '')}
                       </div>
                     );
@@ -665,7 +665,7 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                             onClick={async () => { setSaving(true); await onUpdate(todo.id, { assigneeId: u.id }); setSaving(false); setShowAssigneePicker(false); }}
                             style={{ textAlign: 'left', padding: '6px 8px', borderRadius: '6px', fontSize: '12px', background: todo.assigneeId === u.id ? '#f3f4f6' : 'transparent', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}
                           >
-                            <div style={{ width: '16px', height: '16px', borderRadius: '50%', backgroundColor: getAvatarColor(u.id), display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '8px', color: '#fff', fontWeight: 800 }}>
+                            <div className={getAvatarColor(u.id)} style={{ width: '16px', height: '16px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '8px', color: '#fff', fontWeight: 800 }}>
                               {u.avatarUrl ? u.avatarUrl.slice(0,3) : getInitials(u.name)}
                             </div>
                             {u.name}
