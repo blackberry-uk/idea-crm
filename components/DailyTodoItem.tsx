@@ -311,6 +311,7 @@ const DailyTodoItem: React.FC<DailyTodoItemProps> = ({
                     onChangeDate={onChangeDate}
                     onChangeTimeBlock={onChangeTimeBlock}
                     onAssigneeChange={onAssigneeChange}
+                    onDuplicate={onDuplicate}
                     onDelete={onDelete}
                   />
                 )}
