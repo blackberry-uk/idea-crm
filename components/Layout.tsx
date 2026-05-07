@@ -18,7 +18,8 @@ import {
   Brain,
   Building2,
   Menu,
-  ChevronLeft
+  ChevronLeft,
+  Star
 } from 'lucide-react';
 import { CalendarCheck } from 'lucide-react';
 import { useStore } from '../store/useStore.ts';
@@ -114,6 +115,29 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
             );
           })}
         </nav>
+
+        {/* Favorite Projects */}
+        {data.ideas.filter(i => i.isFavorite && i.status !== 'Archived').length > 0 && (
+          <div className="px-4 py-2">
+            <p className="px-3 text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Favorites</p>
+            <div className="space-y-1">
+              {data.ideas.filter(i => i.isFavorite && i.status !== 'Archived').map(idea => (
+                <Link
+                  key={idea.id}
+                  to={`/ideas/${idea.id}`}
+                  className={`flex items-center gap-3 px-3 py-1.5 rounded-md transition-colors relative ${location.pathname === `/ideas/${idea.id}`
+                    ? 'text-white font-medium shadow-md shadow-[var(--primary)]/20'
+                    : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+                    }`}
+                  style={location.pathname === `/ideas/${idea.id}` ? { backgroundColor: 'var(--primary)' } : {}}
+                >
+                  <Star className={`w-4 h-4 ${location.pathname === `/ideas/${idea.id}` ? 'text-white' : 'text-yellow-400 fill-yellow-400'}`} />
+                  <span className="truncate text-sm">{idea.title}</span>
+                </Link>
+              ))}
+            </div>
+          </div>
+        )}
 
         <div className="p-4 border-t border-gray-200 space-y-2">
           <div className="flex items-center gap-3 px-3 py-2 bg-gray-50 rounded-xl mb-4">

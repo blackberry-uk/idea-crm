@@ -57,6 +57,7 @@ export interface Idea {
   todos: Todo[];
   descriptionColor?: string;
   activityColor?: string;
+  isFavorite?: boolean;
   linkedContactIds?: string[];
   customNoteCategories?: string[];
   links?: { title: string; url: string }[];

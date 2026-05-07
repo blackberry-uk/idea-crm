@@ -99,6 +99,7 @@ model Idea {
   links            String   @default("[]")
   customNoteCategories String @default("[]")
 
+  isFavorite       Boolean  @default(false)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
