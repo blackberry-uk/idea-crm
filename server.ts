@@ -213,10 +213,21 @@ app.get('/api/me', authenticate, async (req: any, res) => {
 
 app.put('/api/me', authenticate, async (req: any, res) => {
   try {
-    const { name, avatarUrl } = req.body;
+    const { name, avatarUrl, personalEntities, ideaConfigs, noteCategories, theme, customTheme, themeAdjustments } = req.body;
+    
+    const updateData: any = {};
+    if (name !== undefined) updateData.name = name;
+    if (avatarUrl !== undefined) updateData.avatarUrl = avatarUrl;
+    if (personalEntities !== undefined) updateData.personalEntities = personalEntities;
+    if (ideaConfigs !== undefined) updateData.ideaConfigs = ideaConfigs;
+    if (noteCategories !== undefined) updateData.noteCategories = noteCategories;
+    if (theme !== undefined) updateData.theme = theme;
+    if (customTheme !== undefined) updateData.customTheme = customTheme;
+    if (themeAdjustments !== undefined) updateData.themeAdjustments = themeAdjustments;
+
     const updated = await prisma.user.update({
       where: { id: req.userId },
-      data: { name, avatarUrl }
+      data: updateData
     });
     const { password, ...safeUser } = updated;
     res.json(safeUser);
