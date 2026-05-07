@@ -56,7 +56,6 @@ function getCurrentBlock(): TimeBlock {
 
 function sortTodos(todos: DailyTodo[]): DailyTodo[] {
   return [...todos].sort((a, b) => {
-    if (a.completed !== b.completed) return a.completed ? 1 : -1;
     if (a.isUrgent !== b.isUrgent) return a.isUrgent ? -1 : 1;
     if (a.sortOrder !== b.sortOrder) return a.sortOrder - b.sortOrder;
     return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();

@@ -262,7 +262,7 @@ const DailyTodoItem: React.FC<DailyTodoItemProps> = ({
                   title={`Assigned to ${todo.assignee.name}`}
                   style={{
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    fontSize: '9px', fontWeight: 800, color: '#fff', marginLeft: '6px',
+                    fontSize: '8px', fontWeight: 600, color: '#fff', marginLeft: '6px',
                     flexShrink: 0
                   }}
                 >
