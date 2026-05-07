@@ -1128,11 +1128,11 @@ app.post('/api/daily-todos', authenticate, async (req: any, res) => {
     if (!text) return res.status(400).json({ error: 'text is required' });
     // date can be null for floating/backburner tasks
     const dateVal = date ? new Date(date + 'T12:00:00Z') : null;
-    const maxOrder = await (prisma as any).dailyTodo.aggregate({
+    const minOrder = await (prisma as any).dailyTodo.aggregate({
       where: { userId: req.userId, date: dateVal, parentId: parentId || null },
-      _max: { sortOrder: true }
+      _min: { sortOrder: true }
     });
-    const nextOrder = (maxOrder._max.sortOrder ?? -1) + 1;
+    const nextOrder = (minOrder._min.sortOrder ?? 0) - 1;
     const userSelect = { id: true, name: true, email: true };
     const todo = await (prisma as any).dailyTodo.create({
       data: {
