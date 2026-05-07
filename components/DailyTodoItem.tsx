@@ -43,6 +43,7 @@ interface DailyTodoItemProps {
   onSaveEdit: (id: string, text: string) => Promise<void>;
   onTagIdea: (todoId: string, ideaId: string | null) => Promise<void>;
   onAddSubtask?: (parentId: string, text: string) => Promise<void>;
+  onReorderSubtask?: (draggedId: string, droppedOnId: string) => void;
   onOpenDetail?: (todo: DailyTodoData) => void;
   onOpenContact?: (contactName: string) => void;
   onOpenEntity?: (entityName: string) => void;
@@ -57,7 +58,7 @@ interface DailyTodoItemProps {
 }
 
 const DailyTodoItem: React.FC<DailyTodoItemProps> = ({
-  todo, ideas, onToggleComplete, onToggleUrgent, onDelete, onSaveEdit, onTagIdea, onAddSubtask, onOpenDetail, onOpenContact, onOpenEntity, onChangeDate, onChangeTimeBlock, onAssigneeChange, dragHandleProps, isDragging, isSubtask, customContainerStyle, overrideDateLabel
+  todo, ideas, onToggleComplete, onToggleUrgent, onDelete, onSaveEdit, onTagIdea, onAddSubtask, onReorderSubtask, onOpenDetail, onOpenContact, onOpenEntity, onChangeDate, onChangeTimeBlock, onAssigneeChange, dragHandleProps, isDragging, isSubtask, customContainerStyle, overrideDateLabel
 }) => {
   const { data } = useStore();
   const [editing, setEditing] = useState(false);
@@ -423,25 +424,42 @@ const DailyTodoItem: React.FC<DailyTodoItemProps> = ({
       )}
 
       {/* Render subtasks */}
-      {!isSubtask && subtasksExpanded && children.map(child => (
-        <DailyTodoItem
+      {!isSubtask && subtasksExpanded && children.sort((a, b) => {
+        if (a.completed !== b.completed) return a.completed ? 1 : -1;
+        if (a.sortOrder !== b.sortOrder) return a.sortOrder - b.sortOrder;
+        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+      }).map(child => (
+        <div
           key={child.id}
-          todo={child}
-          ideas={ideas}
-          onToggleComplete={onToggleComplete}
-          onToggleUrgent={onToggleUrgent}
-          onDelete={onDelete}
-          onSaveEdit={onSaveEdit}
-          onTagIdea={onTagIdea}
-          onOpenDetail={onOpenDetail}
-          onOpenContact={onOpenContact}
-          onOpenEntity={onOpenEntity}
-          onChangeDate={onChangeDate}
-          onChangeTimeBlock={onChangeTimeBlock}
-          onAssigneeChange={onAssigneeChange}
-          isSubtask
-          customContainerStyle={customContainerStyle}
-        />
+          draggable
+          onDragStart={(e) => { e.dataTransfer.setData('application/subtask-id', child.id); e.stopPropagation(); }}
+          onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
+          onDrop={(e) => {
+            e.preventDefault(); e.stopPropagation();
+            const draggedId = e.dataTransfer.getData('application/subtask-id');
+            if (draggedId && draggedId !== child.id && onReorderSubtask) {
+              onReorderSubtask(draggedId, child.id);
+            }
+          }}
+        >
+          <DailyTodoItem
+            todo={child}
+            ideas={ideas}
+            onToggleComplete={onToggleComplete}
+            onToggleUrgent={onToggleUrgent}
+            onDelete={onDelete}
+            onSaveEdit={onSaveEdit}
+            onTagIdea={onTagIdea}
+            onOpenDetail={onOpenDetail}
+            onOpenContact={onOpenContact}
+            onOpenEntity={onOpenEntity}
+            onChangeDate={onChangeDate}
+            onChangeTimeBlock={onChangeTimeBlock}
+            onAssigneeChange={onAssigneeChange}
+            isSubtask
+            customContainerStyle={customContainerStyle}
+          />
+        </div>
       ))}
     </div>
   );

@@ -58,7 +58,8 @@ function sortTodos(todos: DailyTodo[]): DailyTodo[] {
   return [...todos].sort((a, b) => {
     if (a.completed !== b.completed) return a.completed ? 1 : -1;
     if (a.isUrgent !== b.isUrgent) return a.isUrgent ? -1 : 1;
-    return 0;
+    if (a.sortOrder !== b.sortOrder) return a.sortOrder - b.sortOrder;
+    return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
   });
 }
 
@@ -603,6 +604,72 @@ const Dashboard: React.FC = () => {
     setDraggingTodoId(null);
   };
 
+  const handleReorder = async (draggedId: string, droppedOnId: string) => {
+    if (draggedId === droppedOnId) return;
+    const sortedList = sortTodos(allTodos);
+    const fromIdx = sortedList.findIndex(t => t.id === draggedId);
+    const toIdx = sortedList.findIndex(t => t.id === droppedOnId);
+    if (fromIdx === -1 || toIdx === -1) return;
+
+    const dragged = sortedList[fromIdx];
+    const droppedOn = sortedList[toIdx];
+    let blockChanged = false;
+    if (dragged.timeBlock !== droppedOn.timeBlock) {
+      dragged.timeBlock = droppedOn.timeBlock;
+      dragged.date = droppedOn.date;
+      blockChanged = true;
+    }
+
+    const newList = [...sortedList];
+    const [moved] = newList.splice(fromIdx, 1);
+    newList.splice(toIdx, 0, moved);
+
+    const orderedIds = newList.map(t => t.id);
+    const updated = newList.map((t, i) => ({ ...t, sortOrder: i }));
+    setAllTodos(updated);
+
+    try {
+      if (blockChanged) {
+        await apiClient.put(`/daily-todos/${draggedId}`, { timeBlock: dragged.timeBlock, date: dragged.date });
+      }
+      await apiClient.put('/daily-todos/reorder', { orderedIds });
+    } catch (err) {
+      showToast('Failed to reorder', 'error');
+    }
+  };
+
+  const handleReorderSubtask = async (draggedId: string, droppedOnId: string, parentId: string) => {
+    if (draggedId === droppedOnId) return;
+    setAllTodos(prev => {
+      const newList = [...prev];
+      const parentIdx = newList.findIndex(t => t.id === parentId);
+      if (parentIdx === -1) return prev;
+      
+      const parent = { ...newList[parentIdx] };
+      if (!parent.children) return prev;
+      
+      const children = [...parent.children].sort((a, b) => {
+        if (a.completed !== b.completed) return a.completed ? 1 : -1;
+        if (a.sortOrder !== b.sortOrder) return a.sortOrder - b.sortOrder;
+        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+      });
+      
+      const fromIdx = children.findIndex(c => c.id === draggedId);
+      const toIdx = children.findIndex(c => c.id === droppedOnId);
+      if (fromIdx === -1 || toIdx === -1) return prev;
+      
+      const [moved] = children.splice(fromIdx, 1);
+      children.splice(toIdx, 0, moved);
+      
+      parent.children = children.map((c, i) => ({ ...c, sortOrder: i }));
+      newList[parentIdx] = parent;
+      
+      apiClient.put('/daily-todos/reorder', { orderedIds: parent.children.map(c => c.id) }).catch(() => showToast('Failed to reorder subtasks', 'error'));
+      
+      return newList;
+    });
+  };
+
   // Navigate dates
   const goToday = () => { const d = new Date(); d.setHours(0, 0, 0, 0); setSelectedDate(d); };
   const goPrev = () => setSelectedDate(prev => dateAddDays(prev, viewMode === 'week' ? -7 : -1));
@@ -800,12 +867,21 @@ const Dashboard: React.FC = () => {
                         draggable
                         onDragStart={(e) => handleDragStart(e, todo.id)}
                         onDragEnd={handleDragEnd}
+                        onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                        onDrop={async (e) => {
+                          e.preventDefault(); e.stopPropagation();
+                          const draggedId = e.dataTransfer.getData('text/plain');
+                          if (draggedId && draggedId !== todo.id) {
+                            await handleReorder(draggedId, todo.id);
+                          }
+                        }}
                         className={draggingTodoId === todo.id ? 'cl-todo-dragging' : ''}
                       >
                         <DailyTodoItem todo={todo} ideas={ideas} onOpenContact={handleOpenContactByName} onOpenEntity={handleOpenEntityByName} onAssigneeChange={(id, assigneeId) => updateTodo(id, { assigneeId })}
                           onToggleComplete={toggleComplete} onToggleUrgent={toggleUrgent}
                           onDelete={deleteTodo} onSaveEdit={saveEdit} onTagIdea={tagTodoToIdea}
                           onAddSubtask={addSubtask} onOpenDetail={openDetail}
+                          onReorderSubtask={(draggedId, droppedOnId) => handleReorderSubtask(draggedId, droppedOnId, todo.id)}
                           onChangeDate={async (id, newDate) => {
                             try {
                               const updated = await apiClient.put(`/daily-todos/${id}`, { date: newDate });
