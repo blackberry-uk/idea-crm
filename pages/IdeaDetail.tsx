@@ -49,7 +49,8 @@ import {
   CalendarCheck,
   MoreHorizontal,
   FileText,
-  Link2
+  Link2,
+  Star
 } from 'lucide-react';
 import NoteComposer from '../components/NoteComposer';
 import NoteDetailModal from '../components/NoteDetailModal';
@@ -770,6 +771,19 @@ const IdeaDetail: React.FC = () => {
                 ) : (
                   <>
                     <h1 className="text-3xl font-extrabold text-gray-900 truncate tracking-tight">{idea.title}</h1>
+                    <button
+                      onClick={async () => {
+                        try {
+                          await updateIdea(idea.id, { isFavorite: !idea.isFavorite });
+                        } catch {}
+                      }}
+                      className="ml-2 mt-1 focus:outline-none"
+                    >
+                      <Star
+                        className={`w-6 h-6 ${idea.isFavorite ? 'text-yellow-400 fill-yellow-400' : 'text-gray-300 hover:text-yellow-400'}`}
+                        style={{ transition: 'all 0.2s' }}
+                      />
+                    </button>
                   </>
                 )}
               </div>
