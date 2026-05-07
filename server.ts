@@ -1393,7 +1393,7 @@ app.get('/api/daily-todos', authenticate, async (req: any, res) => {
         { OR: [{ date: dateFilter }, { date: null }] }
       ];
     }
-    const userSelect = { id: true, name: true, email: true };
+    const userSelect = { id: true, name: true, email: true, avatarUrl: true };
     const todos = await (prisma as any).dailyTodo.findMany({
       where,
       orderBy: [{ date: { sort: 'asc', nulls: 'last' } }, { sortOrder: 'asc' }, { createdAt: 'asc' }],
@@ -1429,7 +1429,7 @@ app.post('/api/daily-todos', authenticate, async (req: any, res) => {
       _min: { sortOrder: true }
     });
     const nextOrder = (minOrder._min.sortOrder ?? 0) - 1;
-    const userSelect = { id: true, name: true, email: true };
+    const userSelect = { id: true, name: true, email: true, avatarUrl: true };
     const todo = await (prisma as any).dailyTodo.create({
       data: {
         text,
@@ -1514,7 +1514,7 @@ app.put('/api/daily-todos/:id', authenticate, async (req: any, res) => {
     if (originNoteId !== undefined) data.originNoteId = originNoteId || null;
     if (timeBlock !== undefined) data.timeBlock = timeBlock || null;
 
-    const userSelect = { id: true, name: true, email: true };
+    const userSelect = { id: true, name: true, email: true, avatarUrl: true };
     const todo = await (prisma as any).dailyTodo.update({
       where: { id: req.params.id },
       data,
