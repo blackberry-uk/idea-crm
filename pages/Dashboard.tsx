@@ -212,11 +212,31 @@ const Dashboard: React.FC = () => {
   type ReminderImage = { id: string; imageData: string; caption: string | null; rotation: number; sortOrder: number };
   const [reminderImages, setReminderImages] = useState<ReminderImage[]>([]);
   const [previewContent, setPreviewContent] = useState<any | null>(null);
+  const [showAddReminderLink, setShowAddReminderLink] = useState(false);
+  const [newReminderLinkUrl, setNewReminderLinkUrl] = useState('');
+  const [newReminderLinkTitle, setNewReminderLinkTitle] = useState('');
 
   const isMicrosoftFile = (fileType: string, fileName: string) => {
     const lowerType = fileType?.toLowerCase() || '';
     const lowerName = fileName?.toLowerCase() || '';
     return lowerType.includes('word') || lowerType.includes('excel') || lowerType.includes('spreadsheet') || lowerType.includes('presentation') || lowerType.includes('powerpoint') || lowerName.match(/\.(doc|docx|xls|xlsx|ppt|pptx)$/i);
+  };
+
+  const getIconForFile = (fileType: string, fileName: string) => {
+    if (fileType === 'link') return '🔗';
+    if (fileType?.includes('pdf')) return '📕';
+    if (isMicrosoftFile(fileType, fileName)) return '📘';
+    return '📄';
+  };
+  
+  const getGoogleIframeUrl = (url: string) => {
+    try {
+      const u = new URL(url);
+      if (u.hostname.includes('docs.google.com') || u.hostname.includes('drive.google.com')) {
+        return url.replace(/\/(edit|view)(\?.*|#.*)?$/, '/preview');
+      }
+    } catch (e) {}
+    return url;
   };
   const [galleryDragId, setGalleryDragId] = useState<string | null>(null);
   const galleryFileRef = useRef<HTMLInputElement>(null);
@@ -278,6 +298,24 @@ const Dashboard: React.FC = () => {
       showToast('File added successfully', 'success');
     } catch (err) {
       showToast('Failed to upload file', 'error');
+    }
+  };
+
+  const addReminderLink = async () => {
+    if (!newReminderLinkUrl.trim()) return;
+    try {
+      const img = await apiClient.post('/reminder-images', { 
+        imageData: newReminderLinkUrl,
+        fileType: 'link',
+        fileName: newReminderLinkTitle || 'Link'
+      });
+      setReminderImages(prev => [...prev, img]);
+      setShowAddReminderLink(false);
+      setNewReminderLinkUrl('');
+      setNewReminderLinkTitle('');
+      showToast('Link added successfully', 'success');
+    } catch (err) {
+      showToast('Failed to add link', 'error');
     }
   };
 
@@ -1132,10 +1170,16 @@ const Dashboard: React.FC = () => {
                 <span>Daily Reminders</span>
                 <span className="cl-gallery-count">{reminderImages.length}</span>
               </div>
-              <button className="cl-gallery-upload-btn" onClick={() => galleryFileRef.current?.click()}>
-                <Plus className="w-3.5 h-3.5" />
-                Add File/Image
-              </button>
+              <div className="flex gap-2">
+                <button className="cl-gallery-upload-btn" onClick={() => setShowAddReminderLink(!showAddReminderLink)}>
+                  <Plus className="w-3.5 h-3.5" />
+                  Link
+                </button>
+                <button className="cl-gallery-upload-btn" onClick={() => galleryFileRef.current?.click()}>
+                  <Plus className="w-3.5 h-3.5" />
+                  File
+                </button>
+              </div>
               <input
                 ref={galleryFileRef}
                 type="file"
@@ -1152,6 +1196,36 @@ const Dashboard: React.FC = () => {
                 }}
               />
             </div>
+
+            {showAddReminderLink && (
+              <div className="mb-4 bg-white p-3 rounded-xl border border-gray-200 shadow-sm flex flex-col gap-2 animate-in slide-in-from-top-2">
+                <input
+                  type="text"
+                  placeholder="Paste URL (e.g. Google Docs)..."
+                  value={newReminderLinkUrl}
+                  onChange={(e) => setNewReminderLinkUrl(e.target.value)}
+                  className="w-full text-xs p-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
+                />
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    placeholder="Title (optional)"
+                    value={newReminderLinkTitle}
+                    onChange={(e) => setNewReminderLinkTitle(e.target.value)}
+                    className="flex-1 text-xs p-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
+                    onKeyDown={(e) => e.key === 'Enter' && addReminderLink()}
+                  />
+                  <button 
+                    onClick={addReminderLink}
+                    disabled={!newReminderLinkUrl.trim()}
+                    className="px-4 py-1 text-xs font-bold text-white rounded-lg shadow-sm disabled:opacity-50 hover:opacity-90 active:scale-95 transition-all"
+                    style={{ backgroundColor: 'var(--primary)' }}
+                  >
+                    Add
+                  </button>
+                </div>
+              </div>
+            )}
 
             {reminderImages.length > 0 && (
               <div className="cl-gallery-layout">
@@ -1182,7 +1256,7 @@ const Dashboard: React.FC = () => {
                         onClick={() => setPreviewContent(reminderImages[0])}
                         style={{ height: '300px', display: 'flex', width: '100%' }}
                       >
-                        <div className="text-5xl mb-2">{reminderImages[0].fileType.includes('pdf') ? '📕' : isMicrosoftFile(reminderImages[0].fileType, reminderImages[0].fileName || '') ? '📘' : '📄'}</div>
+                        <div className="text-5xl mb-2">{getIconForFile(reminderImages[0].fileType || '', reminderImages[0].fileName || '')}</div>
                         <div className="text-sm font-bold text-gray-700 px-4 text-center truncate w-full">{reminderImages[0].fileName || 'Document'}</div>
                       </div>
                     )}
@@ -1249,7 +1323,7 @@ const Dashboard: React.FC = () => {
                             onClick={() => reorderReminderImages(img.id, reminderImages[0].id)}
                             style={{ minHeight: '100px' }}
                           >
-                            <div className="text-3xl mb-1">{img.fileType.includes('pdf') ? '📕' : isMicrosoftFile(img.fileType, img.fileName || '') ? '📘' : '📄'}</div>
+                            <div className="text-3xl mb-1">{getIconForFile(img.fileType || '', img.fileName || '')}</div>
                             <div className="text-[10px] font-bold text-gray-700 px-2 text-center truncate w-full">{img.fileName || 'Doc'}</div>
                           </div>
                         )}
@@ -1777,13 +1851,24 @@ const Dashboard: React.FC = () => {
                 <span>📄</span> {previewContent.fileName || previewContent.caption || 'Preview'}
               </h3>
               <div className="flex items-center gap-3">
-                <a 
-                  href={previewContent.imageData} 
-                  download={previewContent.fileName || 'reminder-image'}
-                  className="text-sm font-bold text-[var(--primary)] hover:underline"
-                >
-                  Download
-                </a>
+                {previewContent.fileType === 'link' ? (
+                  <a 
+                    href={previewContent.imageData} 
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-sm font-bold text-[var(--primary)] hover:underline flex items-center gap-1"
+                  >
+                    Open Original
+                  </a>
+                ) : (
+                  <a 
+                    href={previewContent.imageData} 
+                    download={previewContent.fileName || 'reminder-image'}
+                    className="text-sm font-bold text-[var(--primary)] hover:underline flex items-center gap-1"
+                  >
+                    Download
+                  </a>
+                )}
                 <button
                   onClick={() => setPreviewContent(null)}
                   className="p-2 text-gray-400 hover:text-gray-600 bg-white rounded-lg shadow-sm border border-gray-200"
@@ -1795,6 +1880,8 @@ const Dashboard: React.FC = () => {
             <div className="flex-1 bg-gray-100 p-4 overflow-auto flex items-center justify-center">
               {(!previewContent.fileType || previewContent.fileType.startsWith('image/')) ? (
                 <img src={previewContent.imageData} className="max-w-full max-h-full object-contain shadow-sm rounded-xl" style={{ transform: `rotate(${previewContent.rotation || 0}deg)` }} alt="Preview" />
+              ) : previewContent.fileType === 'link' ? (
+                <iframe src={getGoogleIframeUrl(previewContent.imageData)} className="w-full h-full rounded-xl shadow-sm bg-white" title="Document Preview" sandbox="allow-scripts allow-same-origin allow-popups allow-forms" />
               ) : previewContent.fileType.includes('pdf') ? (
                 <iframe src={previewContent.imageData} className="w-full h-full rounded-xl shadow-sm bg-white" title="Document Preview" />
               ) : isMicrosoftFile(previewContent.fileType, previewContent.fileName || '') ? (
