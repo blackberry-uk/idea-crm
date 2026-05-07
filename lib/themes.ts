@@ -15,6 +15,7 @@ export interface ColorScheme {
     noteBorder: string;   // Normal Note Border
     followUpBorder: string; // Follow-up Note Border
     uiBg: string;         // General UI background (canvas)
+    appBg: string;        // Main App Background (subdued grey mixed with primary)
     adjustments?: Record<string, { base?: string, h: number, l: number, s: number }>;
 }
 
@@ -34,6 +35,7 @@ export const THEMES: Record<ThemePalette, ColorScheme> = {
         textMain: '#1a1a1a',
         border: '#e5e7eb',
         uiBg: '#F2F3F4',
+        appBg: '#ebeff5',
         adjustments: {
             primary: { base: 'Indigo', h: 243, s: 75, l: 59 },
             secondary: { base: 'Beige', h: 46, s: 93, l: 89 },
@@ -64,6 +66,7 @@ export const THEMES: Record<ThemePalette, ColorScheme> = {
         textMain: '#2d1b11',
         border: '#d7ccc8',
         uiBg: '#fafafa',
+        appBg: '#edebe9',
         adjustments: {
             primary: { base: 'Sienna', h: 16, s: 22, l: 38 },
             secondary: { base: 'OldLace', h: 39, s: 85, l: 95 },
@@ -94,6 +97,7 @@ export const THEMES: Record<ThemePalette, ColorScheme> = {
         textMain: '#002b4d',
         border: '#b3e5fc',
         uiBg: '#fdfbf7', // Sand White
+        appBg: '#e8f0f6',
         adjustments: {
             primary: { base: 'VibrantBlue', h: 201, s: 98, l: 41 },
             secondary: { base: 'LemonChiffon', h: 54, s: 100, l: 88 },
@@ -124,6 +128,7 @@ export const THEMES: Record<ThemePalette, ColorScheme> = {
         textMain: '#0a230d',
         border: '#c8e6c9',
         uiBg: '#f1f8e9',
+        appBg: '#e6ece4',
         adjustments: {
             primary: { base: 'ForestGreen', h: 123, s: 46, l: 34 },
             secondary: { base: 'LightBlue', h: 205, s: 87, l: 94 },
