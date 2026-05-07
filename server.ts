@@ -188,7 +188,10 @@ app.post('/api/auth/google', async (req, res) => {
 
 app.get('/api/me', authenticate, async (req: any, res) => {
   try {
-    const user = await prisma.user.findUnique({ where: { id: req.userId } });
+    const user = await prisma.user.update({
+      where: { id: req.userId },
+      data: { lastLoginAt: new Date() }
+    });
     if (!user) return res.status(404).json({ error: 'User not found' });
     const { password, ...safeUser } = user;
     res.json(safeUser);
@@ -225,6 +228,12 @@ app.get('/api/admin/users', authenticate, async (req: any, res) => {
         name: true,
         createdAt: true,
         lastLoginAt: true,
+        _count: {
+          select: {
+            ideasOwned: true,
+            ideasCollaborating: true
+          }
+        }
       },
       orderBy: { createdAt: 'desc' }
     });
@@ -241,6 +250,19 @@ app.get('/api/admin/users', authenticate, async (req: any, res) => {
   } catch (err: any) {
     console.error('Admin users error:', err);
     res.status(500).json({ error: 'Failed to fetch admin data' });
+  }
+});
+
+app.delete('/api/admin/invitations/:id', authenticate, async (req: any, res) => {
+  try {
+    const admin = await prisma.user.findUnique({ where: { id: req.userId } });
+    if (admin?.email !== 'fernando.mora.uk@gmail.com') return res.status(403).json({ error: 'Forbidden' });
+
+    await prisma.invitation.delete({ where: { id: req.params.id } });
+    res.json({ success: true });
+  } catch (err: any) {
+    console.error('Admin delete invitation error:', err);
+    res.status(500).json({ error: 'Failed to delete invitation' });
   }
 });
 
