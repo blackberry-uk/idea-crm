@@ -1757,7 +1757,7 @@ app.get('/api/reminder-images', authenticate, async (req: any, res) => {
 
 app.post('/api/reminder-images', authenticate, async (req: any, res) => {
   try {
-    const { imageData, caption } = req.body;
+    const { imageData, caption, fileType, fileName, fileSize } = req.body;
     if (!imageData) return res.status(400).json({ error: 'imageData is required' });
     const maxOrder = await (prisma as any).reminderImage.aggregate({
       where: { userId: req.userId },
@@ -1765,12 +1765,69 @@ app.post('/api/reminder-images', authenticate, async (req: any, res) => {
     });
     const nextOrder = (maxOrder._max.sortOrder ?? -1) + 1;
     const image = await (prisma as any).reminderImage.create({
-      data: { imageData, caption: caption || null, sortOrder: nextOrder, userId: req.userId }
+      data: { imageData, caption: caption || null, fileType, fileName, fileSize, sortOrder: nextOrder, userId: req.userId }
     });
     res.json(image);
   } catch (err: any) {
     console.error('Create reminder image error:', err);
     res.status(500).json({ error: 'Failed to create reminder image', details: err.message });
+  }
+});
+
+app.post('/api/reminder-images/chunk', authenticate, async (req: any, res) => {
+  try {
+    const { uploadId, chunkIndex, content } = req.body;
+    await prisma.fileAttachmentChunk.create({
+      data: { uploadId, chunkIndex, content }
+    });
+    res.json({ success: true });
+  } catch (err: any) {
+    res.status(500).json({ error: 'Failed to save chunk', details: err.message });
+  }
+});
+
+app.post('/api/reminder-images/finalize', authenticate, async (req: any, res) => {
+  try {
+    const { uploadId, caption, fileType, fileName, fileSize } = req.body;
+    const chunks = await prisma.fileAttachmentChunk.findMany({
+      where: { uploadId },
+      orderBy: { chunkIndex: 'asc' }
+    });
+    const fullContent = chunks.map(c => c.content).join('');
+    
+    const maxOrder = await (prisma as any).reminderImage.aggregate({
+      where: { userId: req.userId },
+      _max: { sortOrder: true }
+    });
+    const nextOrder = (maxOrder._max.sortOrder ?? -1) + 1;
+
+    const image = await (prisma as any).reminderImage.create({
+      data: { imageData: fullContent, caption: caption || null, fileType, fileName, fileSize, sortOrder: nextOrder, userId: req.userId }
+    });
+    await prisma.fileAttachmentChunk.deleteMany({ where: { uploadId } });
+    res.json(image);
+  } catch (err: any) {
+    res.status(500).json({ error: 'Failed to finalize upload', details: err.message });
+  }
+});
+
+app.get('/api/reminder-images/:id/raw/:filename', authenticate, async (req: any, res) => {
+  try {
+    const reminder = await prisma.reminderImage.findUnique({
+      where: { id: req.params.id }
+    });
+    if (!reminder || reminder.userId !== req.userId) return res.status(404).send('Not found');
+
+    const base64Data = reminder.imageData.split(';base64,').pop();
+    if (!base64Data) return res.status(400).send('Invalid file format');
+    
+    const buffer = Buffer.from(base64Data, 'base64');
+    
+    res.setHeader('Content-Type', reminder.fileType || 'application/octet-stream');
+    res.setHeader('Content-Disposition', `inline; filename="${reminder.fileName || 'file'}"`);
+    res.send(buffer);
+  } catch (err: any) {
+    res.status(500).send('Error loading file');
   }
 });
 
