@@ -111,6 +111,7 @@ const Dashboard: React.FC = () => {
   const [newBlock, setNewBlock] = useState<TimeBlock>(getCurrentBlock());
   const [showTagPicker, setShowTagPicker] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const dateInputRef = useRef<HTMLInputElement>(null);
   const submittingRef = useRef(false);
 
   // Inline add state — stores block name (day view) or date key (week view)
@@ -890,13 +891,25 @@ const Dashboard: React.FC = () => {
           {/* Date nav */}
           <div className="cl-date-nav">
             <button onClick={goPrev} className="cl-date-nav-btn"><ChevronLeft className="w-4 h-4" /></button>
-            <span className="cl-date-nav-label" style={{ position: 'relative' }}>
+            <span 
+              className="cl-date-nav-label" 
+              style={{ position: 'relative' }}
+              onClick={() => {
+                try {
+                  dateInputRef.current?.showPicker();
+                } catch (e) {
+                  // Fallback for browsers that don't support showPicker
+                  dateInputRef.current?.focus();
+                }
+              }}
+            >
               {viewMode === 'day'
                 ? (isSelectedToday ? `Today — ${format(selectedDate, 'EEEE, do MMMM yyyy')}` : format(selectedDate, 'EEEE, do MMMM yyyy'))
                 : `${format(weekDays[0], 'MMM d')} – ${format(weekDays[weekDays.length - 1], 'MMM d')}`
               }
               {viewMode === 'day' && (
                 <input
+                  ref={dateInputRef}
                   type="date"
                   value={format(selectedDate, 'yyyy-MM-dd')}
                   onChange={(e) => {
