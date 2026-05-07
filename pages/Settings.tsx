@@ -32,6 +32,8 @@ const Settings: React.FC = () => {
   const [personalEntities, setPersonalEntities] = useState<string[]>(data.currentUser?.personalEntities || []);
   const [ideaConfigs, setIdeaConfigs] = useState<IdeaConfig[]>(data.currentUser?.ideaConfigs || DEFAULT_IDEA_CONFIGS);
   const [theme, setTheme] = useState<ThemePalette>(data.currentUser?.theme || 'default');
+  const [userName, setUserName] = useState(data.currentUser?.name || '');
+  const [avatarUrl, setAvatarUrl] = useState(data.currentUser?.avatarUrl || '');
   const [newCat, setNewCat] = useState('');
   const [newEntity, setNewEntity] = useState('');
   const [isSaving, setIsSaving] = useState(false);
@@ -55,6 +57,8 @@ const Settings: React.FC = () => {
   React.useEffect(() => {
     if (data.currentUser) {
       if (data.globalNoteCategories.length > 0) setCategories(data.globalNoteCategories);
+      if (data.currentUser.name) setUserName(data.currentUser.name);
+      if (data.currentUser.avatarUrl) setAvatarUrl(data.currentUser.avatarUrl);
       const serverEntities = data.currentUser.personalEntities;
       if (Array.isArray(serverEntities) && serverEntities.length > 0) {
         setPersonalEntities(serverEntities);
@@ -82,6 +86,8 @@ const Settings: React.FC = () => {
       setIsSaving(true);
       try {
         await updatePersonalSettings({
+          name: userName,
+          avatarUrl: avatarUrl,
           personalEntities: personalEntities.filter(e => e.trim() !== ''),
           ideaConfigs: ideaConfigs,
           noteCategories: categories.filter(c => c.trim() !== ''),
@@ -94,7 +100,7 @@ const Settings: React.FC = () => {
       }
     }, 1500);
     return () => clearTimeout(timer);
-  }, [personalEntities, ideaConfigs, categories, theme, customTheme]);
+  }, [personalEntities, ideaConfigs, categories, theme, customTheme, userName, avatarUrl]);
 
   const addIdeaType = () => {
     setIdeaConfigs([...ideaConfigs, { type: 'New Type', stages: ['Backlog', 'Done'] }]);
@@ -160,13 +166,47 @@ const Settings: React.FC = () => {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         {/* User Info */}
         <section className="bg-white rounded-2xl border border-gray-200 p-8 shadow-sm col-span-1 lg:col-span-2">
-          <div className="flex items-center gap-4 mb-6">
-            <div className={`w-16 h-16 rounded-2xl ${data.currentUser?.avatarColor || 'bg-gray-600'} flex items-center justify-center text-white text-2xl font-bold`}>
-              {data.currentUser?.name[0]}
+          <div className="flex items-center gap-3 mb-6">
+            <User className="w-5 h-5" style={{ color: 'var(--primary)' }} />
+            <h2 className="text-lg font-bold">Personal Profile</h2>
+          </div>
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-6 mb-6">
+            <div className={`w-20 h-20 shrink-0 rounded-2xl ${!avatarUrl ? data.currentUser?.avatarColor || 'bg-gray-600' : ''} flex items-center justify-center text-white text-3xl font-bold overflow-hidden shadow-sm border border-gray-100`}>
+              {avatarUrl ? (
+                <img src={avatarUrl} alt="Avatar" className="w-full h-full object-cover" />
+              ) : (
+                userName?.[0]?.toUpperCase() || data.currentUser?.name?.[0]?.toUpperCase() || 'U'
+              )}
             </div>
-            <div>
-              <h2 className="text-xl font-bold text-gray-900">{data.currentUser?.name}</h2>
-              <p className="text-sm text-gray-500">{data.currentUser?.email}</p>
+            <div className="flex-1 w-full space-y-4">
+              <div>
+                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-1.5">Display Name</label>
+                <input
+                  type="text"
+                  value={userName}
+                  onChange={(e) => setUserName(e.target.value)}
+                  className="w-full bg-gray-50 border border-gray-200 rounded-lg px-4 py-2 text-sm font-bold text-gray-900 focus:bg-white focus:ring-2 outline-none transition-all"
+                  style={{ '--tw-ring-color': 'var(--primary)' } as any}
+                  placeholder="Your Name"
+                />
+              </div>
+              <div>
+                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-1.5">Avatar Image URL (Optional)</label>
+                <input
+                  type="text"
+                  value={avatarUrl}
+                  onChange={(e) => setAvatarUrl(e.target.value)}
+                  className="w-full bg-gray-50 border border-gray-200 rounded-lg px-4 py-2 text-sm text-gray-900 focus:bg-white focus:ring-2 outline-none transition-all"
+                  style={{ '--tw-ring-color': 'var(--primary)' } as any}
+                  placeholder="https://example.com/avatar.jpg"
+                />
+              </div>
+              <div>
+                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-1.5">Email Address</label>
+                <div className="text-sm font-medium text-gray-500 bg-gray-50 border border-gray-200 rounded-lg px-4 py-2 opacity-70 cursor-not-allowed">
+                  {data.currentUser?.email}
+                </div>
+              </div>
             </div>
           </div>
         </section>

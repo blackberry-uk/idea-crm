@@ -29,6 +29,7 @@ export interface User {
   email: string;
   password?: string;
   name: string;
+  avatarUrl?: string;
   personalEntities: string[]; // e.g. ["Interfrontera", "Stackable"]
   ideaConfigs?: IdeaConfig[];
   avatarColor?: string;
