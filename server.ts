@@ -311,10 +311,14 @@ app.delete('/api/admin/users/:id', authenticate, async (req: any, res) => {
       prisma.interaction.deleteMany({ where: { createdById: userIdToDelete } }),
       prisma.invitation.deleteMany({ where: { senderId: userIdToDelete } }),
       prisma.dailyTodo.deleteMany({ where: { userId: userIdToDelete } }),
-      prisma.note.deleteMany({ where: { ownerId: userIdToDelete } }),
+      prisma.note.deleteMany({ where: { createdById: userIdToDelete } }),
       prisma.contact.deleteMany({ where: { ownerId: userIdToDelete } }),
       prisma.entity.deleteMany({ where: { ownerId: userIdToDelete } }),
       prisma.idea.deleteMany({ where: { ownerId: userIdToDelete } }),
+      
+      // Nullify relations where user is not the owner but is referenced
+      prisma.dailyTodo.updateMany({ where: { assigneeId: userIdToDelete }, data: { assigneeId: null } }),
+      prisma.dailyTodo.updateMany({ where: { completedById: userIdToDelete }, data: { completedById: null } }),
       
       // Finally delete the user
       prisma.user.delete({ where: { id: userIdToDelete } })
