@@ -101,6 +101,8 @@ export interface Contact {
   instagramUrl?: string;
   substackUrl?: string;
   notes?: string;
+  isPrivateDetails?: boolean;
+  ownerId?: string;
 }
 
 export interface Entity {
