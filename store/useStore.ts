@@ -320,7 +320,7 @@ export const useStore = () => {
 
     updatePersonalSettings: async (settings: Partial<User>) => {
       if (!globalState.currentUser) return;
-      await apiClient.put(`/users/${globalState.currentUser.id}`, settings);
+      await apiClient.put(`/me`, settings);
       await hydrate();
     },
 

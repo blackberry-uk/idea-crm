@@ -188,6 +188,21 @@ app.get('/api/me', authenticate, async (req: any, res) => {
   }
 });
 
+app.put('/api/me', authenticate, async (req: any, res) => {
+  try {
+    const { name, avatarUrl } = req.body;
+    const updated = await prisma.user.update({
+      where: { id: req.userId },
+      data: { name, avatarUrl }
+    });
+    const { password, ...safeUser } = updated;
+    res.json(safeUser);
+  } catch (err: any) {
+    console.error('Update user error:', err);
+    res.status(500).json({ error: 'Failed to update user', details: err.message });
+  }
+});
+
 // --- DATA ROUTES ---
 app.get('/api/data', authenticate, async (req: any, res) => {
   const userId = req.userId;
