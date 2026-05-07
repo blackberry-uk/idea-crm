@@ -131,6 +131,84 @@ const IdeaDetail: React.FC = () => {
   const [newLinkTitle, setNewLinkTitle] = useState('');
   const [newLinkUrl, setNewLinkUrl] = useState('');
   const [showAddLink, setShowAddLink] = useState(false);
+  const [attachments, setAttachments] = useState<any[]>([]);
+  const [uploadingFile, setUploadingFile] = useState(false);
+  const [previewAttachmentId, setPreviewAttachmentId] = useState<string | null>(null);
+  const [previewContent, setPreviewContent] = useState<any | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const loadAttachments = useCallback(async () => {
+    if (!idea) return;
+    try {
+      const res = await apiClient.get(`/ideas/${idea.id}/attachments`);
+      setAttachments(res);
+    } catch (err) {
+      console.error(err);
+    }
+  }, [idea?.id]);
+
+  useEffect(() => {
+    loadAttachments();
+  }, [loadAttachments]);
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    
+    if (file.size > 3 * 1024 * 1024) {
+      showToast('File size must be under 3MB', 'error');
+      return;
+    }
+    
+    setUploadingFile(true);
+    try {
+      const reader = new FileReader();
+      reader.onload = async () => {
+        const base64 = reader.result as string;
+        await apiClient.post(`/ideas/${idea.id}/attachments`, {
+          title: newLinkTitle || file.name,
+          fileName: file.name,
+          fileType: file.type || 'application/octet-stream',
+          fileSize: file.size,
+          content: base64
+        });
+        showToast('File uploaded successfully', 'success');
+        setNewLinkTitle('');
+        setShowAddLink(false);
+        loadAttachments();
+      };
+      reader.readAsDataURL(file);
+    } catch (err) {
+      showToast('Failed to upload file', 'error');
+    } finally {
+      setUploadingFile(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  const loadAttachmentContent = async (id: string) => {
+    try {
+      setPreviewAttachmentId(id);
+      const res = await apiClient.get(`/attachments/${id}/content`);
+      const att = attachments.find(a => a.id === id);
+      if (att) setPreviewContent({ content: res.content, fileType: att.fileType, fileName: att.fileName });
+    } catch (err) {
+      showToast('Failed to load attachment', 'error');
+      setPreviewAttachmentId(null);
+    }
+  };
+
+  const deleteAttachment = async (e: React.MouseEvent, id: string) => {
+    e.stopPropagation();
+    if (!await confirm('Delete attachment?')) return;
+    try {
+      await apiClient.delete(`/attachments/${id}`);
+      showToast('Attachment deleted', 'success');
+      loadAttachments();
+    } catch (err) {
+      showToast('Failed to delete attachment', 'error');
+    }
+  };
 
   // --- Contact/Entity modal for mention clicks ---
   const [contactToEdit, setContactToEdit] = useState<any | null>(null);
@@ -1330,6 +1408,23 @@ const IdeaDetail: React.FC = () => {
                       ➕
                     </button>
                   </div>
+                  <div className="flex gap-2 mt-3 pt-3 border-t border-gray-200">
+                    <span className="text-[10px] font-bold text-gray-400 uppercase self-center shrink-0">OR UPLOAD</span>
+                    <input
+                      type="file"
+                      ref={fileInputRef}
+                      className="hidden"
+                      accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx"
+                      onChange={handleFileUpload}
+                    />
+                    <button
+                      onClick={() => fileInputRef.current?.click()}
+                      disabled={uploadingFile}
+                      className="flex-1 text-[11px] font-bold text-gray-600 bg-white border border-gray-300 py-1.5 rounded-lg hover:bg-gray-50 transition-colors flex items-center justify-center gap-2 shadow-sm disabled:opacity-50"
+                    >
+                      {uploadingFile ? 'Uploading...' : '📁 Select File (Max 3MB)'}
+                    </button>
+                  </div>
                 </div>
               )}
 
@@ -1367,8 +1462,43 @@ const IdeaDetail: React.FC = () => {
                     </div>
                   );
                 })}
-                {(!idea.links || idea.links.length === 0) && !showAddLink && (
-                  <div className="col-span-2 text-[10px] text-gray-400 italic text-center py-3">No documents linked yet.</div>
+                {attachments.map((att: any) => {
+                  let iconText = '📄';
+                  let iconBg = 'bg-gray-400';
+                  const lowerType = att.fileType.toLowerCase();
+                  const lowerName = att.fileName.toLowerCase();
+                  if (lowerType.includes('pdf') || lowerName.endsWith('.pdf')) { iconText = 'PDF'; iconBg = 'bg-red-600'; }
+                  else if (lowerType.includes('word') || lowerName.endsWith('.doc') || lowerName.endsWith('.docx')) { iconText = 'W'; iconBg = 'bg-blue-600'; }
+                  else if (lowerType.includes('excel') || lowerType.includes('spreadsheet') || lowerName.endsWith('.xls') || lowerName.endsWith('.xlsx')) { iconText = 'X'; iconBg = 'bg-emerald-600'; }
+                  else if (lowerType.includes('presentation') || lowerType.includes('powerpoint') || lowerName.endsWith('.ppt') || lowerName.endsWith('.pptx')) { iconText = 'P'; iconBg = 'bg-orange-600'; }
+
+                  return (
+                    <div key={att.id} onClick={() => loadAttachmentContent(att.id)} className="group relative flex flex-col gap-1 p-2 border border-gray-200 rounded-lg bg-gray-50 hover:border-gray-300 transition-colors cursor-pointer shadow-sm">
+                      <div className="flex items-center gap-2">
+                        <div className={`w-6 h-6 rounded flex items-center justify-center shrink-0 text-white text-[9px] font-black shadow-sm ${iconBg}`}>
+                          {iconText}
+                        </div>
+                        <div className="flex-1 min-w-0 pr-6">
+                          <div className="text-[10px] font-bold text-gray-700 truncate">{att.title}</div>
+                          <div className="text-[8px] text-gray-400 font-medium truncate">{att.fileName} • {(att.fileSize / 1024 / 1024).toFixed(1)}MB</div>
+                        </div>
+                      </div>
+                      <div className="text-[8px] text-gray-400 font-medium text-right mt-0.5">
+                        Uploaded {format(parseISO(att.createdAt), 'MMM d, h:mm a')}
+                      </div>
+                      {isOwner && (
+                        <button
+                          onClick={(e) => deleteAttachment(e, att.id)}
+                          className="opacity-0 group-hover:opacity-100 absolute top-1.5 right-1.5 p-1 text-gray-400 hover:text-red-500 transition-all shrink-0 bg-white shadow-sm rounded"
+                        >
+                          ✕
+                        </button>
+                      )}
+                    </div>
+                  );
+                })}
+                {(!idea.links || idea.links.length === 0) && attachments.length === 0 && !showAddLink && (
+                  <div className="col-span-2 text-[10px] text-gray-400 italic text-center py-3">No documents or attachments yet.</div>
                 )}
               </div>
             </section>
@@ -1611,6 +1741,60 @@ const IdeaDetail: React.FC = () => {
         )}
       </div>
       </div>
+      {/* Attachment Preview Modal */}
+      {previewAttachmentId && (
+        <div className="fixed inset-0 bg-black/60 z-[100] flex items-center justify-center p-4 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl w-[90vw] h-[90vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between p-4 border-b border-gray-100 bg-gray-50">
+              <h3 className="font-black text-gray-800 text-lg flex items-center gap-2">
+                <span>📄</span> {previewContent?.fileName || 'Loading...'}
+              </h3>
+              <div className="flex items-center gap-3">
+                {previewContent && (
+                  <a 
+                    href={previewContent.content} 
+                    download={previewContent.fileName}
+                    className="text-sm font-bold text-[var(--primary)] hover:underline"
+                  >
+                    Download
+                  </a>
+                )}
+                <button
+                  onClick={() => { setPreviewAttachmentId(null); setPreviewContent(null); }}
+                  className="p-2 text-gray-400 hover:text-gray-600 bg-white rounded-lg shadow-sm border border-gray-200"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+            <div className="flex-1 bg-gray-100 p-4 overflow-auto flex items-center justify-center">
+              {!previewContent ? (
+                <div className="text-gray-400 font-bold animate-pulse">Loading secure document...</div>
+              ) : previewContent.fileType.includes('pdf') ? (
+                <iframe src={previewContent.content} className="w-full h-full rounded-xl shadow-sm bg-white" title="Document Preview" />
+              ) : previewContent.fileType.startsWith('image/') ? (
+                <img src={previewContent.content} className="max-w-full max-h-full object-contain shadow-sm rounded-xl" alt="Preview" />
+              ) : (
+                <div className="flex flex-col items-center gap-4 text-gray-500 bg-white p-12 rounded-2xl shadow-sm">
+                  <div className="text-6xl">📝</div>
+                  <h4 className="text-xl font-black text-gray-800">Preview not available</h4>
+                  <p className="text-center max-w-sm text-sm leading-relaxed">
+                    Browser native preview is currently limited to PDFs and Images. For Word, Excel, and PowerPoint files, please download to view.
+                  </p>
+                  <a 
+                    href={previewContent.content} 
+                    download={previewContent.fileName}
+                    className="mt-4 px-8 py-3 bg-[var(--primary)] text-white rounded-xl font-black shadow-md hover:scale-105 transition-transform"
+                  >
+                    Download File
+                  </a>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 };
