@@ -1441,14 +1441,17 @@ app.post('/api/daily-todos/:id/duplicate', authenticate, async (req: any, res) =
     
     if (!todo) return res.status(404).json({ error: 'Todo not found' });
     
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    tomorrow.setHours(12, 0, 0, 0);
+    let targetDate = new Date();
+    if (todo.date) {
+      targetDate = new Date(todo.date);
+    }
+    targetDate.setDate(targetDate.getDate() + 1);
+    targetDate.setHours(12, 0, 0, 0);
 
     // Helper to get next order
     const getNextOrder = async (parentId: string | null) => {
       const minOrder = await (prisma as any).dailyTodo.aggregate({
-        where: { userId: req.userId, date: tomorrow, parentId: parentId || null },
+        where: { userId: req.userId, date: targetDate, parentId: parentId || null },
         _min: { sortOrder: true }
       });
       return (minOrder._min.sortOrder ?? 0) - 1;
@@ -1466,14 +1469,14 @@ app.post('/api/daily-todos/:id/duplicate', authenticate, async (req: any, res) =
       if (parent) {
         // Check if parent already duplicated for tomorrow
         let existingParent = await (prisma as any).dailyTodo.findFirst({
-          where: { userId: req.userId, date: tomorrow, text: parent.text, parentId: null }
+          where: { userId: req.userId, date: targetDate, text: parent.text, parentId: null }
         });
         
         if (!existingParent) {
           existingParent = await (prisma as any).dailyTodo.create({
             data: {
               text: parent.text,
-              date: tomorrow,
+              date: targetDate,
               isUrgent: parent.isUrgent,
               sortOrder: await getNextOrder(null),
               ideaId: parent.ideaId,
@@ -1491,7 +1494,7 @@ app.post('/api/daily-todos/:id/duplicate', authenticate, async (req: any, res) =
       const newSubtask = await (prisma as any).dailyTodo.create({
         data: {
           text: todo.text,
-          date: tomorrow,
+          date: targetDate,
           isUrgent: todo.isUrgent,
           sortOrder: await getNextOrder(newParentId),
           ideaId: todo.ideaId,
@@ -1509,7 +1512,7 @@ app.post('/api/daily-todos/:id/duplicate', authenticate, async (req: any, res) =
       const newParent = await (prisma as any).dailyTodo.create({
         data: {
           text: todo.text,
-          date: tomorrow,
+          date: targetDate,
           isUrgent: todo.isUrgent,
           sortOrder: await getNextOrder(null),
           ideaId: todo.ideaId,
@@ -1526,7 +1529,7 @@ app.post('/api/daily-todos/:id/duplicate', authenticate, async (req: any, res) =
           const newChild = await (prisma as any).dailyTodo.create({
             data: {
               text: child.text,
-              date: tomorrow,
+              date: targetDate,
               isUrgent: child.isUrgent,
               sortOrder: await getNextOrder(newParent.id),
               ideaId: child.ideaId,
