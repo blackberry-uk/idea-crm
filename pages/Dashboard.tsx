@@ -887,7 +887,7 @@ const Dashboard: React.FC = () => {
                         }}
                         className={draggingTodoId === todo.id ? 'cl-todo-dragging' : ''}
                       >
-                        <DailyTodoItem todo={todo} ideas={ideas} onOpenContact={handleOpenContactByName} onOpenEntity={handleOpenEntityByName} onAssigneeChange={(id, assigneeId) => updateTodo(id, { assigneeId })}
+                        <DailyTodoItem todo={todo} ideas={ideas} onOpenContact={handleOpenContactByName} onOpenEntity={handleOpenEntityByName} onAssigneeChange={(id, assigneeId) => updateTodo(id, { assigneeId })} onDuplicate={duplicateTodo}
                           onToggleComplete={toggleComplete} onToggleUrgent={toggleUrgent}
                           onDelete={deleteTodo} onSaveEdit={saveEdit} onTagIdea={tagTodoToIdea}
                           onAddSubtask={addSubtask} onOpenDetail={openDetail}
@@ -940,7 +940,7 @@ const Dashboard: React.FC = () => {
                         <Lightbulb className="w-3 h-3" /> {group.title}
                       </div>
                       {group.todos.map((todo: any) => (
-                        <DailyTodoItem key={todo.id} todo={{ ...todo, idea: null } as any} ideas={ideas} onOpenContact={handleOpenContactByName} onOpenEntity={handleOpenEntityByName} onAssigneeChange={(id, assigneeId) => updateTodo(id, { assigneeId })}
+                        <DailyTodoItem key={todo.id} todo={{ ...todo, idea: null } as any} ideas={ideas} onOpenContact={handleOpenContactByName} onOpenEntity={handleOpenEntityByName} onAssigneeChange={(id, assigneeId) => updateTodo(id, { assigneeId })} onDuplicate={duplicateTodo}
                           customContainerStyle={{ background: '#fef3c7', borderColor: '#fef3c7' }}
                           overrideDateLabel={todo.dueDate ? `Due ${todo.dueDate.slice(5, 10).replace('-', '/')}` : 'No due date'}
                           onToggleComplete={async () => {
@@ -1008,7 +1008,7 @@ const Dashboard: React.FC = () => {
                         {dateKey === 'No Date' ? dateKey : format(new Date(dateKey), 'EEE, MMM d')}
                       </div>
                       {todos.map(todo => (
-                        <DailyTodoItem key={todo.id} todo={todo} ideas={ideas} onOpenContact={handleOpenContactByName} onOpenEntity={handleOpenEntityByName} onAssigneeChange={(id, assigneeId) => updateTodo(id, { assigneeId })}
+                        <DailyTodoItem key={todo.id} todo={todo} ideas={ideas} onOpenContact={handleOpenContactByName} onOpenEntity={handleOpenEntityByName} onAssigneeChange={(id, assigneeId) => updateTodo(id, { assigneeId })} onDuplicate={duplicateTodo}
                           customContainerStyle={{ background: '#fee2e2', borderColor: '#fee2e2' }}
                           onToggleComplete={toggleComplete} onToggleUrgent={toggleUrgent}
                           onDelete={deleteTodo} onSaveEdit={saveEdit} onTagIdea={tagTodoToIdea}
@@ -1058,7 +1058,7 @@ const Dashboard: React.FC = () => {
               {backburnerOpen && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                   {sortTodos(backburnerTodos).map(todo => (
-                    <DailyTodoItem key={todo.id} todo={todo} ideas={ideas} onOpenContact={handleOpenContactByName} onOpenEntity={handleOpenEntityByName} onAssigneeChange={(id, assigneeId) => updateTodo(id, { assigneeId })}
+                    <DailyTodoItem key={todo.id} todo={todo} ideas={ideas} onOpenContact={handleOpenContactByName} onOpenEntity={handleOpenEntityByName} onAssigneeChange={(id, assigneeId) => updateTodo(id, { assigneeId })} onDuplicate={duplicateTodo}
                       onToggleComplete={toggleComplete} onToggleUrgent={toggleUrgent}
                       onDelete={deleteTodo} onSaveEdit={saveEdit} onTagIdea={tagTodoToIdea}
                       onAddSubtask={addSubtask} onOpenDetail={openDetail}
