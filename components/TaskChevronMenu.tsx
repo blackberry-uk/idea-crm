@@ -113,7 +113,7 @@ export const TaskChevronMenu: React.FC<TaskChevronMenuProps> = ({
 
       {onDuplicate && (
         <button className="wv-task-dropdown-item" onMouseDown={e => { e.preventDefault(); e.stopPropagation(); onDuplicate(todo.id); onClose(); }}>
-          <span>📋 Duplicate for tomorrow</span>
+          <span>📋 Duplicate to next day</span>
         </button>
       )}
 
