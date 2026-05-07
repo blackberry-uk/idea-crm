@@ -1166,7 +1166,7 @@ const IdeaDetail: React.FC = () => {
                   {[owner, ...collaborators].filter(Boolean).map((c: any) => c && (
                     <div key={c.id} className="flex items-center justify-between text-xs text-gray-700 font-semibold bg-white border border-gray-100 shadow-sm rounded-lg p-1.5">
                       <span className="truncate pr-2 pl-1">{c.name}</span>
-                      <div className={`w-5 h-5 rounded-full ${getAvatarColor(c.id)} flex items-center justify-center text-white text-[8px] font-black shadow-sm shrink-0`}>
+                      <div className={`min-w-[24px] h-5 px-1.5 rounded-lg ${getAvatarColor(c.id, c.themeAdjustments)} flex items-center justify-center text-white text-[9px] font-black shadow-sm shrink-0`}>
                         {c.avatarUrl ? c.avatarUrl.slice(0,3) : getInitials(c.name)}
                       </div>
                     </div>

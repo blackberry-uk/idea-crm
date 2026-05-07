@@ -332,7 +332,7 @@ const KanbanModal: React.FC<KanbanModalProps> = ({ isOpen, onClose, idea, users,
 
                                                                 {assignee && (
                                                                     <div
-                                                                        className={`w-8 h-8 rounded-lg ${getAvatarColor(assignee.id)} flex items-center justify-center text-[13px] text-white font-black shadow-md shrink-0 premium-tooltip premium-tooltip-right ring-1 ring-white/20`}
+                                                                        className={`min-w-[32px] px-2 h-8 rounded-xl ${getAvatarColor(assignee.id, assignee.themeAdjustments)} flex items-center justify-center text-[13px] text-white font-black shadow-md shrink-0 premium-tooltip premium-tooltip-right ring-1 ring-white/20`}
                                                                         data-tooltip={assignee.name}
                                                                     >
                                                                         {assignee.avatarUrl ? assignee.avatarUrl.slice(0,3) : getInitials(assignee.name)}

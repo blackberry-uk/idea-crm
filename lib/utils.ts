@@ -5,7 +5,7 @@ export const getInitials = (name: string) => {
     return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
 };
 
-const AVATAR_COLORS = [
+export const AVATAR_COLORS = [
     'bg-blue-500',
     'bg-indigo-500',
     'bg-purple-500',
@@ -19,7 +19,8 @@ const AVATAR_COLORS = [
     'bg-sky-500',
 ];
 
-export const getAvatarColor = (id: string) => {
+export const getAvatarColor = (id: string, themeAdjustments?: any) => {
+    if (themeAdjustments?.avatarColor) return themeAdjustments.avatarColor;
     if (!id) return 'bg-gray-400';
     let hash = 0;
     for (let i = 0; i < id.length; i++) {
