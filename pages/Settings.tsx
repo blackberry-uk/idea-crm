@@ -197,6 +197,7 @@ const Settings: React.FC = () => {
                   <div className="flex-1" style={{ backgroundColor: palette.primary }} title="Icons & Primary" />
                   <div className="flex-1" style={{ backgroundColor: palette.secondary }} title="Working Areas" />
                   <div className="flex-1" style={{ backgroundColor: palette.followUp }} title="Follow ups" />
+                  <div className="flex-1" style={{ backgroundColor: palette.appBg }} title="App Background" />
                   <div className="flex-1" style={{ backgroundColor: palette.accent }} title="Accents" />
                 </div>
               </button>
@@ -236,6 +237,7 @@ const Settings: React.FC = () => {
                   { label: 'Primary (Brand)', key: 'primary' },
                   { label: 'Working Area (Amber)', key: 'secondary' },
                   { label: 'UI Background', key: 'uiBg' },
+                  { label: 'App Background', key: 'appBg' },
                   { label: 'App Borders', key: 'border' },
                 ]
               },
