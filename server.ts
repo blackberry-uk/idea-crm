@@ -430,6 +430,85 @@ app.delete('/api/ideas/:id', authenticate, async (req: any, res) => {
   }
 });
 
+app.post('/api/ideas/:id/attachments', authenticate, async (req: any, res) => {
+  try {
+    const ideaId = req.params.id;
+    const { title, description, fileName, fileType, fileSize, content } = req.body;
+
+    const idea = await prisma.idea.findUnique({
+      where: { id: ideaId },
+      include: { collaborators: true }
+    });
+    if (!idea) return res.status(404).json({ error: 'Idea not found' });
+    const hasAccess = idea.ownerId === req.userId || idea.collaborators.some(c => c.id === req.userId);
+    if (!hasAccess) return res.status(403).json({ error: 'Access denied' });
+
+    const attachment = await prisma.fileAttachment.create({
+      data: { title, description: description || null, fileName, fileType, fileSize, content, ideaId }
+    });
+
+    res.json(attachment);
+  } catch (err: any) {
+    res.status(500).json({ error: 'Failed to upload attachment', details: err.message });
+  }
+});
+
+app.get('/api/ideas/:id/attachments', authenticate, async (req: any, res) => {
+  try {
+    const ideaId = req.params.id;
+    const idea = await prisma.idea.findUnique({
+      where: { id: ideaId },
+      include: { collaborators: true }
+    });
+    if (!idea) return res.status(404).json({ error: 'Idea not found' });
+    const hasAccess = idea.ownerId === req.userId || idea.collaborators.some(c => c.id === req.userId);
+    if (!hasAccess) return res.status(403).json({ error: 'Access denied' });
+
+    const attachments = await prisma.fileAttachment.findMany({
+      where: { ideaId },
+      select: { id: true, title: true, description: true, fileName: true, fileType: true, fileSize: true, createdAt: true, ideaId: true },
+      orderBy: { createdAt: 'desc' }
+    });
+
+    res.json(attachments);
+  } catch (err: any) {
+    res.status(500).json({ error: 'Failed to fetch attachments', details: err.message });
+  }
+});
+
+app.get('/api/attachments/:id/content', authenticate, async (req: any, res) => {
+  try {
+    const attachment = await prisma.fileAttachment.findUnique({
+      where: { id: req.params.id },
+      include: { idea: { include: { collaborators: true } } }
+    });
+    if (!attachment || !attachment.idea) return res.status(404).json({ error: 'Not found' });
+    const hasAccess = attachment.idea.ownerId === req.userId || attachment.idea.collaborators.some(c => c.id === req.userId);
+    if (!hasAccess) return res.status(403).json({ error: 'Access denied' });
+
+    res.json({ content: attachment.content });
+  } catch (err: any) {
+    res.status(500).json({ error: 'Failed to fetch attachment content', details: err.message });
+  }
+});
+
+app.delete('/api/attachments/:id', authenticate, async (req: any, res) => {
+  try {
+    const attachment = await prisma.fileAttachment.findUnique({
+      where: { id: req.params.id },
+      include: { idea: { include: { collaborators: true } } }
+    });
+    if (!attachment || !attachment.idea) return res.status(404).json({ error: 'Not found' });
+    const hasAccess = attachment.idea.ownerId === req.userId || attachment.idea.collaborators.some(c => c.id === req.userId);
+    if (!hasAccess) return res.status(403).json({ error: 'Access denied' });
+
+    await prisma.fileAttachment.delete({ where: { id: req.params.id } });
+    res.json({ success: true });
+  } catch (err: any) {
+    res.status(500).json({ error: 'Failed to delete attachment', details: err.message });
+  }
+});
+
 app.post('/api/ideas/:id/leave', authenticate, async (req: any, res) => {
   try {
     await prisma.idea.update({
