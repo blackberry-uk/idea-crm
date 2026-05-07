@@ -62,6 +62,8 @@ app.get("/health", (_req, res) => {
 
 
 // Auth Middleware
+const lastActiveFlushes: Record<string, number> = {};
+
 const authenticate = (req: any, res: any, next: any) => {
   const authHeader = req.headers.authorization;
   const token = authHeader?.startsWith('Bearer ') ? authHeader.split(' ')[1] : (req.query.token as string | null);
@@ -70,6 +72,17 @@ const authenticate = (req: any, res: any, next: any) => {
   try {
     const decoded = jwt.verify(token, JWT_SECRET) as any;
     req.userId = decoded.userId;
+
+    // Flush last active time to database (max once every 15 mins per user)
+    const now = Date.now();
+    if (!lastActiveFlushes[req.userId] || now - lastActiveFlushes[req.userId] > 15 * 60 * 1000) {
+      lastActiveFlushes[req.userId] = now;
+      prisma.user.update({
+        where: { id: req.userId },
+        data: { lastLoginAt: new Date() }
+      }).catch(e => console.error('Last active flush error:', e));
+    }
+
     next();
   } catch (err) {
     res.status(401).json({ error: 'Invalid token' });
@@ -188,10 +201,7 @@ app.post('/api/auth/google', async (req, res) => {
 
 app.get('/api/me', authenticate, async (req: any, res) => {
   try {
-    const user = await prisma.user.update({
-      where: { id: req.userId },
-      data: { lastLoginAt: new Date() }
-    });
+    const user = await prisma.user.findUnique({ where: { id: req.userId } });
     if (!user) return res.status(404).json({ error: 'User not found' });
     const { password, ...safeUser } = user;
     res.json(safeUser);
