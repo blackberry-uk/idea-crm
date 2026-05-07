@@ -156,16 +156,24 @@ const IdeaDetail: React.FC = () => {
     const file = e.target.files?.[0];
     if (!file) return;
     
-    if (file.size > 3 * 1024 * 1024) {
-      showToast('File size must be under 3MB', 'error');
+    if (file.size > 15 * 1024 * 1024) {
+      showToast('File size must be under 15MB', 'error');
       return;
     }
     
     setUploadingFile(true);
     try {
-      const reader = new FileReader();
-      reader.onload = async () => {
-        const base64 = reader.result as string;
+      const base64 = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+
+      const CHUNK_SIZE = 3 * 1024 * 1024;
+      const numChunks = Math.ceil(base64.length / CHUNK_SIZE);
+
+      if (numChunks === 1) {
         await apiClient.post(`/ideas/${idea.id}/attachments`, {
           title: newLinkTitle || file.name,
           fileName: file.name,
@@ -173,12 +181,29 @@ const IdeaDetail: React.FC = () => {
           fileSize: file.size,
           content: base64
         });
-        showToast('File uploaded successfully', 'success');
-        setNewLinkTitle('');
-        setShowAddLink(false);
-        loadAttachments();
-      };
-      reader.readAsDataURL(file);
+      } else {
+        const uploadId = Math.random().toString(36).substring(2) + Date.now().toString(36);
+        for (let i = 0; i < numChunks; i++) {
+          const chunk = base64.slice(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE);
+          await apiClient.post(`/ideas/${idea.id}/attachments/chunk`, {
+            uploadId,
+            chunkIndex: i,
+            content: chunk
+          });
+        }
+        await apiClient.post(`/ideas/${idea.id}/attachments/finalize`, {
+          uploadId,
+          title: newLinkTitle || file.name,
+          fileName: file.name,
+          fileType: file.type || 'application/octet-stream',
+          fileSize: file.size
+        });
+      }
+
+      showToast('File uploaded successfully', 'success');
+      setNewLinkTitle('');
+      setShowAddLink(false);
+      loadAttachments();
     } catch (err) {
       showToast('Failed to upload file', 'error');
     } finally {
@@ -1423,7 +1448,7 @@ const IdeaDetail: React.FC = () => {
                       disabled={uploadingFile}
                       className="flex-1 text-[11px] font-bold text-gray-600 bg-white border border-gray-300 py-1.5 rounded-lg hover:bg-gray-50 transition-colors flex items-center justify-center gap-2 shadow-sm disabled:opacity-50"
                     >
-                      {uploadingFile ? 'Uploading...' : '📁 Select File (Max 3MB)'}
+                      {uploadingFile ? 'Uploading...' : '📁 Select File (Max 15MB)'}
                     </button>
                   </div>
                 </div>

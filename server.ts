@@ -453,6 +453,50 @@ app.post('/api/ideas/:id/attachments', authenticate, async (req: any, res) => {
   }
 });
 
+app.post('/api/ideas/:id/attachments/chunk', authenticate, async (req: any, res) => {
+  try {
+    const { uploadId, chunkIndex, content } = req.body;
+    await prisma.fileAttachmentChunk.create({
+      data: { uploadId, chunkIndex, content }
+    });
+    res.json({ success: true });
+  } catch (err: any) {
+    res.status(500).json({ error: 'Failed to save chunk', details: err.message });
+  }
+});
+
+app.post('/api/ideas/:id/attachments/finalize', authenticate, async (req: any, res) => {
+  try {
+    const ideaId = req.params.id;
+    const { uploadId, title, description, fileName, fileType, fileSize } = req.body;
+
+    const idea = await prisma.idea.findUnique({
+      where: { id: ideaId },
+      include: { collaborators: true }
+    });
+    if (!idea) return res.status(404).json({ error: 'Idea not found' });
+    const hasAccess = idea.ownerId === req.userId || idea.collaborators.some(c => c.id === req.userId);
+    if (!hasAccess) return res.status(403).json({ error: 'Access denied' });
+
+    const chunks = await prisma.fileAttachmentChunk.findMany({
+      where: { uploadId },
+      orderBy: { chunkIndex: 'asc' }
+    });
+
+    const fullContent = chunks.map(c => c.content).join('');
+
+    const attachment = await prisma.fileAttachment.create({
+      data: { title, description: description || null, fileName, fileType, fileSize, content: fullContent, ideaId }
+    });
+
+    await prisma.fileAttachmentChunk.deleteMany({ where: { uploadId } });
+
+    res.json(attachment);
+  } catch (err: any) {
+    res.status(500).json({ error: 'Failed to finalize upload', details: err.message });
+  }
+});
+
 app.get('/api/ideas/:id/attachments', authenticate, async (req: any, res) => {
   try {
     const ideaId = req.params.id;
