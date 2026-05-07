@@ -11,6 +11,7 @@ import EntitiesPage from './pages/EntitiesPage';
 import Settings from './pages/Settings';
 import Invitations from './pages/Invitations';
 import DailyTodos from './pages/DailyTodos';
+import AdminPage from './pages/AdminPage';
 import { useStore } from './store/useStore';
 import { apiClient } from './lib/api/client';
 import { Lightbulb, LogIn, UserPlus, ShieldCheck, AlertCircle, Eye, EyeOff } from 'lucide-react';
@@ -277,6 +278,7 @@ const App: React.FC = () => {
         <Route path="/daily" element={<ProtectedRoute><DailyTodos /></ProtectedRoute>} />
         <Route path="/invitations" element={<ProtectedRoute><Invitations /></ProtectedRoute>} />
         <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
+        <Route path="/admin" element={<ProtectedRoute><AdminPage /></ProtectedRoute>} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </Router>

@@ -88,7 +88,8 @@ app.post('/api/register', async (req, res) => {
         email: email.toLowerCase().trim(),
         name,
         password: hashedPassword,
-        personalEntities: ['Personal']
+        personalEntities: ['Personal'],
+        lastLoginAt: new Date()
       }
     });
     const token = jwt.sign({ userId: user.id }, JWT_SECRET);
@@ -104,6 +105,10 @@ app.post('/api/login', async (req, res) => {
   if (!user || !(await bcrypt.compare(password, user.password))) {
     return res.status(401).json({ error: 'Invalid credentials' });
   }
+  await prisma.user.update({
+    where: { id: user.id },
+    data: { lastLoginAt: new Date() }
+  });
   const token = jwt.sign({ userId: user.id }, JWT_SECRET);
   res.json({ user: { id: user.id, email: user.email, name: user.name }, token });
 });
@@ -148,17 +153,22 @@ app.post('/api/auth/google', async (req, res) => {
       }
     }
 
-    // 3. If still not found, create new user
     if (!user) {
       user = await prisma.user.create({
         data: {
           email,
           name,
           googleId,
-          personalEntities: ['Personal']
+          personalEntities: ['Personal'],
+          lastLoginAt: new Date()
         } as any
       });
       console.log('[Google Auth] Created new user:', user.id);
+    } else {
+      user = await prisma.user.update({
+        where: { id: user.id },
+        data: { lastLoginAt: new Date() }
+      });
     }
 
     const token = jwt.sign({ userId: user.id }, JWT_SECRET);
@@ -200,6 +210,37 @@ app.put('/api/me', authenticate, async (req: any, res) => {
   } catch (err: any) {
     console.error('Update user error:', err);
     res.status(500).json({ error: 'Failed to update user', details: err.message });
+  }
+});
+
+app.get('/api/admin/users', authenticate, async (req: any, res) => {
+  try {
+    const admin = await prisma.user.findUnique({ where: { id: req.userId } });
+    if (admin?.email !== 'fernando.mora.uk@gmail.com') return res.status(403).json({ error: 'Forbidden' });
+
+    const users = await prisma.user.findMany({
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        createdAt: true,
+        lastLoginAt: true,
+      },
+      orderBy: { createdAt: 'desc' }
+    });
+
+    const invitations = await prisma.invitation.findMany({
+      include: {
+        sender: { select: { name: true, email: true } },
+        idea: { select: { title: true } }
+      },
+      orderBy: { createdAt: 'desc' }
+    });
+
+    res.json({ users, invitations });
+  } catch (err: any) {
+    console.error('Admin users error:', err);
+    res.status(500).json({ error: 'Failed to fetch admin data' });
   }
 });
 
