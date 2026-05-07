@@ -237,13 +237,16 @@ app.get('/api/data', authenticate, async (req: any, res) => {
     });
     console.log('[API /data] Entities fetched:', entities.length);
 
+    const contactIds = contacts.map((c: any) => c.id);
     console.log('[API /data] Fetching notes...');
     const rawNotes = await prisma.note.findMany({
       where: {
         OR: [
           { createdById: userId },
           { idea: { OR: [{ ownerId: userId }, { collaborators: { some: { id: userId } } }] } },
-          { taggedUsers: { some: { id: userId } } }
+          { taggedUsers: { some: { id: userId } } },
+          { contactId: { in: contactIds }, ideaId: null },
+          { taggedContacts: { some: { id: { in: contactIds } } }, ideaId: null }
         ]
       } as any,
       include: {

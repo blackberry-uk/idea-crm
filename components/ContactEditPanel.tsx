@@ -188,7 +188,7 @@ const ContactEditPanel: React.FC<ContactEditPanelProps> = ({
              <div className="flex items-center gap-2">
                <Linkedin className="w-4 h-4 text-gray-400" />
                <a href={linkedinUrl} target="_blank" rel="noopener noreferrer" className="text-indigo-600 hover:underline">
-                 {linkedinUrl.replace(/^https?:\/\/(www\.)?linkedin\.com\/in\//, '').replace(/\/$/, '')}
+                 {linkedinUrl}
                </a>
              </div>
            )}
