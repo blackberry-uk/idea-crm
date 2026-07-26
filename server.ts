@@ -1470,20 +1470,6 @@ app.post('/api/daily-todos', authenticate, async (req: any, res) => {
 // PWA page. Creates a to-do for today (or the supplied date) with minimal input.
 const blockForHour = (h: number) => (h < 12 ? 'morning' : h < 17 ? 'afternoon' : 'evening');
 
-// Parse "email=ideaId;email=ideaId" (INBOUND_SENDER_IDEAS) into a lookup. An empty
-// ideaId means "allowed sender, but attach no idea". Membership = the allow-list.
-const parseSenderIdeaMap = (raw?: string): Record<string, string> => {
-  const map: Record<string, string> = {};
-  (raw || '').split(';').forEach(pair => {
-    const i = pair.indexOf('=');
-    if (i < 0) return;
-    const email = pair.slice(0, i).trim().toLowerCase();
-    const ideaId = pair.slice(i + 1).trim();
-    if (email) map[email] = ideaId;
-  });
-  return map;
-};
-
 // Read a natural-language date directive from the start of an email subject:
 //   "Monday: Send docs"      -> next Monday (incl. today)         text: "Send docs"
 //   "Monday +1w: Send docs"  -> that Monday + 1 week              text: "Send docs"
@@ -1615,16 +1601,14 @@ app.post('/api/inbound-email', async (req: any, res) => {
     const textBody = (body.StrippedTextReply || body.TextBody || '').toString().trim();
     if (!senderEmail) return res.status(200).json({ ok: false, ignored: 'no sender' });
 
-    // Resolve the owning user + which idea to file into.
-    // If the sender is in INBOUND_SENDER_IDEAS, records are owned by INBOUND_OWNER_EMAIL
-    // and filed into the mapped idea. Otherwise fall back to "sender is itself a user".
-    const ownerEmail = (process.env.INBOUND_OWNER_EMAIL || '').trim().toLowerCase();
-    const senderMap = parseSenderIdeaMap(process.env.INBOUND_SENDER_IDEAS);
+    // Resolve the owning user + target idea from the InboundRoute table (managed in
+    // Settings → Email-in routing). Falls back to "sender is itself a registered user".
+    const route = await (prisma as any).inboundRoute.findFirst({ where: { senderEmail } });
     let user: any = null;
     let mappedIdeaId: string | null = null;
-    if (senderMap[senderEmail] !== undefined) {
-      user = await prisma.user.findFirst({ where: { email: { equals: ownerEmail || senderEmail, mode: 'insensitive' } as any } });
-      mappedIdeaId = senderMap[senderEmail] || null;
+    if (route) {
+      user = await prisma.user.findFirst({ where: { id: route.userId } });
+      mappedIdeaId = route.ideaId || null;
     } else {
       user = await prisma.user.findFirst({ where: { email: { equals: senderEmail, mode: 'insensitive' } as any } });
     }
@@ -1708,6 +1692,68 @@ app.post('/api/inbound-email', async (req: any, res) => {
     console.error('[inbound-email] error', err);
     // 200 so Postmark doesn't retry-storm on a parse error we can't recover from.
     return res.status(200).json({ ok: false, error: err.message });
+  }
+});
+
+// --- Email-in routing rules (managed in Settings) --------------------------
+const routeInclude = { idea: { select: { id: true, title: true } } };
+
+app.get('/api/inbound-routes', authenticate, async (req: any, res) => {
+  try {
+    const routes = await (prisma as any).inboundRoute.findMany({
+      where: { userId: req.userId }, include: routeInclude, orderBy: { createdAt: 'asc' }
+    });
+    res.json(routes);
+  } catch (err: any) {
+    res.status(500).json({ error: 'Failed to load routes', details: err.message });
+  }
+});
+
+app.post('/api/inbound-routes', authenticate, async (req: any, res) => {
+  try {
+    const senderEmail = (req.body?.senderEmail || '').toString().trim().toLowerCase();
+    const ideaId = req.body?.ideaId || null;
+    if (!senderEmail || !senderEmail.includes('@')) return res.status(400).json({ error: 'A valid sender email is required' });
+    if (ideaId) {
+      const idea = await prisma.idea.findFirst({ where: { id: ideaId, ownerId: req.userId } });
+      if (!idea) return res.status(400).json({ error: 'Idea not found' });
+    }
+    const route = await (prisma as any).inboundRoute.create({
+      data: { senderEmail, userId: req.userId, ideaId }, include: routeInclude
+    });
+    res.json(route);
+  } catch (err: any) {
+    if (err.code === 'P2002') return res.status(409).json({ error: 'That sender is already routed' });
+    res.status(500).json({ error: 'Failed to create route', details: err.message });
+  }
+});
+
+app.put('/api/inbound-routes/:id', authenticate, async (req: any, res) => {
+  try {
+    const existing = await (prisma as any).inboundRoute.findUnique({ where: { id: req.params.id } });
+    if (!existing || existing.userId !== req.userId) return res.status(404).json({ error: 'Route not found' });
+    const ideaId = req.body?.ideaId || null;
+    if (ideaId) {
+      const idea = await prisma.idea.findFirst({ where: { id: ideaId, ownerId: req.userId } });
+      if (!idea) return res.status(400).json({ error: 'Idea not found' });
+    }
+    const route = await (prisma as any).inboundRoute.update({
+      where: { id: req.params.id }, data: { ideaId }, include: routeInclude
+    });
+    res.json(route);
+  } catch (err: any) {
+    res.status(500).json({ error: 'Failed to update route', details: err.message });
+  }
+});
+
+app.delete('/api/inbound-routes/:id', authenticate, async (req: any, res) => {
+  try {
+    const existing = await (prisma as any).inboundRoute.findUnique({ where: { id: req.params.id } });
+    if (!existing || existing.userId !== req.userId) return res.status(404).json({ error: 'Route not found' });
+    await (prisma as any).inboundRoute.delete({ where: { id: req.params.id } });
+    res.json({ ok: true });
+  } catch (err: any) {
+    res.status(500).json({ error: 'Failed to delete route', details: err.message });
   }
 });
 

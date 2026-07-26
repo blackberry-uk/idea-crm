@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useStore } from '../store/useStore';
 import {
   Palette,
@@ -146,6 +146,124 @@ const QuickCaptureSection: React.FC = () => {
           </div>
         </div>
       </div>
+    </section>
+  );
+};
+
+// Manage which of your email addresses can create records via email-in, and which
+// idea each files into. Backed by the InboundRoute table (no redeploy to change).
+const EmailRoutingSection: React.FC = () => {
+  const { data } = useStore();
+  const currentUserId = data.currentUser?.id;
+  const ownedIdeas = (data.ideas || [])
+    .filter((i: any) => i.ownerId === currentUserId && i.status !== 'Archived')
+    .sort((a: any, b: any) => a.title.localeCompare(b.title));
+
+  const [routes, setRoutes] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [newEmail, setNewEmail] = useState('');
+  const [newIdeaId, setNewIdeaId] = useState('');
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    apiClient.get('/inbound-routes')
+      .then(setRoutes)
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  const add = async () => {
+    const email = newEmail.trim().toLowerCase();
+    if (!email.includes('@')) { setError('Enter a valid email address'); return; }
+    setBusy(true); setError('');
+    try {
+      const route = await apiClient.post('/inbound-routes', { senderEmail: email, ideaId: newIdeaId || null });
+      setRoutes(prev => [...prev, route]);
+      setNewEmail(''); setNewIdeaId('');
+    } catch (e: any) {
+      setError(e.message || 'Failed to add route');
+    } finally { setBusy(false); }
+  };
+
+  const changeIdea = async (id: string, ideaId: string) => {
+    try {
+      const updated = await apiClient.put(`/inbound-routes/${id}`, { ideaId: ideaId || null });
+      setRoutes(prev => prev.map(r => (r.id === id ? updated : r)));
+    } catch { /* keep previous on failure */ }
+  };
+
+  const remove = async (id: string) => {
+    setRoutes(prev => prev.filter(r => r.id !== id)); // optimistic
+    try { await apiClient.delete(`/inbound-routes/${id}`); } catch { apiClient.get('/inbound-routes').then(setRoutes).catch(() => {}); }
+  };
+
+  return (
+    <section className="bg-white rounded-2xl border border-gray-200 p-8 shadow-sm col-span-1 lg:col-span-2">
+      <div className="flex items-center gap-3 mb-2">
+        <Tag className="w-5 h-5" style={{ color: 'var(--primary)' }} />
+        <h2 className="text-lg font-bold">Email-in routing</h2>
+      </div>
+      <p className="text-sm text-gray-500 mb-6">
+        Email your inbound address from any address below to create a task (or attach a contact card to add a contact).
+        Each address files into the idea you choose. Only listed addresses are accepted.
+      </p>
+
+      {loading ? (
+        <div className="text-sm text-gray-400">Loading routes…</div>
+      ) : (
+        <div className="space-y-2">
+          {routes.length === 0 && (
+            <div className="text-sm text-gray-400 italic">No addresses yet — add one below.</div>
+          )}
+          {routes.map(r => (
+            <div key={r.id} className="flex items-center gap-3 rounded-xl border border-gray-200 px-4 py-2.5">
+              <span className="font-semibold text-sm text-gray-800 flex-1 truncate">{r.senderEmail}</span>
+              <span className="text-gray-300">→</span>
+              <select
+                value={r.ideaId || ''}
+                onChange={e => changeIdea(r.id, e.target.value)}
+                className="text-sm bg-gray-50 border border-gray-200 rounded-lg px-2 py-1.5 max-w-[45%]"
+              >
+                <option value="">No idea (today's list)</option>
+                {ownedIdeas.map((i: any) => <option key={i.id} value={i.id}>{i.title}</option>)}
+              </select>
+              <button onClick={() => remove(r.id)} title="Remove" className="p-1.5 text-gray-400 hover:text-red-500 rounded-lg hover:bg-red-50">
+                <Trash2 className="w-4 h-4" />
+              </button>
+            </div>
+          ))}
+
+          {/* Add row */}
+          <div className="flex items-center gap-3 rounded-xl border border-dashed border-gray-300 px-4 py-2.5 mt-3">
+            <input
+              type="email"
+              value={newEmail}
+              onChange={e => { setNewEmail(e.target.value); setError(''); }}
+              placeholder="you@yourdomain.com"
+              className="flex-1 text-sm bg-transparent outline-none"
+            />
+            <span className="text-gray-300">→</span>
+            <select
+              value={newIdeaId}
+              onChange={e => setNewIdeaId(e.target.value)}
+              className="text-sm bg-gray-50 border border-gray-200 rounded-lg px-2 py-1.5 max-w-[40%]"
+            >
+              <option value="">No idea</option>
+              {ownedIdeas.map((i: any) => <option key={i.id} value={i.id}>{i.title}</option>)}
+            </select>
+            <button
+              onClick={add}
+              disabled={busy || !newEmail.trim()}
+              className="px-3 py-1.5 rounded-lg text-sm font-bold text-white disabled:opacity-50"
+              style={{ background: 'var(--primary)' }}
+            >
+              {busy ? 'Adding…' : 'Add'}
+            </button>
+          </div>
+          {error && <p className="text-xs font-bold text-red-500 mt-1">{error}</p>}
+        </div>
+      )}
     </section>
   );
 };
@@ -357,6 +475,9 @@ const Settings: React.FC = () => {
 
         {/* Quick Capture */}
         <QuickCaptureSection />
+
+        {/* Email-in routing */}
+        <EmailRoutingSection />
 
         {/* Theme Palette Selection */}
         <section className="bg-white rounded-2xl border border-gray-200 p-8 shadow-sm col-span-1 lg:col-span-2">

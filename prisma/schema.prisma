@@ -39,6 +39,7 @@ model User {
   assignedTasks      DailyTodo[] @relation("TaskAssignee")
   completedTasks     DailyTodo[] @relation("TaskCompleter")
   reminderImages     ReminderImage[]
+  inboundRoutes      InboundRoute[]
 }
 
 model DailyTodo {
@@ -118,6 +119,21 @@ model Idea {
   parent   Idea?   @relation("IdeaSubIdeas", fields: [parentId], references: [id], onDelete: SetNull)
   children Idea[]  @relation("IdeaSubIdeas")
   attachments FileAttachment[]
+  inboundRoutes InboundRoute[]
+}
+
+// Email-in routing rule: maps an allowed sender address to an owning user and an
+// optional target idea. Replaces the INBOUND_SENDER_IDEAS env config so routing is
+// managed in-app (no redeploy). Membership also acts as the sender allow-list.
+model InboundRoute {
+  id          String   @id @default(cuid())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  senderEmail String   @unique
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  ideaId      String?
+  idea        Idea?    @relation(fields: [ideaId], references: [id], onDelete: SetNull)
 }
 
 model FileAttachment {
