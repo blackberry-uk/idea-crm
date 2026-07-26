@@ -1152,7 +1152,7 @@ const Dashboard: React.FC = () => {
                         }}
                         className={draggingTodoId === todo.id ? 'cl-todo-dragging' : ''}
                       >
-                        <DailyTodoItem todo={todo} ideas={ideas} onOpenContact={handleOpenContactByName} onOpenEntity={handleOpenEntityByName} onAssigneeChange={(id, assigneeId) => updateTodo(id, { assigneeId })} onDuplicate={duplicateTodo}
+                        <DailyTodoItem todo={todo} ideas={ideas} hideTimeTag={dayFilter !== 'all'} onOpenContact={handleOpenContactByName} onOpenEntity={handleOpenEntityByName} onAssigneeChange={(id, assigneeId) => updateTodo(id, { assigneeId })} onDuplicate={duplicateTodo}
                           onToggleComplete={toggleComplete} onToggleUrgent={toggleUrgent}
                           onDelete={deleteTodo} onSaveEdit={saveEdit} onTagIdea={tagTodoToIdea}
                           onAddSubtask={addSubtask} onOpenDetail={openDetail}

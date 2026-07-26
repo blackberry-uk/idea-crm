@@ -60,10 +60,11 @@ interface DailyTodoItemProps {
   isSubtask?: boolean;
   customContainerStyle?: React.CSSProperties;
   overrideDateLabel?: string | null;
+  hideTimeTag?: boolean; // hide the AM/PM/EVE pill (redundant when viewing a single section)
 }
 
 const DailyTodoItem: React.FC<DailyTodoItemProps> = ({
-  todo, ideas, onToggleComplete, onToggleUrgent, onDelete, onSaveEdit, onTagIdea, onAddSubtask, onReorderSubtask, onOpenDetail, onOpenContact, onOpenEntity, onChangeDate, onChangeTimeBlock, onAssigneeChange, onDuplicate, dragHandleProps, isDragging, isSubtask, customContainerStyle, overrideDateLabel
+  todo, ideas, onToggleComplete, onToggleUrgent, onDelete, onSaveEdit, onTagIdea, onAddSubtask, onReorderSubtask, onOpenDetail, onOpenContact, onOpenEntity, onChangeDate, onChangeTimeBlock, onAssigneeChange, onDuplicate, dragHandleProps, isDragging, isSubtask, customContainerStyle, overrideDateLabel, hideTimeTag
 }) => {
   const { data } = useStore();
   const [editing, setEditing] = useState(false);
@@ -330,7 +331,7 @@ const DailyTodoItem: React.FC<DailyTodoItemProps> = ({
               <span className="wv-task-block wv-task-block--morning" style={{ background: '#e5e7eb', color: '#4b5563' }}>{overrideDateLabel}</span>
             ) : todo.dueDate ? (
               <span className="wv-task-block wv-task-block--morning" style={{ background: '#fee2e2', color: '#991b1b' }}>Due {todo.dueDate.slice(5, 10).replace('-', '/')}</span>
-            ) : (
+            ) : hideTimeTag ? null : (
               <span className={`wv-task-block wv-task-block--${(todo.timeBlock as string) || 'morning'}`}>{blockTag}</span>
             )}
 
