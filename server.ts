@@ -1519,6 +1519,39 @@ const parseInboundWhen = (subject: string): { dateKey: string; text: string } =>
   return { dateKey: toKey(base), text: subject.trim() };
 };
 
+// Minimal vCard (.vcf) parser — pulls the fields we store on a Contact. Handles
+// RFC line-folding, grouped Apple properties (item1.EMAIL), and multiple cards.
+const parseVCards = (vcf: string): Array<Record<string, string | undefined>> => {
+  const unfolded = vcf.replace(/\r\n/g, '\n').replace(/\n[ \t]/g, '');
+  const cards: any[] = [];
+  for (const block of unfolded.split(/BEGIN:VCARD/i).slice(1)) {
+    const bodyText = block.split(/END:VCARD/i)[0] || '';
+    const card: any = {};
+    for (const line of bodyText.split('\n')) {
+      const ci = line.indexOf(':');
+      if (ci < 0) continue;
+      const left = line.slice(0, ci);
+      const value = line.slice(ci + 1).trim();
+      if (!value) continue;
+      const rawName = left.split(';')[0];
+      const name = (rawName.includes('.') ? rawName.split('.').pop()! : rawName).toUpperCase();
+      if (name === 'FN' && !card.fullName) card.fullName = value;
+      else if (name === 'N' && !card.firstName && !card.lastName) {
+        const parts = value.split(';');
+        card.lastName = (parts[0] || '').trim() || undefined;
+        card.firstName = (parts[1] || '').trim() || undefined;
+      }
+      else if (name === 'EMAIL' && !card.email) card.email = value;
+      else if (name === 'TEL' && !card.phone) card.phone = value;
+      else if (name === 'ORG' && !card.company) card.company = value.split(';')[0].trim();
+      else if (name === 'TITLE' && !card.role) card.role = value;
+    }
+    if (!card.fullName && (card.firstName || card.lastName)) card.fullName = [card.firstName, card.lastName].filter(Boolean).join(' ');
+    if (card.fullName || card.email) cards.push(card);
+  }
+  return cards;
+};
+
 app.post('/api/quick-capture', authenticate, async (req: any, res) => {
   try {
     const rawText = (req.body?.text ?? '').toString().trim();
@@ -1606,6 +1639,36 @@ app.post('/api/inbound-email', async (req: any, res) => {
     if (mappedIdeaId) {
       const idea = await prisma.idea.findFirst({ where: { id: mappedIdeaId, ownerId: userId } });
       ideaId = idea ? idea.id : null;
+    }
+
+    // Highest priority: a vCard (.vcf) attachment → create contact(s), linked to the
+    // sender's mapped idea. This is the common "share a contact card" flow.
+    const attachments = Array.isArray(body.Attachments) ? body.Attachments : [];
+    const vcfs = attachments.filter((a: any) =>
+      /vcard|vcf|directory/i.test(a?.ContentType || '') || /\.vcf$/i.test(a?.Name || ''));
+    if (vcfs.length) {
+      const createdIds: string[] = [];
+      for (const att of vcfs) {
+        let vcfText = '';
+        try { vcfText = Buffer.from(att.Content || '', 'base64').toString('utf8'); } catch {}
+        for (const c of parseVCards(vcfText)) {
+          const contact = await prisma.contact.create({
+            data: {
+              fullName: c.fullName || null,
+              firstName: c.firstName || null,
+              lastName: c.lastName || null,
+              email: c.email || null,
+              phone: c.phone || null,
+              company: c.company || null,
+              role: c.role || null,
+              ownerId: userId,
+              linkedIdeaIds: ideaId ? JSON.stringify([ideaId]) : '[]',
+            } as any
+          });
+          createdIds.push(contact.id);
+        }
+      }
+      return res.json({ ok: createdIds.length > 0, created: 'contact', count: createdIds.length, ids: createdIds });
     }
 
     // Route: "contact: <name> [<email>]" → contact; otherwise → a to-do.
