@@ -2808,12 +2808,18 @@
                 gap: 0.3rem;
                 border-radius: 1.35rem;
                 background: #ffffff;
-                border: 1px solid #ecebe8;
-                box-shadow: 0 1px 2px rgba(30, 24, 12, 0.05), 0 8px 22px rgba(30, 24, 12, 0.045);
+                border: 1px solid #e3e1db;
+                box-shadow: 0 1px 2px rgba(30, 24, 12, 0.06), 0 10px 26px rgba(30, 24, 12, 0.08);
                 transition: transform 0.12s ease, box-shadow 0.15s ease;
             }
             .wv-task:active { transform: scale(0.985); }
-            .wv-task--done { background: #f7f7f5; box-shadow: none; }
+            /* Done cards: muted but still a distinct tile (not washed out) */
+            .wv-task--done {
+                background: #f2f2ef;
+                border-color: #e4e2dc;
+                box-shadow: 0 1px 2px rgba(30, 24, 12, 0.04);
+            }
+            .wv-task--done .wv-task-text { color: #797f86; }
             .wv-task-text, .wv-grid .wv-task-text { font-size: 1.02rem; line-height: 1.32; white-space: normal; }
             .wv-task-row-1 { align-items: center; }
             .wv-task-row-2 { margin-top: 0.25rem; }
@@ -2830,8 +2836,15 @@
             }
             .wv-task-action-btn:hover { background: #ece9e3; }
             .wv-task-action-btn svg { width: 1.2rem !important; height: 1.2rem !important; }
-            .daily-todo-expand-btn { padding: 0.4rem; }
-            .daily-todo-expand-btn svg { width: 1.25rem !important; height: 1.25rem !important; }
+            .daily-todo-expand-btn {
+                width: 1.9rem; height: 1.9rem;
+                border-radius: 999px;
+                background: #f4f2ee;
+                display: inline-flex; align-items: center; justify-content: center;
+                padding: 0;
+            }
+            .daily-todo-expand-btn:hover { background: #ece9e3; }
+            .daily-todo-expand-btn svg { width: 1.15rem !important; height: 1.15rem !important; }
             .cl-day-col-count { font-size: 0.95rem; }
             .wv-task-idea { font-size: 0.74rem; padding: 0.2rem 0.55rem; border-radius: 0.6rem; }
         }
