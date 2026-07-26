@@ -1531,6 +1531,14 @@ const parseVCards = (vcf: string): Array<Record<string, string | undefined>> => 
       else if (name === 'TEL' && !card.phone) card.phone = value;
       else if (name === 'ORG' && !card.company) card.company = value.split(';')[0].trim();
       else if (name === 'TITLE' && !card.role) card.role = value;
+      else if (name === 'URL') {
+        let host = '';
+        try { host = new URL(/^https?:\/\//i.test(value) ? value : 'https://' + value).host.toLowerCase().replace(/^www\./, ''); } catch {}
+        if ((host === 'linkedin.com' || host.endsWith('.linkedin.com')) && !card.linkedinUrl) card.linkedinUrl = value;
+        else if (host === 'instagram.com' && !card.instagramUrl) card.instagramUrl = value;
+        else if ((host === 'twitter.com' || host === 'x.com') && !card.twitterUrl) card.twitterUrl = value;
+        else if ((host === 'substack.com' || host.endsWith('.substack.com')) && !card.substackUrl) card.substackUrl = value;
+      }
     }
     if (!card.fullName && (card.firstName || card.lastName)) card.fullName = [card.firstName, card.lastName].filter(Boolean).join(' ');
     if (card.fullName || card.email) cards.push(card);
@@ -1645,6 +1653,10 @@ app.post('/api/inbound-email', async (req: any, res) => {
               phone: c.phone || null,
               company: c.company || null,
               role: c.role || null,
+              linkedinUrl: c.linkedinUrl || null,
+              instagramUrl: c.instagramUrl || null,
+              twitterUrl: c.twitterUrl || null,
+              substackUrl: c.substackUrl || null,
               ownerId: userId,
               linkedIdeaIds: ideaId ? JSON.stringify([ideaId]) : '[]',
             } as any
