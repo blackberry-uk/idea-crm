@@ -75,6 +75,15 @@ const Dashboard: React.FC = () => {
   useEffect(() => {
     localStorage.setItem('ideaCrm_viewMode', viewMode);
   }, [viewMode]);
+
+  // Day view: 'all' shows every time block; a specific block narrows to just that
+  // section (great on mobile so the list isn't one long scroll).
+  const [dayFilter, setDayFilter] = useState<'all' | TimeBlock>(
+    () => (localStorage.getItem('ideaCrm_dayFilter') as 'all' | TimeBlock) || 'all'
+  );
+  useEffect(() => {
+    localStorage.setItem('ideaCrm_dayFilter', dayFilter);
+  }, [dayFilter]);
   const location = useLocation();
   const [selectedDate, setSelectedDate] = useState(() => {
     const params = new URLSearchParams(location.search);
@@ -1027,11 +1036,33 @@ const Dashboard: React.FC = () => {
         </div>
       </div>
 
-      {/* ======= DAY VIEW — 3 columns ======= */}
+      {/* ======= DAY VIEW — section tabs + columns ======= */}
+      {viewMode === 'day' && (
+        <div className="cl-block-tabs">
+          <button
+            className={`cl-block-tab ${dayFilter === 'all' ? 'cl-block-tab--active' : ''}`}
+            onClick={() => setDayFilter('all')}
+          >All day</button>
+          {TIME_BLOCKS.map(block => {
+            const n = selectedDayTodos.filter(t => (t.timeBlock || 'morning') === block && !t.completed).length;
+            return (
+              <button
+                key={block}
+                className={`cl-block-tab ${dayFilter === block ? 'cl-block-tab--active' : ''}`}
+                onClick={() => setDayFilter(block)}
+              >
+                <span className={`cl-block-dot cl-block-dot--${block}`}></span>
+                {BLOCK_LABELS[block]}
+                {n > 0 && <span className="cl-block-tab-count">{n}</span>}
+              </button>
+            );
+          })}
+        </div>
+      )}
       {viewMode === 'day' && (
         <div className="cl-day-scroll">
-          <div className="cl-day-grid">
-            {TIME_BLOCKS.map(block => {
+          <div className={`cl-day-grid ${dayFilter !== 'all' ? 'cl-day-grid--single' : ''}`}>
+            {TIME_BLOCKS.filter(block => dayFilter === 'all' || block === dayFilter).map(block => {
               const blockTodos = sortTodos(selectedDayTodos.filter(t => (t.timeBlock || 'morning') === block));
               return (
                 <div
