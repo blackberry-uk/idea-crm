@@ -84,6 +84,17 @@ const Dashboard: React.FC = () => {
   useEffect(() => {
     localStorage.setItem('ideaCrm_dayFilter', dayFilter);
   }, [dayFilter]);
+
+  // Track phone-width so we can render a compact header (short date) on mobile.
+  const [isMobile, setIsMobile] = useState(
+    () => typeof window !== 'undefined' && window.matchMedia('(max-width: 640px)').matches
+  );
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 640px)');
+    const handler = () => setIsMobile(mq.matches);
+    mq.addEventListener('change', handler);
+    return () => mq.removeEventListener('change', handler);
+  }, []);
   const location = useLocation();
   const [selectedDate, setSelectedDate] = useState(() => {
     const params = new URLSearchParams(location.search);
@@ -966,18 +977,6 @@ const Dashboard: React.FC = () => {
         </div>
 
         <div className="cl-topbar-right">
-          {/* Dynamic Progress Bar */}
-          {activeTotal > 0 && (
-            <div className="cl-progress-bar-wrap" style={{ width: '90px', margin: '0 8px 0 0' }}>
-              <div className="cl-progress-bar" style={{ height: '4px' }}>
-                <div className="cl-progress-bar-fill" style={{ width: `${(activeCompleted / activeTotal) * 100}%` }} />
-              </div>
-              <span className="cl-progress-label" style={{ fontSize: '0.65rem', fontWeight: 700, color: '#6b7280' }}>
-                {activeCompleted} / {activeTotal}
-              </span>
-            </div>
-          )}
-
           {/* Live clock */}
           <div className="cl-clock">
             <Clock className="w-3.5 h-3.5" />
@@ -1001,7 +1000,9 @@ const Dashboard: React.FC = () => {
               }}
             >
               {viewMode === 'day'
-                ? (isSelectedToday ? `Today — ${format(selectedDate, 'EEEE, do MMMM yyyy')}` : format(selectedDate, 'EEEE, do MMMM yyyy'))
+                ? (isMobile
+                    ? (isSelectedToday ? `Today · ${format(selectedDate, 'EEE d MMM')}` : format(selectedDate, 'EEE d MMM'))
+                    : (isSelectedToday ? `Today — ${format(selectedDate, 'EEEE, do MMMM yyyy')}` : format(selectedDate, 'EEEE, do MMMM yyyy')))
                 : `${format(weekDays[0], 'MMM d')} – ${format(weekDays[weekDays.length - 1], 'MMM d')}`
               }
               {viewMode === 'day' && (
@@ -1182,7 +1183,7 @@ const Dashboard: React.FC = () => {
           )}
 
           {/* Bottom 3-column: Idea Tasks | Overdue | Backburner */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: '12px', marginTop: '1rem', alignItems: 'start' }}>
+          <div className="cl-bottom-sections" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: '12px', marginTop: '1rem', alignItems: 'start' }}>
             {/* Pending tasks by idea */}
             <div style={{ background: '#fef9e7', borderRadius: '12px', padding: '10px', minHeight: '60px' }}>
               <button className="cl-backlog-toggle" onClick={() => setIdeaBacklogOpen(!ideaBacklogOpen)} style={{ background: 'transparent', marginBottom: ideaBacklogOpen ? '8px' : 0 }}>
