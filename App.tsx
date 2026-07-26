@@ -12,6 +12,7 @@ import Settings from './pages/Settings';
 import Invitations from './pages/Invitations';
 import DailyTodos from './pages/DailyTodos';
 import AdminPage from './pages/AdminPage';
+import Capture from './pages/Capture';
 import { useStore } from './store/useStore';
 import { apiClient } from './lib/api/client';
 import { Lightbulb, LogIn, UserPlus, ShieldCheck, AlertCircle, Eye, EyeOff } from 'lucide-react';
@@ -269,6 +270,9 @@ const App: React.FC = () => {
     <Router>
       <Routes>
         <Route path="/login" element={<AuthPage />} />
+        {/* Lightweight capture surface — deliberately outside ProtectedRoute so it
+            renders instantly without waiting for the full data hydrate. */}
+        <Route path="/capture" element={<Capture />} />
         <Route path="/" element={<ProtectedRoute><MobileHomeRedirect /></ProtectedRoute>} />
         <Route path="/ideas" element={<ProtectedRoute><IdeasPage /></ProtectedRoute>} />
         <Route path="/ideas/:id" element={<ProtectedRoute><IdeaDetail /></ProtectedRoute>} />

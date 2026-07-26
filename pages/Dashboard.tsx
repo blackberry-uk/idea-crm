@@ -9,6 +9,7 @@ import {
   Lightbulb, Check, Circle, ClipboardList, Clock, ImagePlus, Trash2, GripVertical, RotateCw, X
 } from 'lucide-react';
 import { apiClient } from '../lib/api/client';
+import { cacheGet, cacheSet, CACHE_KEYS } from '../lib/cache';
 import DailyTodoItem, { DailyTodoData } from '../components/DailyTodoItem';
 import IdeaPickerDropdown from '../components/IdeaPickerDropdown';
 import TaskDetailModal from '../components/TaskDetailModal';
@@ -94,8 +95,10 @@ const Dashboard: React.FC = () => {
       setViewMode('day');
     }
   }, [location.search]);
-  const [allTodos, setAllTodos] = useState<DailyTodo[]>([]);
-  const [loading, setLoading] = useState(true);
+  // Paint instantly from the last-known todos snapshot; only show the spinner on a
+  // true cold start (no cache).
+  const [allTodos, setAllTodos] = useState<DailyTodo[]>(() => cacheGet<DailyTodo[]>(CACHE_KEYS.todos) || []);
+  const [loading, setLoading] = useState(() => !cacheGet(CACHE_KEYS.todos));
   const [carrying, setCarrying] = useState(false);
 
   // Live clock
@@ -384,17 +387,23 @@ const Dashboard: React.FC = () => {
 
   // Fetch range that covers both views
   const fetchTodos = useCallback(async () => {
+    const rangeEnd = dateAddDays(selectedDate, 14);
+    const nearStart = dateAddDays(selectedDate, -14);
+    const wideStart = dateAddDays(selectedDate, -90);
+    const q = (from: Date, to: Date) =>
+      apiClient.get(`/daily-todos?from=${from.toISOString()}&to=${to.toISOString()}`);
     try {
-      setLoading(true);
-      const rangeStart = dateAddDays(selectedDate, -90);
-      const rangeEnd = dateAddDays(selectedDate, 14);
-      const data = await apiClient.get(
-        `/daily-todos?from=${rangeStart.toISOString()}&to=${rangeEnd.toISOString()}`
-      );
-      setAllTodos(data as DailyTodo[]);
+      // Fast paint: a narrow window (current + recent) returns quickly.
+      const near = await q(nearStart, rangeEnd);
+      setAllTodos(near as DailyTodo[]);
+      setLoading(false);
+      // Authoritative: the full window (older overdue) fills in behind the scenes.
+      // It's a superset of the near window, so replacing is safe and handles deletions.
+      const full = await q(wideStart, rangeEnd);
+      setAllTodos(full as DailyTodo[]);
+      cacheSet(CACHE_KEYS.todos, full);
     } catch (err) {
       console.error('Failed to fetch todos:', err);
-    } finally {
       setLoading(false);
     }
   }, [selectedDateKey]);
@@ -466,29 +475,88 @@ const Dashboard: React.FC = () => {
     });
   };
 
+  // Build an instant placeholder todo so the UI updates before the server responds.
+  // Relations (idea/assignee/completedBy) are intentionally omitted — render guards
+  // hide their chips until the real record arrives. A very low sortOrder mirrors the
+  // server convention (new todos go to the top) so the item doesn't jump on reconcile.
+  const makeOptimisticTodo = (
+    text: string,
+    dateKey: string | null,
+    timeBlock: string | null,
+    extra: Partial<DailyTodo> = {}
+  ): DailyTodo => {
+    const tempId = `temp-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+    return {
+    id: tempId,
+    _key: tempId, // preserved across reconcile so the row never remounts
+    text,
+    date: dateKey ? `${dateKey}T12:00:00.000Z` : null,
+    timeBlock,
+    completed: false,
+    isUrgent: false,
+    // Server auto-assigns new todos to their creator — mirror that here so the
+    // assignee badge (and idea chip, via extra) render immediately with no pop on reconcile.
+    assigneeId: data.currentUser?.id ?? null,
+    assignee: (data.currentUser as any) ?? null,
+    sortOrder: -Date.now(),
+    createdAt: new Date().toISOString(),
+    children: [],
+    _pending: true,
+    _flash: true,
+    ...extra,
+    } as DailyTodo;
+  };
+
+  // Clear the "just added" flash marker after the highlight animation finishes,
+  // so switching views later doesn't replay it. Matches _key at top level or nested.
+  const clearFlash = (key?: string) => {
+    if (!key) return;
+    setTimeout(() => {
+      setAllTodos(prev => prev.map(t => {
+        let nt = t._key === key ? { ...t, _flash: false } : t;
+        if (nt.children?.some(c => c._key === key)) {
+          nt = { ...nt, children: nt.children.map(c => c._key === key ? { ...c, _flash: false } : c) };
+        }
+        return nt;
+      }));
+    }, 4200); // just past the 4s flash animation so it isn't cut short
+  };
+
   const addTodo = async (dateKey?: string | null, block?: string) => {
     const text = newText.trim();
     if (!text || submittingRef.current) return;
     submittingRef.current = true;
     const targetDate = dateKey !== undefined ? dateKey : toDateKey(selectedDate);
     const selectedIdeaId = newIdeaId || null;
+    const timeBlock = block || getCurrentBlock();
+
+    // Optimistic: show the task and clear the input instantly, then sync in the background.
+    const selectedIdea = selectedIdeaId ? ideas.find(i => i.id === selectedIdeaId) : null;
+    const optimistic = makeOptimisticTodo(text, targetDate, timeBlock, {
+      ideaId: selectedIdeaId,
+      idea: selectedIdea ? { id: selectedIdea.id, title: selectedIdea.title } : null,
+    });
+    setAllTodos(prev => [...prev, optimistic]);
+    setNewText('');
+    setNewIdeaId('');
+    setShowTagPicker(false);
+    submittingRef.current = false; // release immediately so rapid-fire entry works
+    autoCreateTaskLinks(text);
+    clearFlash(optimistic._key);
 
     try {
       const todo = await apiClient.post('/daily-todos', {
         text,
         date: targetDate,
         ideaId: selectedIdeaId,
-        timeBlock: block || getCurrentBlock(),
+        timeBlock,
       });
-      setAllTodos(prev => [...prev, todo]);
-      setNewText('');
-      setNewIdeaId('');
-      setShowTagPicker(false);
-      autoCreateTaskLinks(text);
+      // Keep the optimistic _key so the row updates in place instead of remounting,
+      // and carry the *live* flash state so a slow save can't restart the highlight.
+      setAllTodos(prev => prev.map(t => t.id === optimistic.id ? { ...todo, _key: optimistic._key, _flash: t._flash } : t));
     } catch (err: any) {
+      setAllTodos(prev => prev.filter(t => t.id !== optimistic.id));
       showToast(err.message || 'Failed to add todo', 'error');
-    } finally {
-      submittingRef.current = false;
     }
   };
 
@@ -496,19 +564,24 @@ const Dashboard: React.FC = () => {
     const trimmed = text.trim();
     if (!trimmed || submittingRef.current) return;
     submittingRef.current = true;
+    const timeBlock = block || getCurrentBlock();
+
+    const optimistic = makeOptimisticTodo(trimmed, dateKey, timeBlock);
+    setAllTodos(prev => [...prev, optimistic]);
+    submittingRef.current = false;
+    autoCreateTaskLinks(trimmed);
+    clearFlash(optimistic._key);
 
     try {
       const todo = await apiClient.post('/daily-todos', {
         text: trimmed,
         date: dateKey,
-        timeBlock: block || getCurrentBlock(),
+        timeBlock,
       });
-      setAllTodos(prev => [...prev, todo]);
-      autoCreateTaskLinks(trimmed);
+      setAllTodos(prev => prev.map(t => t.id === optimistic.id ? { ...todo, _key: optimistic._key, _flash: t._flash } : t));
     } catch (err: any) {
+      setAllTodos(prev => prev.filter(t => t.id !== optimistic.id));
       showToast(err.message || 'Failed to add todo', 'error');
-    } finally {
-      submittingRef.current = false;
     }
   };
 
@@ -615,18 +688,33 @@ const Dashboard: React.FC = () => {
   const addSubtask = async (parentId: string, text: string) => {
     const parent = allTodos.find(t => t.id === parentId);
     if (!parent) return;
-    const dateKey = parent.date.slice(0, 10);
+    const dateKey = parent.date ? parent.date.slice(0, 10) : null;
+
+    // Optimistic: nest the placeholder under its parent instantly.
+    const optimistic = makeOptimisticTodo(text, dateKey, null, { parentId, ideaId: parent.ideaId || null });
+    setAllTodos(prev => prev.map(t =>
+      t.id === parentId
+        ? { ...t, children: [...(t.children || []), optimistic] }
+        : t
+    ));
+    autoCreateTaskLinks(text);
+    clearFlash(optimistic._key);
+
     try {
       const subtask = await apiClient.post('/daily-todos', {
         text, date: dateKey, parentId, ideaId: parent.ideaId || null,
       });
       setAllTodos(prev => prev.map(t =>
         t.id === parentId
-          ? { ...t, children: [...(t.children || []), subtask] }
+          ? { ...t, children: (t.children || []).map(c => c.id === optimistic.id ? { ...subtask, _key: optimistic._key, _flash: c._flash } : c) }
           : t
       ));
-      autoCreateTaskLinks(text);
     } catch (err: any) {
+      setAllTodos(prev => prev.map(t =>
+        t.id === parentId
+          ? { ...t, children: (t.children || []).filter(c => c.id !== optimistic.id) }
+          : t
+      ));
       showToast(err.message || 'Failed to add subtask', 'error');
     }
   };
@@ -978,10 +1066,13 @@ const Dashboard: React.FC = () => {
                           ref={inputRef}
                           value={newText}
                           onChangeValue={setNewText}
-                          onSubmit={async () => {
-                            await inlineAddTodo(newText, toDateKey(selectedDate), block);
+                          onSubmit={() => {
+                            const text = newText.trim();
+                            if (!text) return;
+                            // Clear instantly and keep the input open + focused for rapid-fire entry.
                             setNewText('');
-                            setInlineAddTarget(null);
+                            inlineAddTodo(text, toDateKey(selectedDate), block);
+                            inputRef.current?.focus();
                           }}
                           onCancel={() => { setInlineAddTarget(null); setNewText(''); }}
                           placeholder="New task… (@ contact, # entity)"
@@ -989,11 +1080,12 @@ const Dashboard: React.FC = () => {
                           autoFocus
                         />
                         <button
-                          onClick={async () => {
-                            if (!newText.trim()) return;
-                            await inlineAddTodo(newText, toDateKey(selectedDate), block);
+                          onClick={() => {
+                            const text = newText.trim();
+                            if (!text) return;
                             setNewText('');
-                            setInlineAddTarget(null);
+                            inlineAddTodo(text, toDateKey(selectedDate), block);
+                            inputRef.current?.focus();
                           }}
                           disabled={!newText.trim()}
                           title="Add task"
@@ -1014,7 +1106,7 @@ const Dashboard: React.FC = () => {
                     {blockTodos.length === 0 && <div className="cl-day-col-empty">{draggingTodoId ? 'Drop here' : 'No tasks'}</div>}
                     {blockTodos.map(todo => (
                       <div
-                        key={todo.id}
+                        key={todo._key ?? todo.id}
                         draggable
                         onDragStart={(e) => handleDragStart(e, todo.id)}
                         onDragEnd={handleDragEnd}
@@ -1081,7 +1173,7 @@ const Dashboard: React.FC = () => {
                         <Lightbulb className="w-3 h-3" /> {group.title}
                       </div>
                       {group.todos.map((todo: any) => (
-                        <DailyTodoItem key={todo.id} todo={{ ...todo, idea: null } as any} ideas={ideas} onOpenContact={handleOpenContactByName} onOpenEntity={handleOpenEntityByName} onAssigneeChange={(id, assigneeId) => updateTodo(id, { assigneeId })} onDuplicate={duplicateTodo}
+                        <DailyTodoItem key={todo._key ?? todo.id} todo={{ ...todo, idea: null } as any} ideas={ideas} onOpenContact={handleOpenContactByName} onOpenEntity={handleOpenEntityByName} onAssigneeChange={(id, assigneeId) => updateTodo(id, { assigneeId })} onDuplicate={duplicateTodo}
                           customContainerStyle={{ background: '#fef3c7', borderColor: '#fef3c7' }}
                           overrideDateLabel={todo.dueDate ? `Due ${todo.dueDate.slice(5, 10).replace('-', '/')}` : 'No due date'}
                           onToggleComplete={async () => {
@@ -1149,7 +1241,7 @@ const Dashboard: React.FC = () => {
                         {dateKey === 'No Date' ? dateKey : format(new Date(dateKey), 'EEE, MMM d')}
                       </div>
                       {todos.map(todo => (
-                        <DailyTodoItem key={todo.id} todo={todo} ideas={ideas} onOpenContact={handleOpenContactByName} onOpenEntity={handleOpenEntityByName} onAssigneeChange={(id, assigneeId) => updateTodo(id, { assigneeId })} onDuplicate={duplicateTodo}
+                        <DailyTodoItem key={todo._key ?? todo.id} todo={todo} ideas={ideas} onOpenContact={handleOpenContactByName} onOpenEntity={handleOpenEntityByName} onAssigneeChange={(id, assigneeId) => updateTodo(id, { assigneeId })} onDuplicate={duplicateTodo}
                           customContainerStyle={{ background: '#fee2e2', borderColor: '#fee2e2' }}
                           onToggleComplete={toggleComplete} onToggleUrgent={toggleUrgent}
                           onDelete={deleteTodo} onSaveEdit={saveEdit} onTagIdea={tagTodoToIdea}
@@ -1199,7 +1291,7 @@ const Dashboard: React.FC = () => {
               {backburnerOpen && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                   {sortTodos(backburnerTodos).map(todo => (
-                    <DailyTodoItem key={todo.id} todo={todo} ideas={ideas} onOpenContact={handleOpenContactByName} onOpenEntity={handleOpenEntityByName} onAssigneeChange={(id, assigneeId) => updateTodo(id, { assigneeId })} onDuplicate={duplicateTodo}
+                    <DailyTodoItem key={todo._key ?? todo.id} todo={todo} ideas={ideas} onOpenContact={handleOpenContactByName} onOpenEntity={handleOpenEntityByName} onAssigneeChange={(id, assigneeId) => updateTodo(id, { assigneeId })} onDuplicate={duplicateTodo}
                       onToggleComplete={toggleComplete} onToggleUrgent={toggleUrgent}
                       onDelete={deleteTodo} onSaveEdit={saveEdit} onTagIdea={tagTodoToIdea}
                       onAddSubtask={addSubtask} onOpenDetail={openDetail}
@@ -1486,10 +1578,12 @@ const Dashboard: React.FC = () => {
                           ref={inputRef}
                           value={newText}
                           onChangeValue={setNewText}
-                          onSubmit={async () => {
-                            await inlineAddTodo(newText, dayKey);
+                          onSubmit={() => {
+                            const text = newText.trim();
+                            if (!text) return;
                             setNewText('');
-                            setInlineAddTarget(null);
+                            inlineAddTodo(text, dayKey);
+                            inputRef.current?.focus();
                           }}
                           onCancel={() => { setInlineAddTarget(null); setNewText(''); }}
                           placeholder="New task… (@ contact, # entity)"
@@ -1497,11 +1591,12 @@ const Dashboard: React.FC = () => {
                           autoFocus
                         />
                         <button
-                          onClick={async () => {
-                            if (!newText.trim()) return;
-                            await inlineAddTodo(newText, dayKey);
+                          onClick={() => {
+                            const text = newText.trim();
+                            if (!text) return;
                             setNewText('');
-                            setInlineAddTarget(null);
+                            inlineAddTodo(text, dayKey);
+                            inputRef.current?.focus();
                           }}
                           disabled={!newText.trim()}
                           title="Add task"
@@ -1529,7 +1624,7 @@ const Dashboard: React.FC = () => {
                       const matchedEntities = entityNames.map(n => entities.find(e => e.name.toLowerCase() === n.toLowerCase())).filter(Boolean);
 
                       return (
-                        <div key={todo.id} style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                        <div key={todo._key ?? todo.id} style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                           <div
                             className={`wv-task ${todo.completed ? 'wv-task--done' : ''} ${todo.isUrgent ? 'wv-task--urgent' : ''}`}
                             draggable
@@ -1804,7 +1899,7 @@ const Dashboard: React.FC = () => {
                           {(todo.children || []).length > 0 && (
                             <div className="wv-subtask-tree">
                               {(todo.children || []).map(child => (
-                                <div key={child.id} className="wv-subtask-bubble-wrap">
+                                <div key={child._key ?? child.id} className="wv-subtask-bubble-wrap">
                                   <div className={`wv-subtask-bubble ${child.completed ? 'wv-subtask-bubble--done' : ''}`}>
                                     <button
                                       className={`wv-task-check ${child.completed ? 'wv-task-check--done' : ''}`}

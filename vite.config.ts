@@ -16,10 +16,9 @@ export default defineConfig(({ mode }) => {
       },
 
       plugins: [react()],
-      define: {
-        'process.env.API_KEY': JSON.stringify(env.GEMINI_API_KEY),
-        'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY)
-      },
+      // NOTE: GEMINI_API_KEY is intentionally NOT injected into the client bundle.
+      // All Gemini calls go through the backend (server.ts → /api/ideas/:id/counsel),
+      // so the key never reaches the browser. Do not add it to `define`.
       resolve: {
         alias: {
           '@': path.resolve(__dirname, '.'),

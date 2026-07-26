@@ -26,6 +26,10 @@ export interface DailyTodoData {
   assignee?: { id: string; name: string; avatarColor: string; email: string } | null;
   completedById?: string | null;
   completedBy?: { id: string; name: string; avatarColor: string; email: string } | null;
+  sortOrder?: number;
+  _pending?: boolean; // true while an optimistic todo is syncing to the server
+  _key?: string; // stable React key that survives the optimistic temp-id → real-id swap
+  _flash?: boolean; // true briefly after creation to play the "just added" highlight
 }
 
 const BLOCK_SHORT: Record<string, string> = {
@@ -215,7 +219,7 @@ const DailyTodoItem: React.FC<DailyTodoItemProps> = ({
       )}
 
       <div
-        className={`wv-task ${todo.completed ? 'wv-task--done' : ''} ${todo.isUrgent && !todo.completed ? 'wv-task--urgent' : ''} ${isDragging ? 'cl-todo-dragging' : ''} ${isSubtask ? 'wv-task--subtask' : ''}`}
+        className={`wv-task ${todo.completed ? 'wv-task--done' : ''} ${todo.isUrgent && !todo.completed ? 'wv-task--urgent' : ''} ${isDragging ? 'cl-todo-dragging' : ''} ${isSubtask ? 'wv-task--subtask' : ''} ${todo._flash ? 'wv-task--flash' : ''}`}
         style={{ position: 'relative', zIndex: menuOpen ? 50 : (isSubtask ? 2 : 1), ...(isSubtask ? { marginLeft: '1.5rem' } : {}), ...customContainerStyle }}
       >
         {/* Row 1: checkbox + text + subtask count + urgent icon */}

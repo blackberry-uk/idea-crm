@@ -2,6 +2,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { AppData, Idea, Contact, Note, User, Invitation, Interaction, Confirmation, IdeaConfig } from '../types.ts';
 import { apiClient } from '../lib/api/client';
+import { cacheGet, cacheSet, cacheClear, CACHE_KEYS } from '../lib/cache';
 
 export const CURRENT_DATA_MODEL_VERSION = 1;
 
@@ -27,6 +28,11 @@ const notify = () => {
   listeners.forEach(fn => fn({ ...globalState }));
 };
 
+const noteCatsFromUser = (user: any) =>
+  (user?.noteCategories && Array.isArray(user.noteCategories) && user.noteCategories.length > 0)
+    ? user.noteCategories
+    : globalState.globalNoteCategories;
+
 const hydrate = async () => {
   const token = apiClient.getToken();
   if (!token) {
@@ -35,24 +41,66 @@ const hydrate = async () => {
     return;
   }
 
-  try {
-    const user = await apiClient.get('/me');
-    const allData = await apiClient.get('/data');
+  // 1) Instant paint from cache (stale-while-revalidate) — the app renders NOW
+  //    with last-known data instead of waiting on the network.
+  const cached: any = cacheGet(CACHE_KEYS.appData);
+  if (cached && cached.currentUser) {
     globalState = {
-      ...allData,
-      currentUser: user,
-      globalNoteCategories: (user.noteCategories && Array.isArray(user.noteCategories) && user.noteCategories.length > 0)
-        ? user.noteCategories
-        : globalState.globalNoteCategories,
+      ...globalState,
+      ...cached,
+      globalNoteCategories: cached.globalNoteCategories || globalState.globalNoteCategories,
       toast: globalState.toast,
-      confirmation: globalState.confirmation
+      confirmation: globalState.confirmation,
     };
-  } catch (e) {
-    console.error("Hydration failed", e);
-    apiClient.clearToken();
-    globalState = { ...EMPTY_DATA };
-  } finally {
     isHydrated = true;
+    notify();
+  }
+
+  // 2) Revalidate. Fire identity + dataset in parallel, but unblock rendering as
+  //    soon as identity (/me) returns — the heavy /data fills in a moment later.
+  const mePromise = apiClient.get('/me');
+  const dataPromise = apiClient.get('/data');
+
+  try {
+    const user = await mePromise;
+    globalState = {
+      ...globalState,
+      currentUser: user,
+      globalNoteCategories: noteCatsFromUser(user),
+    };
+    isHydrated = true;
+    notify();
+  } catch (e) {
+    console.error('Identity revalidation failed', e);
+    dataPromise.catch(() => {}); // avoid an unhandled rejection on the abandoned fetch
+    if (!cached) {
+      // Nothing cached to fall back on → treat as signed out.
+      apiClient.clearToken();
+      globalState = { ...EMPTY_DATA };
+    }
+    isHydrated = true;
+    notify();
+    return;
+  }
+
+  try {
+    const allData: any = await dataPromise;
+    globalState = {
+      ...globalState,
+      ...allData,
+      toast: globalState.toast,
+      confirmation: globalState.confirmation,
+    };
+    notify();
+    // Snapshot for the next boot's instant paint.
+    cacheSet(CACHE_KEYS.appData, {
+      ...allData,
+      currentUser: globalState.currentUser,
+      globalNoteCategories: globalState.globalNoteCategories,
+    });
+  } catch (e) {
+    // Keep the cached/partial view; don't blow away what the user can already see.
+    console.error('Dataset revalidation failed (keeping current view)', e);
     notify();
   }
 };
@@ -119,6 +167,7 @@ export const useStore = () => {
 
     logout: () => {
       apiClient.clearToken();
+      cacheClear();
       globalState = { ...EMPTY_DATA };
       notify();
     },
@@ -231,7 +280,10 @@ export const useStore = () => {
 
     addContact: async (contact: any) => {
       const res = await apiClient.post('/contacts', contact);
-      await hydrate();
+      // Surgical update — append the new contact instead of re-downloading the whole
+      // dataset. This is what makes @mention auto-create during task entry feel instant.
+      globalState = { ...globalState, contacts: [...globalState.contacts, res] };
+      notify();
       return res;
     },
 
@@ -248,7 +300,9 @@ export const useStore = () => {
 
     addEntity: async (entity: any) => {
       const res = await apiClient.post('/entities', entity);
-      await hydrate();
+      // Surgical update — append the new entity instead of re-downloading everything.
+      globalState = { ...globalState, entities: [...globalState.entities, res] };
+      notify();
       return res;
     },
 

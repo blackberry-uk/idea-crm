@@ -15,12 +15,140 @@ import {
   Undo2,
   Save,
   Layout,
-  Tag
+  Tag,
+  Zap,
+  Copy,
+  Smartphone,
+  ExternalLink
 } from 'lucide-react';
 import { DEFAULT_IDEA_CONFIGS } from '../lib/idea-utils';
 import { IdeaConfig, ThemePalette } from '../types';
 import { THEMES } from '../lib/themes';
 import { getAvatarColor, AVATAR_COLORS } from '../lib/utils';
+import { apiClient } from '../lib/api/client';
+
+// Self-contained "Quick Capture" panel: reveals a permanent capture token for the
+// iOS Shortcut and links to the /capture home-screen page.
+const QuickCaptureSection: React.FC = () => {
+  const [token, setToken] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const captureUrl = `${window.location.origin}/#/capture`;
+  const endpoint = `${window.location.origin}/api/quick-capture`;
+
+  const revealToken = async () => {
+    if (token) { setToken(null); return; }
+    setLoading(true);
+    try {
+      const res = await apiClient.get('/capture-token');
+      setToken(res.token);
+    } catch {
+      /* surfaced by the disabled state; keep the panel quiet */
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const copy = async (value: string) => {
+    try {
+      await navigator.clipboard.writeText(value);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch { /* clipboard blocked; user can select manually */ }
+  };
+
+  return (
+    <section className="bg-white rounded-2xl border border-gray-200 p-8 shadow-sm col-span-1 lg:col-span-2">
+      <div className="flex items-center gap-3 mb-2">
+        <Zap className="w-5 h-5" style={{ color: 'var(--primary)' }} />
+        <h2 className="text-lg font-bold">Quick Capture</h2>
+      </div>
+      <p className="text-sm text-gray-500 mb-6">
+        Capture fleeting thoughts straight into today's list — without opening the app.
+      </p>
+
+      {/* Home-screen page */}
+      <div className="rounded-2xl border border-gray-200 p-5 mb-4">
+        <div className="flex items-center gap-2 mb-2">
+          <Smartphone className="w-4 h-4 text-gray-500" />
+          <h3 className="font-bold text-sm">Home-screen capture page</h3>
+        </div>
+        <p className="text-xs text-gray-500 mb-3">
+          Open the capture page, then in your browser's Share menu choose <b>Add to Home Screen</b>.
+          Tapping the icon opens straight to a capture box (uses your existing login).
+        </p>
+        <div className="flex items-center gap-2 flex-wrap">
+          <a
+            href="#/capture"
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold text-white"
+            style={{ background: 'var(--primary)' }}
+          >
+            Open capture page <ExternalLink className="w-4 h-4" />
+          </a>
+          <button
+            onClick={() => copy(captureUrl)}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold border border-gray-200 text-gray-600 hover:bg-gray-50"
+          >
+            <Copy className="w-4 h-4" /> Copy URL
+          </button>
+        </div>
+      </div>
+
+      {/* iOS Shortcut */}
+      <div className="rounded-2xl border border-gray-200 p-5">
+        <div className="flex items-center gap-2 mb-2">
+          <Zap className="w-4 h-4 text-gray-500" />
+          <h3 className="font-bold text-sm">iOS Shortcut (fastest — Back-Tap / “Hey Siri”)</h3>
+        </div>
+        <ol className="text-xs text-gray-600 list-decimal ml-4 space-y-1 mb-4">
+          <li>Open the <b>Shortcuts</b> app → <b>+</b> → add action <b>Ask for Input</b> (Text).</li>
+          <li>Add <b>Get Contents of URL</b>. Set Method = <b>POST</b>, URL = the endpoint below.</li>
+          <li>Under Headers add <b>Authorization</b> = <code>Bearer &lt;your token&gt;</code>.</li>
+          <li>Request Body = <b>JSON</b>: key <code>text</code> = the <b>Provided Input</b> variable.</li>
+          <li>Name it “Capture”, then assign it to <b>Back Tap</b> (Settings → Accessibility → Touch) or just say “Hey Siri, Capture”.</li>
+        </ol>
+
+        <div className="space-y-2">
+          <div>
+            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Endpoint (POST)</label>
+            <div className="flex items-center gap-2 mt-1">
+              <code className="flex-1 text-xs bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 overflow-x-auto whitespace-nowrap">{endpoint}</code>
+              <button onClick={() => copy(endpoint)} className="p-2 rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50"><Copy className="w-4 h-4" /></button>
+            </div>
+          </div>
+
+          <div>
+            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Your capture token</label>
+            <div className="flex items-center gap-2 mt-1">
+              {token ? (
+                <code className="flex-1 text-xs bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 overflow-x-auto whitespace-nowrap">{token}</code>
+              ) : (
+                <span className="flex-1 text-xs text-gray-400 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">Hidden — reveal to add it to your Shortcut</span>
+              )}
+              {token && (
+                <button onClick={() => copy(token)} className="p-2 rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50"><Copy className="w-4 h-4" /></button>
+              )}
+            </div>
+            <div className="flex items-center gap-3 mt-2">
+              <button
+                onClick={revealToken}
+                disabled={loading}
+                className="text-xs font-bold px-3 py-1.5 rounded-lg text-white disabled:opacity-50"
+                style={{ background: 'var(--primary)' }}
+              >
+                {loading ? 'Working…' : token ? 'Hide token' : 'Reveal token'}
+              </button>
+              {copied && <span className="text-xs font-bold text-green-600 inline-flex items-center gap-1"><Check className="w-3 h-3" /> Copied</span>}
+            </div>
+            <p className="text-[10px] text-gray-400 mt-2">
+              Treat this token like a password — it lets anyone add tasks to your account. It never expires; rotating your login secret revokes it.
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+};
 
 const CSS_COLORS = [
   "AliceBlue", "AntiqueWhite", "Aqua", "Aquamarine", "Azure", "Beige", "Bisque", "Black", "BlanchedAlmond", "Blue", "BlueViolet", "Brown", "BurlyWood", "CadetBlue", "Chartreuse", "Chocolate", "Coral", "CornflowerBlue", "Cornsilk", "Crimson", "Cyan", "DarkBlue", "DarkCyan", "DarkGoldenRod", "DarkGray", "DarkGreen", "DarkKhaki", "DarkMagenta", "DarkOliveGreen", "DarkOrange", "DarkOrchid", "DarkRed", "DarkSalmon", "DarkSeaGreen", "DarkSlateBlue", "DarkSlateGray", "DarkViolet", "DeepPink", "DeepSkyBlue", "DimGray", "DodgerBlue", "FireBrick", "FloralWhite", "ForestGreen", "Fuchsia", "Gainsboro", "GhostWhite", "Gold", "GoldenRod", "Gray", "Green", "GreenYellow", "HoneyDew", "HotPink", "IndianRed", "Indigo", "Ivory", "Khaki", "Lavender", "LavenderBlush", "LawnGreen", "LemonChiffon", "LightBlue", "LightCoral", "LightCyan", "LightGoldenRodYellow", "LightGray", "LightGreen", "LightPink", "LightSalmon", "LightSeaGreen", "LightSkyBlue", "LightSlateGray", "LightSteelBlue", "LightYellow", "Lime", "LimeGreen", "Linen", "Magenta", "Maroon", "MediumAquaMarine", "MediumBlue", "MediumOrchid", "MediumPurple", "MediumSeaGreen", "MediumSlateBlue", "MediumSpringGreen", "MediumTurquoise", "MediumVioletRed", "MidnightBlue", "MintCream", "MistyRose", "Moccasin", "NavajoWhite", "Navy", "OldLace", "Olive", "OliveDrab", "Orange", "OrangeRed", "Orchid", "PaleGoldenRod", "PaleGreen", "PaleTurquoise", "PaleVioletRed", "PapayaWhip", "PeachPuff", "Peru", "Pink", "Plum", "PowderBlue", "Purple", "RebeccaPurple", "Red", "RosyBrown", "RoyalBlue", "SaddleBrown", "Salmon", "SandyBrown", "SeaGreen", "SeaShell", "Sienna", "Silver", "SkyBlue", "SlateBlue", "SlateGray", "Snow", "SpringGreen", "SteelBlue", "Tan", "Teal", "Thistle", "Tomato", "Turquoise", "Violet", "Wheat", "White", "WhiteSmoke", "Yellow", "YellowGreen"
@@ -226,6 +354,9 @@ const Settings: React.FC = () => {
             <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-3">Select a distinct color to stand out in projects</p>
           </div>
         </section>
+
+        {/* Quick Capture */}
+        <QuickCaptureSection />
 
         {/* Theme Palette Selection */}
         <section className="bg-white rounded-2xl border border-gray-200 p-8 shadow-sm col-span-1 lg:col-span-2">

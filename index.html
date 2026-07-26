@@ -1670,6 +1670,16 @@
             cursor: grabbing;
             transform: scale(0.97);
         }
+        /* "Just added" highlight — a soft green wash that fades out. Uses an inset
+           box-shadow overlay so it works over any tile background without shifting layout. */
+        @keyframes wv-flash-in {
+            0%   { box-shadow: inset 0 0 0 9999px rgba(34, 197, 94, 0.22); }
+            15%  { box-shadow: inset 0 0 0 9999px rgba(34, 197, 94, 0.22); }
+            100% { box-shadow: inset 0 0 0 9999px rgba(34, 197, 94, 0); }
+        }
+        .wv-task--flash {
+            animation: wv-flash-in 4s ease-out;
+        }
         /* Subtask tree — separate bubbles below parent with connector lines */
         .wv-subtask-tree {
             display: flex;

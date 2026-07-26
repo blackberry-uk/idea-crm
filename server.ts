@@ -337,29 +337,37 @@ app.get('/api/data', authenticate, async (req: any, res) => {
   try {
     console.log('[API /data] Fetching data for user:', userId);
 
-    const user = await prisma.user.findUnique({ where: { id: userId } });
+    // Queries run in 3 parallel stages by dependency instead of 7 sequential
+    // round-trips: independent → (contacts, invitations) → (entities, notes).
+
+    // Stage 1 — no dependencies.
+    const [user, rawIdeas, interactions] = await Promise.all([
+      prisma.user.findUnique({ where: { id: userId } }),
+      prisma.idea.findMany({
+        where: { OR: [{ ownerId: userId }, { collaborators: { some: { id: userId } } }] },
+        include: { owner: true, collaborators: true, children: { include: { owner: true, collaborators: true } } }
+      }),
+      prisma.interaction.findMany({ where: { createdById: userId } }),
+    ]);
     const userEmail = user?.email || '';
-    console.log('[API /data] User found:', userEmail);
-
-    console.log('[API /data] Fetching ideas...');
-    const rawIdeas = await prisma.idea.findMany({
-      where: { OR: [{ ownerId: userId }, { collaborators: { some: { id: userId } } }] },
-      include: { owner: true, collaborators: true, children: { include: { owner: true, collaborators: true } } }
-    });
-    console.log('[API /data] Ideas fetched:', rawIdeas.length);
-
     const userIdeaIds = rawIdeas.map((i: any) => i.id);
-    console.log('[API /data] Fetching contacts...');
-    const contacts = await prisma.contact.findMany({
-      where: {
-        OR: [
-          { ownerId: userId },
-          { associatedNotes: { some: { ideaId: { in: userIdeaIds } } } },
-          { taggedInNotes: { some: { ideaId: { in: userIdeaIds } } } }
-        ]
-      } as any
-    });
-    console.log('[API /data] Contacts fetched:', contacts.length);
+
+    // Stage 2 — contacts depend on ideas; invitations depend on the user's email.
+    const [contacts, invitations] = await Promise.all([
+      prisma.contact.findMany({
+        where: {
+          OR: [
+            { ownerId: userId },
+            { associatedNotes: { some: { ideaId: { in: userIdeaIds } } } },
+            { taggedInNotes: { some: { ideaId: { in: userIdeaIds } } } }
+          ]
+        } as any
+      }),
+      prisma.invitation.findMany({
+        where: { OR: [{ email: userEmail }, { senderId: userId }] },
+        include: { sender: true, idea: true }
+      }),
+    ]);
 
     const linkedEntityIds = new Set<string>();
     contacts.forEach((c: any) => {
@@ -368,57 +376,36 @@ app.get('/api/data', authenticate, async (req: any, res) => {
         if (Array.isArray(ids)) ids.forEach(id => linkedEntityIds.add(id));
       } catch {}
     });
-
-    console.log('[API /data] Fetching entities...');
-    const entities = await prisma.entity.findMany({
-      where: { 
-        OR: [
-          { ownerId: userId },
-          { id: { in: Array.from(linkedEntityIds) } }
-        ]
-      } as any
-    });
-    console.log('[API /data] Entities fetched:', entities.length);
-
     const contactIds = contacts.map((c: any) => c.id);
-    console.log('[API /data] Fetching notes...');
-    const rawNotes = await prisma.note.findMany({
-      where: {
-        OR: [
-          { createdById: userId },
-          { idea: { OR: [{ ownerId: userId }, { collaborators: { some: { id: userId } } }] } },
-          { taggedUsers: { some: { id: userId } } },
-          { contactId: { in: contactIds }, ideaId: null },
-          { taggedContacts: { some: { id: { in: contactIds } } }, ideaId: null }
-        ]
-      } as any,
-      include: {
-        taggedContacts: true,
-        taggedUsers: true,
-        taggedEntities: true,
-        comments: { include: { author: true } }
-      } as any
-    });
-    console.log('[API /data] Notes fetched:', rawNotes.length);
 
-    console.log('[API /data] Fetching interactions...');
-    const interactions = await prisma.interaction.findMany({ where: { createdById: userId } });
-    console.log('[API /data] Interactions fetched:', interactions.length);
-
-    console.log('[API /data] Fetching invitations...');
-    const invitations = await prisma.invitation.findMany({
-      where: {
-        OR: [
-          { email: userEmail },
-          { senderId: userId }
-        ]
-      },
-      include: {
-        sender: true,
-        idea: true
-      }
-    });
-    console.log('[API /data] Invitations fetched:', invitations.length);
+    // Stage 3 — entities and notes both depend on contacts.
+    const [entities, rawNotes] = await Promise.all([
+      prisma.entity.findMany({
+        where: {
+          OR: [
+            { ownerId: userId },
+            { id: { in: Array.from(linkedEntityIds) } }
+          ]
+        } as any
+      }),
+      prisma.note.findMany({
+        where: {
+          OR: [
+            { createdById: userId },
+            { idea: { OR: [{ ownerId: userId }, { collaborators: { some: { id: userId } } }] } },
+            { taggedUsers: { some: { id: userId } } },
+            { contactId: { in: contactIds }, ideaId: null },
+            { taggedContacts: { some: { id: { in: contactIds } } }, ideaId: null }
+          ]
+        } as any,
+        include: {
+          taggedContacts: true,
+          taggedUsers: true,
+          taggedEntities: true,
+          comments: { include: { author: true } }
+        } as any
+      }),
+    ]);
 
     // Transform ideas to match frontend types
     const ideas = rawIdeas.map(idea => ({
@@ -1475,6 +1462,119 @@ app.post('/api/daily-todos', authenticate, async (req: any, res) => {
   } catch (err: any) {
     console.error('Daily todo create error:', err);
     res.status(500).json({ error: 'Failed to create daily todo', details: err.message });
+  }
+});
+
+// --- Quick Capture ---------------------------------------------------------
+// Frictionless single-field capture used by the iOS Shortcut and the /capture
+// PWA page. Creates a to-do for today (or the supplied date) with minimal input.
+const blockForHour = (h: number) => (h < 12 ? 'morning' : h < 17 ? 'afternoon' : 'evening');
+
+app.post('/api/quick-capture', authenticate, async (req: any, res) => {
+  try {
+    const rawText = (req.body?.text ?? '').toString().trim();
+    if (!rawText) return res.status(400).json({ error: 'text is required' });
+
+    // Default to today (UTC) when the caller doesn't send a date (e.g. the Shortcut).
+    const dateKey = (req.body?.date ? String(req.body.date) : new Date().toISOString()).slice(0, 10);
+    const dateVal = new Date(dateKey + 'T12:00:00Z');
+    const timeBlock = req.body?.timeBlock || blockForHour(new Date().getUTCHours());
+
+    const minOrder = await (prisma as any).dailyTodo.aggregate({
+      where: { userId: req.userId, date: dateVal, parentId: null },
+      _min: { sortOrder: true }
+    });
+    const nextOrder = (minOrder._min.sortOrder ?? 0) - 1;
+
+    const todo = await (prisma as any).dailyTodo.create({
+      data: {
+        text: rawText,
+        date: dateVal,
+        sortOrder: nextOrder,
+        timeBlock,
+        userId: req.userId,
+        assigneeId: req.userId,
+      }
+    });
+    res.json({ ok: true, todo });
+  } catch (err: any) {
+    console.error('Quick capture error:', err);
+    res.status(500).json({ error: 'Failed to capture', details: err.message });
+  }
+});
+
+// Mint a long-lived personal capture token (JWTs here have no expiry) for use in
+// the iOS Shortcut. Revoke by rotating JWT_SECRET (invalidates all sessions).
+app.get('/api/capture-token', authenticate, async (req: any, res) => {
+  try {
+    const token = jwt.sign({ userId: req.userId, scope: 'capture' }, JWT_SECRET);
+    res.json({ token });
+  } catch (err: any) {
+    console.error('Capture token error:', err);
+    res.status(500).json({ error: 'Failed to mint capture token' });
+  }
+});
+
+// --- Inbound email → task/contact (Postmark inbound webhook) ---------------
+// Postmark POSTs parsed-email JSON here. Auth is a shared secret in the query
+// string (only Postmark knows the URL); the sender's email must also match a
+// registered user, which both identifies the owner and acts as an allow-list.
+// Subject "contact: <name>" creates a contact; anything else becomes a to-do.
+app.post('/api/inbound-email', async (req: any, res) => {
+  try {
+    const secret = (req.query.secret || req.headers['x-inbound-secret'] || '').toString();
+    if (!process.env.INBOUND_EMAIL_SECRET || secret !== process.env.INBOUND_EMAIL_SECRET) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const body = req.body || {};
+    const senderEmail = (body.FromFull?.Email || body.From || '').toString().trim().toLowerCase();
+    const subject = (body.Subject || '').toString().trim();
+    const textBody = (body.StrippedTextReply || body.TextBody || '').toString().trim();
+    if (!senderEmail) return res.status(200).json({ ok: false, ignored: 'no sender' });
+
+    // Sender must be a known user — this is both auth and the record owner.
+    const user = await prisma.user.findFirst({ where: { email: { equals: senderEmail, mode: 'insensitive' } as any } });
+    if (!user) {
+      console.warn('[inbound-email] ignoring email from unknown sender:', senderEmail);
+      return res.status(200).json({ ok: false, ignored: 'unknown sender' }); // 200 => Postmark won't retry
+    }
+    const userId = user.id;
+
+    // Route: "contact: <name> [<email>]" → contact; otherwise → today's to-do.
+    const contactMatch = subject.match(/^contact:\s*(.+)$/i);
+    if (contactMatch) {
+      const rest = contactMatch[1].trim();
+      const emailInName = rest.match(/<?([^\s<>]+@[^\s<>]+)>?/);
+      const email = emailInName ? emailInName[1] : undefined;
+      const fullName = rest.replace(/<?[^\s<>]+@[^\s<>]+>?/, '').trim() || rest;
+      const contact = await prisma.contact.create({
+        data: { fullName, email, ownerId: userId } as any
+      });
+      return res.json({ ok: true, created: 'contact', id: contact.id });
+    }
+
+    const text = (subject || textBody.split('\n')[0] || 'Untitled').slice(0, 500);
+    const dateVal = new Date(new Date().toISOString().slice(0, 10) + 'T12:00:00Z');
+    const minOrder = await (prisma as any).dailyTodo.aggregate({
+      where: { userId, date: dateVal, parentId: null }, _min: { sortOrder: true }
+    });
+    const nextOrder = (minOrder._min.sortOrder ?? 0) - 1;
+    const todo = await (prisma as any).dailyTodo.create({
+      data: {
+        text,
+        date: dateVal,
+        sortOrder: nextOrder,
+        timeBlock: blockForHour(new Date().getUTCHours()),
+        userId,
+        assigneeId: userId,
+      }
+    });
+    return res.json({ ok: true, created: 'todo', id: todo.id });
+  } catch (err: any) {
+    console.error('[inbound-email] error', err);
+    // 200 so Postmark doesn't retry-storm on a parse error we can't recover from.
+    return res.status(200).json({ ok: false, error: err.message });
   }
 });
 
