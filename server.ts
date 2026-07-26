@@ -1546,6 +1546,34 @@ const parseVCards = (vcf: string): Array<Record<string, string | undefined>> => 
   return cards;
 };
 
+// Find-or-create a contact for this owner. Dedupes by email, else by exact full
+// name. On a match it fills ONLY empty fields (so a re-sent card enriches without
+// clobbering existing data) and merges the idea link. Returns the contact id.
+const CONTACT_FIELDS = ['fullName', 'firstName', 'lastName', 'email', 'phone', 'company', 'role', 'linkedinUrl', 'instagramUrl', 'twitterUrl', 'substackUrl'];
+const upsertContact = async (
+  userId: string,
+  fields: Record<string, any>,
+  ideaId: string | null
+): Promise<{ id: string; action: 'created' | 'updated' }> => {
+  let existing: any = null;
+  if (fields.email) existing = await prisma.contact.findFirst({ where: { ownerId: userId, email: { equals: fields.email, mode: 'insensitive' } as any } });
+  if (!existing && fields.fullName) existing = await prisma.contact.findFirst({ where: { ownerId: userId, fullName: { equals: fields.fullName, mode: 'insensitive' } as any } });
+
+  if (existing) {
+    const data: any = {};
+    for (const k of CONTACT_FIELDS) if (!existing[k] && fields[k]) data[k] = fields[k]; // fill gaps only
+    let linked: string[] = [];
+    try { linked = JSON.parse(existing.linkedIdeaIds || '[]'); } catch {}
+    if (ideaId && !linked.includes(ideaId)) { linked.push(ideaId); data.linkedIdeaIds = JSON.stringify(linked); }
+    if (Object.keys(data).length) await prisma.contact.update({ where: { id: existing.id }, data });
+    return { id: existing.id, action: 'updated' };
+  }
+  const data: any = { ownerId: userId, linkedIdeaIds: ideaId ? JSON.stringify([ideaId]) : '[]' };
+  for (const k of CONTACT_FIELDS) if (fields[k]) data[k] = fields[k];
+  const created = await prisma.contact.create({ data });
+  return { id: created.id, action: 'created' };
+};
+
 app.post('/api/quick-capture', authenticate, async (req: any, res) => {
   try {
     const rawText = (req.body?.text ?? '').toString().trim();
@@ -1639,32 +1667,18 @@ app.post('/api/inbound-email', async (req: any, res) => {
     const vcfs = attachments.filter((a: any) =>
       /vcard|vcf|directory/i.test(a?.ContentType || '') || /\.vcf$/i.test(a?.Name || ''));
     if (vcfs.length) {
-      const createdIds: string[] = [];
+      const ids: string[] = [];
+      let createdCount = 0, updatedCount = 0;
       for (const att of vcfs) {
         let vcfText = '';
         try { vcfText = Buffer.from(att.Content || '', 'base64').toString('utf8'); } catch {}
         for (const c of parseVCards(vcfText)) {
-          const contact = await prisma.contact.create({
-            data: {
-              fullName: c.fullName || null,
-              firstName: c.firstName || null,
-              lastName: c.lastName || null,
-              email: c.email || null,
-              phone: c.phone || null,
-              company: c.company || null,
-              role: c.role || null,
-              linkedinUrl: c.linkedinUrl || null,
-              instagramUrl: c.instagramUrl || null,
-              twitterUrl: c.twitterUrl || null,
-              substackUrl: c.substackUrl || null,
-              ownerId: userId,
-              linkedIdeaIds: ideaId ? JSON.stringify([ideaId]) : '[]',
-            } as any
-          });
-          createdIds.push(contact.id);
+          const r = await upsertContact(userId, c, ideaId);
+          ids.push(r.id);
+          r.action === 'created' ? createdCount++ : updatedCount++;
         }
       }
-      return res.json({ ok: createdIds.length > 0, created: 'contact', count: createdIds.length, ids: createdIds });
+      return res.json({ ok: ids.length > 0, created: 'contact', count: ids.length, createdCount, updatedCount, ids });
     }
 
     // Route: "contact: <name> [<email>]" → contact; otherwise → a to-do.
@@ -1674,10 +1688,8 @@ app.post('/api/inbound-email', async (req: any, res) => {
       const emailInName = rest.match(/<?([^\s<>]+@[^\s<>]+)>?/);
       const email = emailInName ? emailInName[1] : undefined;
       const fullName = rest.replace(/<?[^\s<>]+@[^\s<>]+>?/, '').trim() || rest;
-      const contact = await prisma.contact.create({
-        data: { fullName, email, ownerId: userId } as any
-      });
-      return res.json({ ok: true, created: 'contact', id: contact.id });
+      const r = await upsertContact(userId, { fullName, email }, ideaId);
+      return res.json({ ok: true, created: 'contact', id: r.id, action: r.action });
     }
 
     // Natural-language date from the subject ("Monday: ...", "tomorrow: ...").
