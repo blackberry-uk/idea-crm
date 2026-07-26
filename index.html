@@ -637,6 +637,30 @@
             border-left: 2px solid var(--primary, #6366f1);
         }
 
+        /* Chunky, thumb-friendly confirm/cancel buttons for the subtask input */
+        .daily-todo-subtask-btn {
+            width: 2rem;
+            height: 2rem;
+            border-radius: 999px;
+            border: none;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            cursor: pointer;
+            transition: background 0.15s;
+        }
+        .daily-todo-subtask-btn--save { background: #eef2ff; color: #4f46e5; }
+        .daily-todo-subtask-btn--save:hover { background: #e0e7ff; }
+        .daily-todo-subtask-btn--save:disabled { background: #f3f4f6; color: #9ca3af; cursor: not-allowed; }
+        .daily-todo-subtask-btn--cancel { background: #fef2f2; color: #ef4444; }
+        .daily-todo-subtask-btn--cancel:hover { background: #fee2e2; }
+        @media (max-width: 640px) {
+            .daily-todo-subtask-btn { width: 2.4rem; height: 2.4rem; }
+            .daily-todo-subtask-btn svg { width: 1.35rem !important; height: 1.35rem !important; }
+            .daily-todo-subtask-input { font-size: 1rem; }
+        }
+
         .daily-todo-subtask-input {
             width: 100%;
             font-size: 0.8rem;

@@ -395,7 +395,7 @@ const DailyTodoItem: React.FC<DailyTodoItemProps> = ({
 
       {/* Subtask input */}
       {showSubtaskInput && !isSubtask && (
-        <div className="daily-todo-subtask-add" style={{ marginLeft: '1.5rem', display: 'flex', alignItems: 'center', gap: '4px' }}>
+        <div className="daily-todo-subtask-add" style={{ marginLeft: '1.5rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
           <MentionInput
             className="daily-todo-subtask-input"
             placeholder="Add a subtask..."
@@ -409,23 +409,17 @@ const DailyTodoItem: React.FC<DailyTodoItemProps> = ({
           <button
             onClick={handleAddSubtask}
             disabled={!subtaskText.trim()}
-            style={{ 
-              background: 'none', border: 'none', 
-              cursor: subtaskText.trim() ? 'pointer' : 'not-allowed', 
-              padding: '2px', 
-              color: subtaskText.trim() ? '#4f46e5' : '#9ca3af', 
-              flexShrink: 0, display: 'flex', alignItems: 'center' 
-            }}
+            className="daily-todo-subtask-btn daily-todo-subtask-btn--save"
             title="Save"
           >
-            <Check className="w-4 h-4" />
+            <Check className="w-5 h-5" />
           </button>
           <button
             onClick={() => { setShowSubtaskInput(false); setSubtaskText(''); }}
-            style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px', color: '#ef4444', flexShrink: 0, display: 'flex', alignItems: 'center' }}
+            className="daily-todo-subtask-btn daily-todo-subtask-btn--cancel"
             title="Cancel"
           >
-            <X className="w-3.5 h-3.5" />
+            <X className="w-5 h-5" />
           </button>
         </div>
       )}
