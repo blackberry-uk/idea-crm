@@ -1470,6 +1470,55 @@ app.post('/api/daily-todos', authenticate, async (req: any, res) => {
 // PWA page. Creates a to-do for today (or the supplied date) with minimal input.
 const blockForHour = (h: number) => (h < 12 ? 'morning' : h < 17 ? 'afternoon' : 'evening');
 
+// Parse "email=ideaId;email=ideaId" (INBOUND_SENDER_IDEAS) into a lookup. An empty
+// ideaId means "allowed sender, but attach no idea". Membership = the allow-list.
+const parseSenderIdeaMap = (raw?: string): Record<string, string> => {
+  const map: Record<string, string> = {};
+  (raw || '').split(';').forEach(pair => {
+    const i = pair.indexOf('=');
+    if (i < 0) return;
+    const email = pair.slice(0, i).trim().toLowerCase();
+    const ideaId = pair.slice(i + 1).trim();
+    if (email) map[email] = ideaId;
+  });
+  return map;
+};
+
+// Read a natural-language date directive from the start of an email subject:
+//   "Monday: Send docs"      -> next Monday (incl. today)         text: "Send docs"
+//   "Monday +1w: Send docs"  -> that Monday + 1 week              text: "Send docs"
+//   "tomorrow +3d: call Ana" -> tomorrow + 3 days                 text: "call Ana"
+//   "Buy milk"               -> today (no date word)              text: "Buy milk"
+// An optional "+Nw" (weeks) / "+Nd" (days) offset is added to the resolved date.
+// Dates are resolved in Europe/London so weekday math matches the user's day.
+const parseInboundWhen = (subject: string): { dateKey: string; text: string } => {
+  const londonToday = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/London' }).format(new Date()); // YYYY-MM-DD
+  const base = new Date(londonToday + 'T12:00:00Z');
+  const toKey = (d: Date) => d.toISOString().slice(0, 10);
+  const addDays = (d: Date, n: number) => { const x = new Date(d); x.setUTCDate(x.getUTCDate() + n); return x; };
+  const DAYS: Record<string, number> = {
+    sunday: 0, sun: 0, monday: 1, mon: 1, tuesday: 2, tue: 2, tues: 2, wednesday: 3, wed: 3,
+    thursday: 4, thu: 4, thur: 4, thurs: 4, friday: 5, fri: 5, saturday: 6, sat: 6,
+  };
+  // <word> [ +N w|d ] <: or -> <text>
+  const m = subject.match(/^\s*([A-Za-z]+)\s*(\+\s*\d+\s*[wd])?\s*[:\-]\s*(.+)$/is);
+  if (m) {
+    const word = m[1].toLowerCase();
+    const rest = m[3].trim();
+    let day: Date | null = null;
+    if (word === 'today') day = base;
+    else if (word === 'tomorrow' || word === 'tmrw' || word === 'tmw') day = addDays(base, 1);
+    else if (word in DAYS) day = addDays(base, (DAYS[word] - base.getUTCDay() + 7) % 7); // 0 = today
+
+    if (day) {
+      const off = (m[2] || '').match(/\+\s*(\d+)\s*([wd])/i);
+      if (off) day = addDays(day, off[2].toLowerCase() === 'w' ? parseInt(off[1], 10) * 7 : parseInt(off[1], 10));
+      return { dateKey: toKey(day), text: rest };
+    }
+  }
+  return { dateKey: toKey(base), text: subject.trim() };
+};
+
 app.post('/api/quick-capture', authenticate, async (req: any, res) => {
   try {
     const rawText = (req.body?.text ?? '').toString().trim();
@@ -1533,15 +1582,33 @@ app.post('/api/inbound-email', async (req: any, res) => {
     const textBody = (body.StrippedTextReply || body.TextBody || '').toString().trim();
     if (!senderEmail) return res.status(200).json({ ok: false, ignored: 'no sender' });
 
-    // Sender must be a known user — this is both auth and the record owner.
-    const user = await prisma.user.findFirst({ where: { email: { equals: senderEmail, mode: 'insensitive' } as any } });
+    // Resolve the owning user + which idea to file into.
+    // If the sender is in INBOUND_SENDER_IDEAS, records are owned by INBOUND_OWNER_EMAIL
+    // and filed into the mapped idea. Otherwise fall back to "sender is itself a user".
+    const ownerEmail = (process.env.INBOUND_OWNER_EMAIL || '').trim().toLowerCase();
+    const senderMap = parseSenderIdeaMap(process.env.INBOUND_SENDER_IDEAS);
+    let user: any = null;
+    let mappedIdeaId: string | null = null;
+    if (senderMap[senderEmail] !== undefined) {
+      user = await prisma.user.findFirst({ where: { email: { equals: ownerEmail || senderEmail, mode: 'insensitive' } as any } });
+      mappedIdeaId = senderMap[senderEmail] || null;
+    } else {
+      user = await prisma.user.findFirst({ where: { email: { equals: senderEmail, mode: 'insensitive' } as any } });
+    }
     if (!user) {
       console.warn('[inbound-email] ignoring email from unknown sender:', senderEmail);
       return res.status(200).json({ ok: false, ignored: 'unknown sender' }); // 200 => Postmark won't retry
     }
     const userId = user.id;
 
-    // Route: "contact: <name> [<email>]" → contact; otherwise → today's to-do.
+    // Only attach the idea if it exists and belongs to the owner (else silently drop it).
+    let ideaId: string | null = null;
+    if (mappedIdeaId) {
+      const idea = await prisma.idea.findFirst({ where: { id: mappedIdeaId, ownerId: userId } });
+      ideaId = idea ? idea.id : null;
+    }
+
+    // Route: "contact: <name> [<email>]" → contact; otherwise → a to-do.
     const contactMatch = subject.match(/^contact:\s*(.+)$/i);
     if (contactMatch) {
       const rest = contactMatch[1].trim();
@@ -1554,8 +1621,10 @@ app.post('/api/inbound-email', async (req: any, res) => {
       return res.json({ ok: true, created: 'contact', id: contact.id });
     }
 
-    const text = (subject || textBody.split('\n')[0] || 'Untitled').slice(0, 500);
-    const dateVal = new Date(new Date().toISOString().slice(0, 10) + 'T12:00:00Z');
+    // Natural-language date from the subject ("Monday: ...", "tomorrow: ...").
+    const when = parseInboundWhen(subject);
+    const text = (when.text || textBody.split('\n')[0] || 'Untitled').slice(0, 500);
+    const dateVal = new Date(when.dateKey + 'T12:00:00Z');
     const minOrder = await (prisma as any).dailyTodo.aggregate({
       where: { userId, date: dateVal, parentId: null }, _min: { sortOrder: true }
     });
@@ -1568,9 +1637,10 @@ app.post('/api/inbound-email', async (req: any, res) => {
         timeBlock: blockForHour(new Date().getUTCHours()),
         userId,
         assigneeId: userId,
+        ideaId,
       }
     });
-    return res.json({ ok: true, created: 'todo', id: todo.id });
+    return res.json({ ok: true, created: 'todo', id: todo.id, date: when.dateKey, ideaId });
   } catch (err: any) {
     console.error('[inbound-email] error', err);
     // 200 so Postmark doesn't retry-storm on a parse error we can't recover from.
