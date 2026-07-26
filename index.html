@@ -2805,6 +2805,29 @@
         }
         .cl-block-tab--active .cl-block-tab-count { background: rgba(255,255,255,0.28); }
 
+        /* Idea selector pill on the new-task input (Claude "Manual"-style) */
+        .cl-idea-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            max-width: 100%;
+            padding: 0.45rem 0.85rem;
+            border-radius: 999px;
+            border: 1px solid #e5e7eb;
+            background: #fff;
+            color: #6b7280;
+            font-size: 0.82rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+        .cl-idea-pill:hover { border-color: #d1d5db; }
+        .cl-idea-pill--active { background: #eef2ff; border-color: #c7d2fe; color: #4338ca; }
+        .cl-idea-pill svg { flex-shrink: 0; }
+        .cl-idea-pill-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .cl-idea-pill-clear { display: inline-flex; align-items: center; opacity: 0.55; }
+        .cl-idea-pill-clear:hover { opacity: 1; }
+
         /* ===== Mobile polish (phones) ===== */
         @media (max-width: 640px) {
             /* Compact header: clock + date share one row; drop the timezone chip */

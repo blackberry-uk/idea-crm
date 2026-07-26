@@ -585,8 +585,13 @@ const Dashboard: React.FC = () => {
     if (!trimmed || submittingRef.current) return;
     submittingRef.current = true;
     const timeBlock = block || getCurrentBlock();
+    const selectedIdeaId = newIdeaId || null;
+    const selectedIdea = selectedIdeaId ? ideas.find(i => i.id === selectedIdeaId) : null;
 
-    const optimistic = makeOptimisticTodo(trimmed, dateKey, timeBlock);
+    const optimistic = makeOptimisticTodo(trimmed, dateKey, timeBlock, {
+      ideaId: selectedIdeaId,
+      idea: selectedIdea ? { id: selectedIdea.id, title: selectedIdea.title } : null,
+    });
     setAllTodos(prev => [...prev, optimistic]);
     submittingRef.current = false;
     autoCreateTaskLinks(trimmed);
@@ -596,6 +601,7 @@ const Dashboard: React.FC = () => {
       const todo = await apiClient.post('/daily-todos', {
         text: trimmed,
         date: dateKey,
+        ideaId: selectedIdeaId,
         timeBlock,
       });
       setAllTodos(prev => prev.map(t => t.id === optimistic.id ? { ...todo, _key: optimistic._key, _flash: t._flash } : t));
@@ -1106,7 +1112,7 @@ const Dashboard: React.FC = () => {
                             inlineAddTodo(text, toDateKey(selectedDate), block);
                             inputRef.current?.focus();
                           }}
-                          onCancel={() => { setInlineAddTarget(null); setNewText(''); }}
+                          onCancel={() => { setInlineAddTarget(null); setNewText(''); setShowTagPicker(false); setNewIdeaId(''); }}
                           placeholder="New task… (@ contact, # entity)"
                           style={{ flex: 1, padding: '6px 10px', borderRadius: '8px', border: '1px solid #e5e7eb', fontSize: '0.8rem', outline: 'none' }}
                           autoFocus
@@ -1131,6 +1137,35 @@ const Dashboard: React.FC = () => {
                         >
                           <Send className="w-3.5 h-3.5" style={{ marginLeft: '1px' }} />
                         </button>
+                      </div>
+                      {/* Idea selector — Claude "Manual"-style pill */}
+                      <div style={{ marginTop: '8px', position: 'relative' }}>
+                        <button
+                          type="button"
+                          className={`cl-idea-pill ${newIdeaId ? 'cl-idea-pill--active' : ''}`}
+                          onClick={() => setShowTagPicker(v => !v)}
+                        >
+                          <Lightbulb className="w-3.5 h-3.5" />
+                          <span className="cl-idea-pill-label">
+                            {newIdeaId ? (ideas.find(i => i.id === newIdeaId)?.title || 'Idea') : 'Add to idea'}
+                          </span>
+                          {newIdeaId && (
+                            <span
+                              className="cl-idea-pill-clear"
+                              onClick={(e) => { e.stopPropagation(); setNewIdeaId(''); }}
+                              title="Clear idea"
+                            ><X className="w-3 h-3" /></span>
+                          )}
+                        </button>
+                        {showTagPicker && (
+                          <IdeaPickerDropdown
+                            ideas={ideas as any}
+                            selectedIdeaId={newIdeaId || null}
+                            onSelect={(id) => { setNewIdeaId(id); setShowTagPicker(false); inputRef.current?.focus(); }}
+                            onRemove={() => { setNewIdeaId(''); setShowTagPicker(false); }}
+                            showRemove={!!newIdeaId}
+                          />
+                        )}
                       </div>
                     </div>
                   )}
