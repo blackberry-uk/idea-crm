@@ -2835,6 +2835,51 @@
         .cl-idea-pill-clear { display: inline-flex; align-items: center; opacity: 0.55; }
         .cl-idea-pill-clear:hover { opacity: 1; }
 
+        /* Integrated composer — one white box, input on top, controls tucked inside */
+        .cl-composer {
+            background: #fff;
+            border: 1px solid #e6e4df;
+            border-radius: 1.4rem;
+            box-shadow: 0 2px 12px rgba(30, 24, 12, 0.05);
+            padding: 0.35rem 0.5rem 0.5rem;
+            transition: border-color 0.15s, box-shadow 0.15s;
+        }
+        .cl-composer:focus-within {
+            border-color: #d6d3cc;
+            box-shadow: 0 3px 16px rgba(30, 24, 12, 0.09);
+        }
+        .cl-composer-input {
+            border: none;
+            outline: none;
+            background: transparent;
+            font-size: 1.05rem;
+            padding: 0.5rem 0.55rem 0.4rem;
+            color: #1f2937;
+        }
+        .cl-composer-controls {
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+            padding: 0 0.1rem;
+        }
+        .cl-composer-spacer { flex: 1; }
+        .cl-composer-btn {
+            width: 2.1rem;
+            height: 2.1rem;
+            border-radius: 999px;
+            border: none;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            flex-shrink: 0;
+            transition: all 0.15s;
+        }
+        .cl-composer-btn--send { background: var(--primary, #4f46e5); color: #fff; }
+        .cl-composer-btn--send:disabled { background: #edebe6; color: #b8b3a8; cursor: default; }
+        .cl-composer-btn--close { background: transparent; color: #9ca3af; }
+        .cl-composer-btn--close:hover { background: #f3f4f6; color: #4b5563; }
+
         /* Compact time-of-day circle selector (inactive = colored count circle,
            active = expands to a small labelled pill in the block's colour) */
         .cl-seg-row { display: flex; align-items: center; gap: 5px; }

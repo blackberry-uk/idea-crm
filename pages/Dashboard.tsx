@@ -1117,10 +1117,10 @@ const Dashboard: React.FC = () => {
                       <span className="cl-day-col-count">{blockTodos.filter(t => !t.completed).length}</span>
                     </div>
                   </div>
-                  {/* Inline add input */}
+                  {/* Inline add — a single integrated composer (input + controls in one box) */}
                   {inlineAddTarget === block && (
                     <div style={{ padding: '0 8px 8px', position: 'relative' }}>
-                      <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                      <div className="cl-composer">
                         <MentionInput
                           ref={inputRef}
                           value={newText}
@@ -1128,77 +1128,62 @@ const Dashboard: React.FC = () => {
                           onSubmit={() => {
                             const text = newText.trim();
                             if (!text) return;
-                            // Clear instantly and keep the input open + focused for rapid-fire entry.
                             setNewText('');
                             inlineAddTodo(text, toDateKey(selectedDate), block);
                             inputRef.current?.focus();
                           }}
                           onCancel={() => { setInlineAddTarget(null); setNewText(''); setShowTagPicker(false); setNewIdeaId(''); }}
                           placeholder="New task…  @ contact  # entity"
-                          style={{ flex: 1, padding: '12px 16px', borderRadius: '14px', border: '1px solid #e5e7eb', fontSize: '1rem', outline: 'none' }}
+                          className="cl-composer-input"
                           autoFocus
                         />
-                        <button
-                          onClick={() => {
-                            const text = newText.trim();
-                            if (!text) return;
-                            setNewText('');
-                            inlineAddTodo(text, toDateKey(selectedDate), block);
-                            inputRef.current?.focus();
-                          }}
-                          disabled={!newText.trim()}
-                          title="Add task"
-                          style={{
-                            width: 34, height: 34, borderRadius: '50%', border: 'none', cursor: newText.trim() ? 'pointer' : 'default',
-                            display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-                            background: newText.trim() ? 'var(--primary)' : '#e5e7eb',
-                            color: newText.trim() ? '#fff' : '#9ca3af',
-                            transition: 'background 0.15s, color 0.15s',
-                          }}
-                        >
-                          <Send className="w-4 h-4" style={{ marginLeft: '1px' }} />
-                        </button>
-                        <button
-                          onClick={() => { setInlineAddTarget(null); setNewText(''); setShowTagPicker(false); setNewIdeaId(''); }}
-                          title="Close"
-                          style={{
-                            width: 34, height: 34, borderRadius: '50%', border: 'none', cursor: 'pointer',
-                            display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-                            background: '#f3f4f6', color: '#9ca3af',
-                          }}
-                        >
-                          <X className="w-4 h-4" />
-                        </button>
+                        <div className="cl-composer-controls">
+                          <button
+                            type="button"
+                            className={`cl-idea-pill ${newIdeaId ? 'cl-idea-pill--active' : ''}`}
+                            onClick={() => setShowTagPicker(v => !v)}
+                          >
+                            <Lightbulb className="w-3.5 h-3.5" />
+                            <span className="cl-idea-pill-label">
+                              {newIdeaId ? (ideas.find(i => i.id === newIdeaId)?.title || 'Idea') : 'Add to idea'}
+                            </span>
+                            {newIdeaId && (
+                              <span
+                                className="cl-idea-pill-clear"
+                                onClick={(e) => { e.stopPropagation(); setNewIdeaId(''); }}
+                                title="Clear idea"
+                              ><X className="w-3 h-3" /></span>
+                            )}
+                          </button>
+                          <div className="cl-composer-spacer" />
+                          <button
+                            className="cl-composer-btn cl-composer-btn--close"
+                            onClick={() => { setInlineAddTarget(null); setNewText(''); setShowTagPicker(false); setNewIdeaId(''); }}
+                            title="Close"
+                          ><X className="w-4 h-4" /></button>
+                          <button
+                            className="cl-composer-btn cl-composer-btn--send"
+                            disabled={!newText.trim()}
+                            title="Add task"
+                            onClick={() => {
+                              const text = newText.trim();
+                              if (!text) return;
+                              setNewText('');
+                              inlineAddTodo(text, toDateKey(selectedDate), block);
+                              inputRef.current?.focus();
+                            }}
+                          ><Send className="w-4 h-4" style={{ marginLeft: '1px' }} /></button>
+                        </div>
                       </div>
-                      {/* Idea selector — Claude "Manual"-style pill */}
-                      <div style={{ marginTop: '8px', position: 'relative' }}>
-                        <button
-                          type="button"
-                          className={`cl-idea-pill ${newIdeaId ? 'cl-idea-pill--active' : ''}`}
-                          onClick={() => setShowTagPicker(v => !v)}
-                        >
-                          <Lightbulb className="w-3.5 h-3.5" />
-                          <span className="cl-idea-pill-label">
-                            {newIdeaId ? (ideas.find(i => i.id === newIdeaId)?.title || 'Idea') : 'Add to idea'}
-                          </span>
-                          {newIdeaId && (
-                            <span
-                              className="cl-idea-pill-clear"
-                              onClick={(e) => { e.stopPropagation(); setNewIdeaId(''); }}
-                              title="Clear idea"
-                            ><X className="w-3 h-3" /></span>
-                          )}
-                        </button>
-                        {showTagPicker && (
-                          <IdeaPickerDropdown
-                            ideas={ideas as any}
-                            selectedIdeaId={newIdeaId || null}
-                            onSelect={(id) => { setNewIdeaId(id); setShowTagPicker(false); inputRef.current?.focus(); }}
-                            onRemove={() => { setNewIdeaId(''); setShowTagPicker(false); }}
-                            showRemove={!!newIdeaId}
-                          />
-                        )}
-                      </div>
+                      {showTagPicker && (
+                        <IdeaPickerDropdown
+                          ideas={ideas as any}
+                          selectedIdeaId={newIdeaId || null}
+                          onSelect={(id) => { setNewIdeaId(id); setShowTagPicker(false); inputRef.current?.focus(); }}
+                          onRemove={() => { setNewIdeaId(''); setShowTagPicker(false); }}
+                          showRemove={!!newIdeaId}
+                        />
+                      )}
                     </div>
                   )}
                   <div className="cl-day-col-list">
