@@ -1647,9 +1647,9 @@
         .wv-task {
             display: flex;
             flex-direction: column;
-            gap: 0.4rem;
-            padding: 0.4rem 0.5rem;
-            border-radius: 0.4rem;
+            gap: 0.5rem;
+            padding: 0.7rem 0.8rem;
+            border-radius: 0.5rem;
             cursor: grab;
             transition: all 0.15s;
             position: relative;
@@ -1776,8 +1776,8 @@
 
         .wv-task-check {
             flex-shrink: 0;
-            width: 1.1rem;
-            height: 1.1rem;
+            width: 1.5rem;
+            height: 1.5rem;
             border-radius: 50%;
             border: 2px solid #d1d5db;
             background: white;
@@ -1789,6 +1789,7 @@
             padding: 0;
             color: transparent;
         }
+        .wv-task-check svg { width: 0.9rem; height: 0.9rem; }
         .wv-task-check:hover {
             border-color: var(--primary, #6366f1);
         }
@@ -1807,10 +1808,10 @@
             cursor: pointer;
         }
         .wv-task-text {
-            font-size: 0.92rem;
+            font-size: 1.02rem;
             font-weight: 500;
             color: #1f2937;
-            line-height: 1.3;
+            line-height: 1.35;
             overflow: hidden;
             white-space: normal;         /* wrap long tasks... */
             display: -webkit-box;
@@ -1895,10 +1896,10 @@
             transition: background 0.15s, color 0.15s;
         }
         .wv-task-action-btn--note {
-            background: #fbf3df; /* subtle warm tint so the note stands out */
+            background: #fde047; /* post-it yellow */
         }
         .wv-task-action-btn--note:hover {
-            background: #f6e9c4;
+            background: #facc15;
         }
         .wv-task-note-emoji {
             font-size: 1.05rem;
