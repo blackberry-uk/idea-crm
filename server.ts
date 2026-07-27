@@ -1720,14 +1720,16 @@ app.post('/api/quick-capture', authenticate, async (req: any, res) => {
     if (!rawInput) return res.status(400).json({ error: 'text is required' });
 
     // A note can be attached two ways: an explicit `note` field, or inline in the
-    // text after a " // " separator (keeps a single Shortcut prompt). Explicit wins.
+    // text after a "//" separator (keeps a single Shortcut prompt). Explicit wins.
+    // The "//" match ignores surrounding spaces but skips "://" so URLs (http://…)
+    // are never split.
     let rawText = rawInput;
     let note = (req.body?.note ?? '').toString().trim();
     if (!note) {
-      const sepIdx = rawInput.indexOf(' // ');
-      if (sepIdx >= 0) {
-        rawText = rawInput.slice(0, sepIdx).trim();
-        note = rawInput.slice(sepIdx + 4).trim();
+      const m = rawInput.match(/([^:])\/\/\s*/);
+      if (m && typeof m.index === 'number') {
+        rawText = rawInput.slice(0, m.index + 1).trim();
+        note = rawInput.slice(m.index + m[0].length).trim();
       }
     }
     if (!rawText) rawText = 'Untitled';
