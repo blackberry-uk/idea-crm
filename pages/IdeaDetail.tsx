@@ -5,6 +5,10 @@ import { useStore } from '../store/useStore';
 import { format, isToday, isTomorrow, isPast, addDays, parseISO, startOfDay, formatDistanceToNow } from 'date-fns';
 import CallMinuteModal from '../components/CallMinuteModal';
 import CallMinuteViewer from '../components/CallMinuteViewer';
+import IdeaTabBar, { IdeaTab } from '../components/idea/IdeaTabBar';
+import AIOverviewTab from '../components/idea/AIOverviewTab';
+import IdeaLibraryTab from '../components/idea/IdeaLibraryTab';
+import IdeaActivityTab from '../components/idea/IdeaActivityTab';
 import { Note, Idea, Contact, User, IdeaType, IdeaStatus } from '../types';
 import {
   Trash2,
@@ -126,6 +130,9 @@ const IdeaDetail: React.FC = () => {
   const [selectedNoteForDetail, setSelectedNoteForDetail] = useState<Note | null>(null);
   const [commentBody, setCommentBody] = useState<Record<string, string>>({});
   const [expandedNoteActionsId, setExpandedNoteActionsId] = useState<string | null>(null);
+
+  // Active tab for the project detail view (AI Overview is the new default home).
+  const [activeTab, setActiveTab] = useState<IdeaTab>('overview');
 
   // --- Documents & Links ---
   const [newLinkTitle, setNewLinkTitle] = useState('');
@@ -1182,7 +1189,30 @@ const IdeaDetail: React.FC = () => {
       <div className="h-2" />
 
       <div className="max-w-[1600px] mx-auto px-8 mt-12 animate-in fade-in slide-in-from-bottom-4 duration-500">
-        <div className="grid grid-cols-1 lg:grid-cols-[3fr_2fr] gap-4">
+        {/* Project tabs */}
+        <IdeaTabBar active={activeTab} onChange={setActiveTab} />
+
+        {activeTab === 'overview' && (
+          <AIOverviewTab ideaId={idea.id} ideaTitle={idea.title} />
+        )}
+        {activeTab === 'library' && (
+          <IdeaLibraryTab
+            idea={idea}
+            attachments={attachments}
+            onOpenAttachment={(attId: string) => loadAttachmentContent(attId)}
+            onDeleteAttachment={(e, attId) => deleteAttachment(e, attId)}
+          />
+        )}
+        {activeTab === 'activity' && (
+          <IdeaActivityTab
+            idea={idea}
+            todos={linkedDailyTodos}
+            notes={data.notes.filter(n => n.ideaId === idea.id)}
+            users={data.users}
+          />
+        )}
+
+        <div className={activeTab === 'checklist' ? 'grid grid-cols-1 lg:grid-cols-[3fr_2fr] gap-4' : 'hidden'}>
           {/* LEFT COLUMN: Task Calendar */}
           <div className="flex flex-col gap-4 h-full">
             {/* Task Calendar — CENTERPIECE */}

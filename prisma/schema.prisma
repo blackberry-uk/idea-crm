@@ -41,6 +41,7 @@ model User {
   reminderImages     ReminderImage[]
   inboundRoutes      InboundRoute[]
   libraryItems       LibraryItem[]
+  projectMessages    ProjectMessage[]
 }
 
 model DailyTodo {
@@ -122,6 +123,7 @@ model Idea {
   attachments FileAttachment[]
   inboundRoutes InboundRoute[]
   libraryItems LibraryItem[]
+  projectMessages ProjectMessage[]
 }
 
 // A saved link/article (Library), summarized by AI and filed under a project.
@@ -136,6 +138,23 @@ model LibraryItem {
   user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   ideaId        String?
   idea          Idea?    @relation(fields: [ideaId], references: [id], onDelete: SetNull)
+}
+
+// A dated message in a project's AI Overview thread. role = 'analysis' (a full
+// AI-generated situation report), 'user' (a prompt the owner typed), or
+// 'assistant' (the AI's reply to a prompt). Ordered by createdAt to form a
+// permanent, scrollable record per project.
+model ProjectMessage {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  role      String   // 'analysis' | 'user' | 'assistant'
+  content   String
+  ideaId    String
+  idea      Idea     @relation(fields: [ideaId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([ideaId, createdAt])
 }
 
 // Email-in routing rule: maps an allowed sender address to an owning user and an

@@ -2044,6 +2044,205 @@ app.delete('/api/library/:id', authenticate, async (req: any, res) => {
   }
 });
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Project AI Overview: a dated analysis + chat thread per project, plus a
+// project-scoped search across tasks, notes and library.
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Owner or collaborator may view/use a project's overview.
+const findAccessibleIdea = (ideaId: string, userId: string) =>
+  (prisma as any).idea.findFirst({
+    where: { id: ideaId, OR: [{ ownerId: userId }, { collaborators: { some: { id: userId } } }] },
+  });
+
+// Pull the project's recent activity into a compact text block the model can reason over.
+const gatherProjectContext = async (ideaId: string): Promise<{ text: string; counts: any }> => {
+  const [idea, todos, notes, library, attachments] = await Promise.all([
+    (prisma as any).idea.findUnique({ where: { id: ideaId } }),
+    (prisma as any).dailyTodo.findMany({ where: { ideaId }, orderBy: { updatedAt: 'desc' }, take: 120 }),
+    (prisma as any).note.findMany({ where: { ideaId }, orderBy: { createdAt: 'desc' }, take: 60 }),
+    (prisma as any).libraryItem.findMany({ where: { ideaId }, orderBy: { createdAt: 'desc' }, take: 40 }),
+    (prisma as any).fileAttachment.findMany({ where: { ideaId }, select: { title: true, createdAt: true }, take: 40 }),
+  ]);
+
+  const fmtDate = (d: any) => (d ? new Date(d).toISOString().slice(0, 10) : '');
+  const open = todos.filter((t: any) => !t.completed);
+  const done = todos.filter((t: any) => t.completed);
+  const today = new Date().toISOString().slice(0, 10);
+  const overdue = open.filter((t: any) => t.date && fmtDate(t.date) < today);
+
+  const lines: string[] = [];
+  lines.push(`PROJECT: ${idea?.title || ''}`);
+  if (idea?.oneLiner) lines.push(`One-liner: ${idea.oneLiner}`);
+  if (idea?.status) lines.push(`Status: ${idea.status}`);
+  lines.push('');
+  lines.push(`OPEN TASKS (${open.length}, of which ${overdue.length} overdue):`);
+  open.slice(0, 60).forEach((t: any) => {
+    const when = t.date ? ` [due ${fmtDate(t.date)}${fmtDate(t.date) < today ? ' — OVERDUE' : ''}]` : '';
+    lines.push(`- ${t.text}${when}${t.isUrgent ? ' (urgent)' : ''}${t.comments ? ` — note: ${String(t.comments).slice(0, 200)}` : ''}`);
+  });
+  lines.push('');
+  lines.push(`RECENTLY COMPLETED (${done.length}):`);
+  done.slice(0, 25).forEach((t: any) => lines.push(`- ${t.text}${t.completedAt ? ` [done ${fmtDate(t.completedAt)}]` : ''}`));
+  lines.push('');
+  lines.push(`NOTES (${notes.length}):`);
+  notes.slice(0, 40).forEach((n: any) => {
+    const c = (n.content || '').toString().replace(/\s+/g, ' ').trim();
+    if (c) lines.push(`- (${fmtDate(n.createdAt)}) ${c.slice(0, 400)}`);
+  });
+  lines.push('');
+  lines.push(`LIBRARY / LINKS (${library.length}):`);
+  library.slice(0, 30).forEach((l: any) => lines.push(`- ${l.title}${l.summary ? ` — ${String(l.summary).slice(0, 200)}` : ''} (${l.url})`));
+  if (attachments.length) {
+    lines.push('');
+    lines.push(`DOCUMENTS (${attachments.length}): ${attachments.map((a: any) => a.title).join(', ')}`);
+  }
+
+  return {
+    text: lines.join('\n').slice(0, 24000),
+    counts: { open: open.length, overdue: overdue.length, done: done.length, notes: notes.length, library: library.length, docs: attachments.length },
+  };
+};
+
+const analyzeProject = async (contextText: string, title: string): Promise<string> => {
+  if (!genAI) return 'AI analysis is unavailable — the GEMINI_API_KEY is not configured on the server.';
+  const model = genAI.getGenerativeModel({ model: 'gemini-flash-latest' });
+  const prompt = `You are a sharp chief-of-staff reviewing the project "${title}". Below is everything on record — tasks, notes, saved links and documents. Write a crisp situation report in Markdown for the project owner.
+
+Use these sections (omit any that would be empty):
+### Where things stand
+2-4 sentences on overall momentum and what this project is really about right now.
+### Needs attention
+Bullet the overdue/urgent items and anything stalled. Be specific — name the tasks.
+### Recent movement
+What's been done or captured lately.
+### Suggested next moves
+3-5 concrete, prioritised actions.
+
+Be direct and useful, no filler. If the record is thin, say so plainly.
+
+RECORD:
+${contextText}`;
+  try {
+    const r = await model.generateContent(prompt);
+    return (await r.response).text().trim();
+  } catch (e: any) {
+    console.error('[overview] analyze failed:', e?.message);
+    return `The analysis could not be generated right now (${e?.message || 'unknown error'}). Please try again.`;
+  }
+};
+
+const answerProjectQuestion = async (contextText: string, threadText: string, prompt: string, title: string): Promise<string> => {
+  if (!genAI) return 'AI is unavailable — the GEMINI_API_KEY is not configured on the server.';
+  const model = genAI.getGenerativeModel({ model: 'gemini-flash-latest' });
+  const full = `You are a chief-of-staff for the project "${title}", answering the owner's question using the project record. Be concrete and reference specific tasks/notes where relevant. Reply in short Markdown.
+
+PROJECT RECORD:
+${contextText}
+
+${threadText ? `EARLIER IN THIS CONVERSATION:\n${threadText}\n` : ''}
+OWNER'S QUESTION:
+${prompt}`;
+  try {
+    const r = await model.generateContent(full);
+    return (await r.response).text().trim();
+  } catch (e: any) {
+    console.error('[overview] answer failed:', e?.message);
+    return `Sorry — I couldn't answer that right now (${e?.message || 'unknown error'}).`;
+  }
+};
+
+// Thread (analysis + chat), oldest first.
+app.get('/api/ideas/:id/overview', authenticate, async (req: any, res) => {
+  try {
+    const idea = await findAccessibleIdea(req.params.id, req.userId);
+    if (!idea) return res.status(404).json({ error: 'Project not found' });
+    const messages = await (prisma as any).projectMessage.findMany({
+      where: { ideaId: req.params.id },
+      orderBy: { createdAt: 'asc' },
+    });
+    res.json({ messages, counts: (await gatherProjectContext(req.params.id)).counts });
+  } catch (err: any) {
+    res.status(500).json({ error: 'Failed to load overview', details: err.message });
+  }
+});
+
+// Generate a fresh dated analysis and append it to the thread.
+app.post('/api/ideas/:id/overview/analyze', authenticate, async (req: any, res) => {
+  try {
+    const idea = await findAccessibleIdea(req.params.id, req.userId);
+    if (!idea) return res.status(404).json({ error: 'Project not found' });
+    const { text } = await gatherProjectContext(req.params.id);
+    const content = await analyzeProject(text, idea.title);
+    const msg = await (prisma as any).projectMessage.create({
+      data: { ideaId: req.params.id, userId: req.userId, role: 'analysis', content },
+    });
+    res.json(msg);
+  } catch (err: any) {
+    res.status(500).json({ error: 'Failed to analyse', details: err.message });
+  }
+});
+
+// Owner asks a follow-up; we store the prompt + the AI reply.
+app.post('/api/ideas/:id/overview/message', authenticate, async (req: any, res) => {
+  try {
+    const idea = await findAccessibleIdea(req.params.id, req.userId);
+    if (!idea) return res.status(404).json({ error: 'Project not found' });
+    const prompt = (req.body?.prompt || '').toString().trim();
+    if (!prompt) return res.status(400).json({ error: 'A prompt is required' });
+
+    const prior = await (prisma as any).projectMessage.findMany({
+      where: { ideaId: req.params.id }, orderBy: { createdAt: 'desc' }, take: 8,
+    });
+    const threadText = prior.reverse()
+      .map((m: any) => `${m.role === 'user' ? 'OWNER' : m.role === 'assistant' ? 'YOU' : 'ANALYSIS'}: ${String(m.content).slice(0, 1200)}`)
+      .join('\n\n');
+    const { text } = await gatherProjectContext(req.params.id);
+    const answer = await answerProjectQuestion(text, threadText, prompt, idea.title);
+
+    const userMsg = await (prisma as any).projectMessage.create({
+      data: { ideaId: req.params.id, userId: req.userId, role: 'user', content: prompt },
+    });
+    const aiMsg = await (prisma as any).projectMessage.create({
+      data: { ideaId: req.params.id, userId: req.userId, role: 'assistant', content: answer },
+    });
+    res.json({ user: userMsg, assistant: aiMsg });
+  } catch (err: any) {
+    res.status(500).json({ error: 'Failed to answer', details: err.message });
+  }
+});
+
+// Project-scoped search across tasks, notes and library.
+app.get('/api/ideas/:id/search', authenticate, async (req: any, res) => {
+  try {
+    const idea = await findAccessibleIdea(req.params.id, req.userId);
+    if (!idea) return res.status(404).json({ error: 'Project not found' });
+    const q = (req.query.q || '').toString().trim();
+    if (!q) return res.json({ todos: [], notes: [], library: [] });
+    const ci = { contains: q, mode: 'insensitive' as const };
+    const [todos, notes, library] = await Promise.all([
+      (prisma as any).dailyTodo.findMany({
+        where: { ideaId: req.params.id, OR: [{ text: ci }, { comments: ci }] },
+        orderBy: { updatedAt: 'desc' }, take: 25,
+        select: { id: true, text: true, completed: true, date: true, isUrgent: true },
+      }),
+      (prisma as any).note.findMany({
+        where: { ideaId: req.params.id, content: ci },
+        orderBy: { createdAt: 'desc' }, take: 25,
+        select: { id: true, content: true, createdAt: true },
+      }),
+      (prisma as any).libraryItem.findMany({
+        where: { ideaId: req.params.id, OR: [{ title: ci }, { summary: ci }, { url: ci }] },
+        orderBy: { createdAt: 'desc' }, take: 25,
+        select: { id: true, title: true, summary: true, url: true },
+      }),
+    ]);
+    res.json({ todos, notes, library });
+  } catch (err: any) {
+    res.status(500).json({ error: 'Search failed', details: err.message });
+  }
+});
+
 // Reorder daily todos
 app.put('/api/daily-todos/reorder', authenticate, async (req: any, res) => {
   try {
