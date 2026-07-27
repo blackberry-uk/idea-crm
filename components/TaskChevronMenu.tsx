@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useLayoutEffect } from 'react';
 import { format, startOfMonth, endOfMonth, getDay, addMonths, subMonths, isToday } from 'date-fns';
 import { ChevronLeft, ChevronRight, User } from 'lucide-react';
 import { DailyTodoData } from './DailyTodoItem';
@@ -38,19 +38,23 @@ export const TaskChevronMenu: React.FC<TaskChevronMenuProps> = ({
   const [timeSubmenu, setTimeSubmenu] = useState(false);
   const [assigneeSubmenu, setAssigneeSubmenu] = useState(false);
   const [submenuSide, setSubmenuSide] = useState<'right' | 'left'>('right');
+  const [openUp, setOpenUp] = useState(false);
 
   const menuRef = useRef<HTMLDivElement>(null);
   const leaveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const enterTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  useEffect(() => {
-    if (menuRef.current) {
-      const rect = menuRef.current.getBoundingClientRect();
-      if (rect.right + 260 > window.innerWidth) {
-        setSubmenuSide('left');
-      } else {
-        setSubmenuSide('right');
-      }
+  // Position the menu before paint: pick the submenu side, and flip the whole
+  // menu upward when the task sits too low to show it downward (esp. on mobile).
+  useLayoutEffect(() => {
+    if (!menuRef.current) return;
+    const rect = menuRef.current.getBoundingClientRect();
+    setSubmenuSide(rect.right + 260 > window.innerWidth ? 'left' : 'right');
+    // rect.height is the downward-rendered height; if its bottom overflows the
+    // viewport and there's more room above the trigger, open upward.
+    const spaceBelow = window.innerHeight - rect.top;
+    if (rect.height > spaceBelow - 8 && rect.top > window.innerHeight - rect.top) {
+      setOpenUp(true);
     }
   }, []);
 
@@ -98,7 +102,7 @@ export const TaskChevronMenu: React.FC<TaskChevronMenuProps> = ({
   }
 
   return (
-    <div ref={menuRef} className="wv-task-dropdown" onMouseDown={e => e.stopPropagation()} onClick={e => e.stopPropagation()}>
+    <div ref={menuRef} className={`wv-task-dropdown ${openUp ? 'wv-task-dropdown--up' : ''}`} onMouseDown={e => e.stopPropagation()} onClick={e => e.stopPropagation()}>
       {onChangeDate && (
         <button className="wv-task-dropdown-item" onMouseDown={e => { e.preventDefault(); e.stopPropagation(); onChangeDate(todo.id, null); onClose(); }}>
           <span>📥 Move to Backburner</span>
