@@ -1827,7 +1827,7 @@ const esc = (s: string) => (s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;'
 const renderDigestHtml = (
   name: string, todayLabel: string,
   groups: Record<string, any[]>, childrenByParent: Record<string, any[]>,
-  yest: { total: number; done: number; undone: any[] }
+  yest: { total: number; done: number; items: any[] }
 ): string => {
   const order = ['morning', 'afternoon', 'evening', 'anytime'];
   const totalToday = order.reduce((n, b) => n + (groups[b]?.length || 0), 0);
@@ -1849,9 +1849,9 @@ const renderDigestHtml = (
       ${groups[b].map(taskRow).join('')}
     </div>`).join('');
 
-  const yestList = yest.undone.length
-    ? yest.undone.map((t: any) => `<div style="font-size:14px;color:#4b5563;margin:3px 0;">• ${esc(t.text)}</div>`).join('')
-    : `<div style="font-size:14px;color:#059669;">All clear — everything got done. 🎉</div>`;
+  const yestList = yest.items.length
+    ? yest.items.map((t: any) => `<div style="font-size:14px;margin:4px 0;color:${t.completed ? '#9ca3af' : '#374151'};">${t.completed ? '✅' : '❌'} <span style="${t.completed ? 'text-decoration:line-through;' : ''}">${esc(t.text)}</span></div>`).join('')
+    : `<div style="font-size:14px;color:#9ca3af;">No tasks were scheduled yesterday.</div>`;
   const pct = yest.total ? ` (${Math.round((yest.done / yest.total) * 100)}%)` : '';
   const appUrl = process.env.FRONTEND_URL || 'https://idea-crm-nine.vercel.app';
 
@@ -1871,7 +1871,6 @@ const renderDigestHtml = (
           <div style="border-top:1px solid #e5e7eb;padding-top:18px;">
             <div style="font-size:13px;font-weight:800;letter-spacing:0.04em;text-transform:uppercase;color:#6b7280;margin-bottom:8px;">Yesterday</div>
             <div style="font-size:15px;color:#111827;font-weight:600;margin-bottom:8px;">${yest.done} of ${yest.total} done${pct}</div>
-            ${yest.undone.length ? '<div style="font-size:13px;color:#9ca3af;margin-bottom:4px;">Still open:</div>' : ''}
             ${yestList}
           </div>
         </td></tr>
@@ -1922,10 +1921,12 @@ app.get('/api/cron/daily-digest', async (req: any, res) => {
     }
     const parentCount = todayAll.filter((t: any) => !t.parentId).length;
 
+    const yestTop = yestAll.filter((t: any) => !t.parentId);
     const yest = {
-      total: yestAll.length,
-      done: yestAll.filter((t: any) => t.completed).length,
-      undone: yestAll.filter((t: any) => !t.completed && !t.parentId).slice(0, 20),
+      total: yestTop.length,
+      done: yestTop.filter((t: any) => t.completed).length,
+      // All of yesterday's tasks (open first, then done), each shown with ✅ / ❌.
+      items: [...yestTop.filter((t: any) => !t.completed), ...yestTop.filter((t: any) => t.completed)].slice(0, 30),
     };
 
     const todayLabel = new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/London', weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).format(new Date());
