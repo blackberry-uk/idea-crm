@@ -52,8 +52,8 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 
   const navItems = [
     { name: 'Checklist', path: '/', icon: CalendarDays },
-    { name: 'Projects', path: '/ideas', icon: Lightbulb },
     { name: 'Library', path: '/library', icon: BookOpen },
+    { name: 'Projects', path: '/ideas', icon: Lightbulb },
     { name: 'Contacts', path: '/contacts', icon: Users },
     { name: 'Entities', path: '/entities', icon: Building2 },
     { name: 'Calendar', path: '/daily', icon: CalendarCheck },
