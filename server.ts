@@ -1526,7 +1526,26 @@ const parseLooseJson = (text: string): any => {
   if (m) { try { return JSON.parse(m[0]); } catch {} }
   return null;
 };
-const interpretForwardedEmail = async (subject: string, body: string): Promise<any[] | null> => {
+// Split a leading user instruction from the rest of the email body. The prose the
+// user writes at the very top — before a forward separator, or as a "/command" —
+// becomes an explicit prompt to the AI.
+const FWD_MARKERS = /(-{2,}\s*forwarded message|begin forwarded message|-{2,}\s*original message|^\s*on .+ wrote:)/im;
+const splitInstruction = (raw: string): { instruction: string; content: string } => {
+  const body = (raw || '').replace(/\r\n/g, '\n');
+  if (/^\s*\//.test(body)) { // "/do this" command email
+    const brk = body.indexOf('\n\n');
+    if (brk > -1) return { instruction: body.slice(0, brk).replace(/^\s*\//, '').trim(), content: body.slice(brk + 2).trim() };
+    return { instruction: body.replace(/^\s*\//, '').trim(), content: '' };
+  }
+  const m = body.match(FWD_MARKERS);
+  if (m && (m.index ?? 0) > 0) {
+    const lead = body.slice(0, m.index).trim();
+    if (lead.length <= 600) return { instruction: lead, content: body.slice(m.index).trim() };
+  }
+  return { instruction: '', content: body };
+};
+
+const interpretForwardedEmail = async (subject: string, body: string, instruction?: string): Promise<any[] | null> => {
   if (!genAI) return null;
   const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/London' }).format(new Date());
   const cleanSubject = (subject || '').replace(/^\s*(re|fwd?|fw)\s*:\s*/i, '').trim();
@@ -1534,9 +1553,10 @@ const interpretForwardedEmail = async (subject: string, body: string): Promise<a
     model: 'gemini-flash-latest',
     generationConfig: { responseMimeType: 'application/json' } as any,
   });
-  const prompt = `You convert a forwarded email into actionable to-do items for a personal task manager.
-Today is ${today} (Europe/London). If the user wrote instructions at the very top of the body, follow them.
-Prefer ONE task unless the email clearly contains multiple distinct action items.
+  const prompt = `You convert an email into actionable to-do items for a personal task manager.
+Today is ${today} (Europe/London).
+${instruction ? `The user's instruction — follow it closely: """${instruction}"""` : 'If the user wrote instructions at the very top of the body, follow them.'}
+Otherwise, prefer ONE task unless the content clearly contains multiple distinct action items.
 
 Return ONLY JSON of this exact shape:
 {"tasks":[{"title":"short imperative task","subtasks":["concrete step"],"note":"1-2 sentence summary/context","date":"YYYY-MM-DD or null"}]}
@@ -1544,7 +1564,7 @@ Rules: title concise & imperative; subtasks only concrete steps ([] if none); no
 date only if a due date is clearly stated/implied else null; max 8 tasks, max 15 subtasks each.
 
 SUBJECT: ${cleanSubject}
-BODY:
+CONTENT:
 ${(body || '').slice(0, 8000)}`;
   try {
     const result = await model.generateContent(prompt);
@@ -1744,10 +1764,14 @@ app.post('/api/inbound-email', async (req: any, res) => {
       return res.json({ ok: true, created: 'contact', id: r.id, action: r.action });
     }
 
-    // Forwarded email → let Gemini interpret the content into task(s) + subtasks + note + date.
-    if (/^\s*(fwd?|fw)\s*:/i.test(subject)) {
-      const fullBody = (body.TextBody || textBody || '').toString();
-      const aiTasks = await interpretForwardedEmail(subject, fullBody);
+    // AI mode: a forwarded email (Fwd:), OR a body that starts with a "/" instruction.
+    // The prose you write at the top becomes an explicit prompt for the AI.
+    const fullBody = (body.TextBody || textBody || '').toString();
+    const isForward = /^\s*(fwd?|fw)\s*:/i.test(subject);
+    const isCommand = /^\s*\//.test(fullBody);
+    if (isForward || isCommand) {
+      const { instruction, content } = splitInstruction(fullBody);
+      const aiTasks = await interpretForwardedEmail(subject, content || fullBody, instruction || undefined);
       if (aiTasks && aiTasks.length) {
         const londonToday = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/London' }).format(new Date());
         const createdIds: string[] = [];
