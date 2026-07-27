@@ -9,6 +9,7 @@ import {
   Lightbulb, Check, Circle, ClipboardList, Clock, ImagePlus, Trash2, GripVertical, RotateCw, X
 } from 'lucide-react';
 import { apiClient } from '../lib/api/client';
+import { pastelForId } from '../lib/utils';
 import { cacheGet, cacheSet, CACHE_KEYS } from '../lib/cache';
 import DailyTodoItem, { DailyTodoData } from '../components/DailyTodoItem';
 import IdeaPickerDropdown from '../components/IdeaPickerDropdown';
@@ -1109,7 +1110,7 @@ const Dashboard: React.FC = () => {
                   <div className="cl-day-col-header">
                     <div className="cl-day-col-header-text">
                       <span className={`cl-day-col-label cl-day-col-label--${block}`}>
-                        <span className={`cl-block-dot cl-block-dot--${block}`}></span>
+                        <span className="cl-block-emoji">{BLOCK_ICONS[block]}</span>
                         {BLOCK_LABELS[block]}
                       </span>
                       <span className="cl-day-col-time">{BLOCK_TIMES[block]}</span>
@@ -1810,7 +1811,7 @@ const Dashboard: React.FC = () => {
                               <span className="wv-task-emoji" title={BLOCK_LABELS[(todo.timeBlock as TimeBlock) || 'morning']}>{BLOCK_ICONS[(todo.timeBlock as TimeBlock) || 'morning']}</span>
                               
                               {todo.ideaId && todo.idea?.title && (
-                                <Link to={`/ideas/${todo.ideaId}`} className="wv-task-idea" onClick={e => e.stopPropagation()} title={todo.idea.title} style={{ margin: 0 }}>
+                                <Link to={`/ideas/${todo.ideaId}`} className="wv-task-idea" onClick={e => e.stopPropagation()} title={todo.idea.title} style={{ margin: 0, background: pastelForId(todo.ideaId).bg, color: pastelForId(todo.ideaId).fg }}>
                                   <Lightbulb className="w-2.5 h-2.5" />
                                   <span>
                                     {todo.idea.title}

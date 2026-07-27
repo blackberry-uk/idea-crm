@@ -5,7 +5,7 @@ import { TaskChevronMenu } from './TaskChevronMenu';
 import { MentionInput } from './MentionInput';
 import { useStore } from '../store/useStore';
 import { mentionVariantsForName } from '../lib/taskMentions';
-import { getInitials, getAvatarColor } from '../lib/utils';
+import { getInitials, getAvatarColor, pastelForId } from '../lib/utils';
 
 export interface DailyTodoData {
   id: string;
@@ -337,7 +337,7 @@ const DailyTodoItem: React.FC<DailyTodoItemProps> = ({
             )}
 
             {todo.ideaId && todo.idea?.title && (
-              <Link to={`/ideas/${todo.ideaId}`} className="wv-task-idea" onClick={e => e.stopPropagation()} title={todo.idea.title} style={{ margin: 0 }}>
+              <Link to={`/ideas/${todo.ideaId}`} className="wv-task-idea" onClick={e => e.stopPropagation()} title={todo.idea.title} style={{ margin: 0, background: pastelForId(todo.ideaId).bg, color: pastelForId(todo.ideaId).fg }}>
                 <Lightbulb className="w-2.5 h-2.5" />
                 <span>{todo.idea.title}</span>
               </Link>

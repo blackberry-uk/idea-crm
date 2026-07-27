@@ -30,6 +30,19 @@ export const getAvatarColor = (id: string, themeAdjustments?: any) => {
     return AVATAR_COLORS[index];
 };
 
+// Deterministic soft pastel per id (e.g. per idea/project) so different ideas
+// read as different, gentle colours without any one shouting over the others.
+export const pastelForId = (id: string | null | undefined): { bg: string; fg: string } => {
+    if (!id) return { bg: '#f1f2f4', fg: '#6b7280' }; // unfiled → neutral gray
+    let hash = 0;
+    for (let i = 0; i < id.length; i++) hash = id.charCodeAt(i) + ((hash << 5) - hash);
+    const hue = Math.abs(hash) % 360;
+    return {
+        bg: `hsl(${hue}, 52%, 92%)`, // very light, washed-out fill
+        fg: `hsl(${hue}, 38%, 38%)`, // muted, readable text of the same hue
+    };
+};
+
 export const stripHtml = (html: string) => {
     if (!html) return '';
     let text = html.replace(/<[^>]*>?/gm, ' '); // Strip tags
