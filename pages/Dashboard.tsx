@@ -1160,6 +1160,7 @@ const Dashboard: React.FC = () => {
                             type="button"
                             className={`cl-idea-pill ${newIdeaId ? 'cl-idea-pill--active' : ''}`}
                             onClick={() => setShowTagPicker(v => !v)}
+                            style={newIdeaId ? { background: pastelForId(newIdeaId).bg, color: pastelForId(newIdeaId).fg, borderColor: 'transparent' } : undefined}
                           >
                             <Lightbulb className="w-3.5 h-3.5" />
                             <span className="cl-idea-pill-label">
@@ -1717,6 +1718,7 @@ const Dashboard: React.FC = () => {
                             type="button"
                             className={`cl-idea-pill ${newIdeaId ? 'cl-idea-pill--active' : ''}`}
                             onClick={() => setShowTagPicker(v => !v)}
+                            style={newIdeaId ? { background: pastelForId(newIdeaId).bg, color: pastelForId(newIdeaId).fg, borderColor: 'transparent' } : undefined}
                           >
                             <Lightbulb className="w-3.5 h-3.5" />
                             <span className="cl-idea-pill-label">
