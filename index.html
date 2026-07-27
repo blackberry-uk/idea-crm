@@ -2188,6 +2188,7 @@
             gap: 1rem;
             flex-wrap: wrap;
         }
+        .cl-topbar-break { display: none; } /* only used to force a row break on mobile */
 
         .cl-topbar-left {
             display: flex;
@@ -2880,14 +2881,21 @@
 
         /* ===== Mobile polish (phones) ===== */
         @media (max-width: 640px) {
-            /* Compact header: clock + date share one row; drop the timezone chip */
-            .cl-topbar { padding: 0.7rem 1rem 0.45rem; gap: 0.5rem; }
-            .cl-topbar-right { flex-wrap: nowrap; width: 100%; gap: 0.5rem; justify-content: space-between; }
+            /* Two-line header:  row1 = title + date (right),  row2 = clock + circles.
+               Flatten the left/right wrappers so all items share one flex row, then
+               order them and force a break after the date. */
+            .cl-topbar { padding: 0.7rem 1rem 0.5rem; column-gap: 0.5rem; row-gap: 0.55rem; align-items: center; }
+            .cl-topbar-left, .cl-topbar-right { display: contents; }
+            .cl-view-toggle { display: none; }   /* no Day/Week on mobile */
+            .cl-today-btn { display: none; }
+            .cl-topbar-title { order: 1; }
+            .cl-date-nav { order: 2; margin-left: auto; flex: 0 1 auto; }
+            .cl-date-nav-label { font-size: 0.85rem; }
+            .cl-topbar-break { display: block; order: 3; flex-basis: 100%; height: 0; }
             /* Quiet the clock so it stops shouting — subtle neutral chip */
-            .cl-clock { font-size: 0.9rem; padding: 0.3rem 0.55rem; border-radius: 0.6rem; gap: 0.3rem; box-shadow: none; background: rgba(20, 30, 20, 0.05); border-color: transparent; color: #4b5563; font-weight: 700; }
+            .cl-clock { order: 4; font-size: 0.9rem; padding: 0.3rem 0.55rem; border-radius: 0.6rem; gap: 0.3rem; box-shadow: none; background: rgba(20, 30, 20, 0.05); border-color: transparent; color: #4b5563; font-weight: 700; }
             .cl-clock svg, .cl-clock-tz { display: none; }
-            .cl-date-nav { flex: 1; justify-content: flex-end; }
-            .cl-date-nav-label { font-size: 0.82rem; }
+            .cl-seg-row { order: 5; margin-right: auto; }
 
             /* Section tabs + scroll area — kill horizontal drift */
             .cl-block-tabs { padding: 0.55rem 1rem; }

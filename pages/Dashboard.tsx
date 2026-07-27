@@ -988,6 +988,9 @@ const Dashboard: React.FC = () => {
           </div>
         </div>
 
+        {/* Forces a wrap on mobile: row 1 = title + date, row 2 = clock + circles */}
+        <div className="cl-topbar-break" aria-hidden="true"></div>
+
         <div className="cl-topbar-right">
           {/* Live clock */}
           <div className="cl-clock">
