@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { CalendarDays, Lightbulb, CalendarCheck, Users, Settings } from 'lucide-react';
+import { CalendarDays, Lightbulb, CalendarCheck, Users, Settings, BookOpen } from 'lucide-react';
 
 const MobileBottomNav: React.FC = () => {
   const location = useLocation();
@@ -8,6 +8,7 @@ const MobileBottomNav: React.FC = () => {
   const items = [
     { path: '/', icon: CalendarDays, label: 'Checklist' },
     { path: '/ideas', icon: Lightbulb, label: 'Projects' },
+    { path: '/library', icon: BookOpen, label: 'Library' },
     { path: '/daily', icon: CalendarCheck, label: 'Calendar' },
     { path: '/contacts', icon: Users, label: 'Contacts' },
     { path: '/settings', icon: Settings, label: 'Settings' },

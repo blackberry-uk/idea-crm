@@ -19,7 +19,8 @@ import {
   Building2,
   Menu,
   ChevronLeft,
-  Star
+  Star,
+  BookOpen
 } from 'lucide-react';
 import { CalendarCheck, ShieldCheck } from 'lucide-react';
 import { useStore } from '../store/useStore.ts';
@@ -52,6 +53,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const navItems = [
     { name: 'Checklist', path: '/', icon: CalendarDays },
     { name: 'Projects', path: '/ideas', icon: Lightbulb },
+    { name: 'Library', path: '/library', icon: BookOpen },
     { name: 'Contacts', path: '/contacts', icon: Users },
     { name: 'Entities', path: '/entities', icon: Building2 },
     { name: 'Calendar', path: '/daily', icon: CalendarCheck },

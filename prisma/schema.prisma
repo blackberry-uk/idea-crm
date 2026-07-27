@@ -40,6 +40,7 @@ model User {
   completedTasks     DailyTodo[] @relation("TaskCompleter")
   reminderImages     ReminderImage[]
   inboundRoutes      InboundRoute[]
+  libraryItems       LibraryItem[]
 }
 
 model DailyTodo {
@@ -120,6 +121,21 @@ model Idea {
   children Idea[]  @relation("IdeaSubIdeas")
   attachments FileAttachment[]
   inboundRoutes InboundRoute[]
+  libraryItems LibraryItem[]
+}
+
+// A saved link/article (Library), summarized by AI and filed under a project.
+model LibraryItem {
+  id            String   @id @default(cuid())
+  createdAt     DateTime @default(now())
+  url           String
+  title         String
+  summary       String?
+  sourceSubject String?
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  ideaId        String?
+  idea          Idea?    @relation(fields: [ideaId], references: [id], onDelete: SetNull)
 }
 
 // Email-in routing rule: maps an allowed sender address to an owning user and an

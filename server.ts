@@ -1577,6 +1577,74 @@ ${(body || '').slice(0, 8000)}`;
   return null;
 };
 
+// --- Library (saved links/articles) helpers --------------------------------
+const extractUrls = (text: string): string[] => {
+  const matches = (text || '').match(/https?:\/\/[^\s<>()"']+/gi) || [];
+  const junk = /(unsubscribe|list-manage|mailchi|utm_|\/track|\.(png|jpe?g|gif|svg|css|js|ico)(\?|$))/i;
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const raw of matches) {
+    const u = raw.replace(/[.,;:)\]}>]+$/, '');
+    if (junk.test(u) || seen.has(u)) continue;
+    seen.add(u);
+    out.push(u);
+    if (out.length >= 3) break;
+  }
+  return out;
+};
+
+const fetchPageText = async (url: string): Promise<{ title: string; text: string } | null> => {
+  try {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 8000);
+    const res = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0 (compatible; IdeaCRM/1.0)' }, signal: ctrl.signal });
+    clearTimeout(timer);
+    if (!res.ok) return null;
+    const html = await res.text();
+    const titleMatch = html.match(/<title[^>]*>([^<]*)<\/title>/i);
+    const title = titleMatch ? titleMatch[1].trim() : '';
+    const text = html
+      .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+      .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+      .replace(/<[^>]+>/g, ' ')
+      .replace(/&nbsp;/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .slice(0, 6000);
+    return { title, text };
+  } catch {
+    return null;
+  }
+};
+
+const summarizeLink = async (
+  url: string,
+  page: { title: string; text: string } | null,
+  emailContext: string
+): Promise<{ title: string; summary: string }> => {
+  let fallbackTitle = page?.title || url;
+  try { if (!page?.title) fallbackTitle = new URL(url).hostname.replace(/^www\./, ''); } catch {}
+  if (!genAI) return { title: fallbackTitle, summary: '' };
+  const model = genAI.getGenerativeModel({ model: 'gemini-flash-latest', generationConfig: { responseMimeType: 'application/json' } as any });
+  const source = page?.text ? `PAGE CONTENT:\n${page.text}` : `EMAIL CONTEXT:\n${(emailContext || '').slice(0, 4000)}`;
+  const prompt = `Summarize this saved link/article for a personal reading library.
+Return ONLY JSON: {"title":"clean concise title","summary":"2-3 sentence summary of what it's about and why it's worth reading"}.
+If the content is thin, infer sensibly from the URL and any context. Be factual, no fluff.
+URL: ${url}
+${source}`;
+  try {
+    const r = await model.generateContent(prompt);
+    const j = parseLooseJson((await r.response).text());
+    if (j) return {
+      title: String(j.title || fallbackTitle).slice(0, 300),
+      summary: String(j.summary || '').slice(0, 2000),
+    };
+  } catch (e: any) {
+    console.error('[library] summarize failed:', e?.message);
+  }
+  return { title: fallbackTitle, summary: '' };
+};
+
 // Minimal vCard (.vcf) parser — pulls the fields we store on a Contact. Handles
 // RFC line-folding, grouped Apple properties (item1.EMAIL), and multiple cards.
 const parseVCards = (vcf: string): Array<Record<string, string | undefined>> => {
@@ -1731,6 +1799,24 @@ app.post('/api/inbound-email', async (req: any, res) => {
     if (mappedIdeaId) {
       const idea = await prisma.idea.findFirst({ where: { id: mappedIdeaId, ownerId: userId } });
       ideaId = idea ? idea.id : null;
+    }
+
+    // "lib:" → save link(s)/article(s) to the Library, each summarized by AI.
+    if (/^\s*lib\s*:/i.test(subject)) {
+      const fullBody = (body.TextBody || textBody || '').toString();
+      const urls = extractUrls(subject + '\n' + fullBody);
+      if (!urls.length) return res.status(200).json({ ok: false, ignored: 'no url in lib email' });
+      const sourceSubject = subject.replace(/^\s*lib\s*:\s*/i, '').trim() || null;
+      const createdIds: string[] = [];
+      for (const url of urls) {
+        const page = await fetchPageText(url);
+        const { title, summary } = await summarizeLink(url, page, fullBody);
+        const item = await (prisma as any).libraryItem.create({
+          data: { url, title, summary: summary || null, sourceSubject, userId, ideaId }
+        });
+        createdIds.push(item.id);
+      }
+      return res.json({ ok: true, created: 'library', count: createdIds.length });
     }
 
     // Highest priority: a vCard (.vcf) attachment → create contact(s), linked to the
@@ -1909,6 +1995,31 @@ app.delete('/api/inbound-routes/:id', authenticate, async (req: any, res) => {
     res.json({ ok: true });
   } catch (err: any) {
     res.status(500).json({ error: 'Failed to delete route', details: err.message });
+  }
+});
+
+// --- Library (saved links/articles) ----------------------------------------
+app.get('/api/library', authenticate, async (req: any, res) => {
+  try {
+    const items = await (prisma as any).libraryItem.findMany({
+      where: { userId: req.userId },
+      include: { idea: { select: { id: true, title: true } } },
+      orderBy: { createdAt: 'desc' },
+    });
+    res.json(items);
+  } catch (err: any) {
+    res.status(500).json({ error: 'Failed to load library', details: err.message });
+  }
+});
+
+app.delete('/api/library/:id', authenticate, async (req: any, res) => {
+  try {
+    const existing = await (prisma as any).libraryItem.findUnique({ where: { id: req.params.id } });
+    if (!existing || existing.userId !== req.userId) return res.status(404).json({ error: 'Item not found' });
+    await (prisma as any).libraryItem.delete({ where: { id: req.params.id } });
+    res.json({ ok: true });
+  } catch (err: any) {
+    res.status(500).json({ error: 'Failed to delete item', details: err.message });
   }
 });
 

@@ -13,6 +13,7 @@ import Invitations from './pages/Invitations';
 import DailyTodos from './pages/DailyTodos';
 import AdminPage from './pages/AdminPage';
 import Capture from './pages/Capture';
+import Library from './pages/Library';
 import { useStore } from './store/useStore';
 import { apiClient } from './lib/api/client';
 import { Lightbulb, LogIn, UserPlus, ShieldCheck, AlertCircle, Eye, EyeOff } from 'lucide-react';
@@ -275,6 +276,7 @@ const App: React.FC = () => {
         <Route path="/capture" element={<Capture />} />
         <Route path="/" element={<ProtectedRoute><MobileHomeRedirect /></ProtectedRoute>} />
         <Route path="/ideas" element={<ProtectedRoute><IdeasPage /></ProtectedRoute>} />
+        <Route path="/library" element={<ProtectedRoute><Library /></ProtectedRoute>} />
         <Route path="/ideas/:id" element={<ProtectedRoute><IdeaDetail /></ProtectedRoute>} />
         <Route path="/reports/weekly" element={<ProtectedRoute><WeeklyReport /></ProtectedRoute>} />
         <Route path="/contacts" element={<ProtectedRoute><ContactsPage /></ProtectedRoute>} />
