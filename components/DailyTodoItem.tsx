@@ -223,25 +223,28 @@ const DailyTodoItem: React.FC<DailyTodoItemProps> = ({
         className={`wv-task ${todo.completed ? 'wv-task--done' : ''} ${todo.isUrgent && !todo.completed ? 'wv-task--urgent' : ''} ${isDragging ? 'cl-todo-dragging' : ''} ${isSubtask ? 'wv-task--subtask' : ''} ${todo._flash ? 'wv-task--flash' : ''}`}
         style={{ position: 'relative', zIndex: menuOpen ? 50 : (isSubtask ? 2 : 1), ...(isSubtask ? { marginLeft: '1.5rem' } : {}), ...customContainerStyle }}
       >
-        {/* Row 1: checkbox + text + subtask count + urgent icon */}
-        <div className="wv-task-row-1">
+        {/* Left rail: expand + checkbox, vertically centred so a bigger checkbox
+            uses the card's existing height instead of stretching it taller. */}
+        <div className="wv-task-left">
           {!isSubtask && hasChildren && (
             <button
               className="daily-todo-expand-btn"
               onClick={() => setSubtasksExpanded(!subtasksExpanded)}
-              style={{ marginRight: '2px' }}
             >
               {subtasksExpanded ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
             </button>
           )}
-
           <button
             className={`wv-task-check ${todo.completed ? 'wv-task-check--done' : ''}`}
             onClick={e => { e.stopPropagation(); onToggleComplete(todo); }}
           >
             {todo.completed && <Check className="w-2.5 h-2.5" />}
           </button>
+        </div>
 
+        <div className="wv-task-body">
+        {/* Row 1: text + subtask count + urgent icon */}
+        <div className="wv-task-row-1">
           {editing ? (
             <input
               className="daily-todo-edit-input"
@@ -355,7 +358,7 @@ const DailyTodoItem: React.FC<DailyTodoItemProps> = ({
                   onClick={e => { e.preventDefault(); e.stopPropagation(); onOpenDetail?.(todo); }}
                   title="View note"
                 >
-                  <span className="wv-task-note-emoji">📝</span>
+                  <span className="wv-task-note-emoji">🔖</span>
                 </button>
               )}
 
@@ -402,6 +405,7 @@ const DailyTodoItem: React.FC<DailyTodoItemProps> = ({
             </div>
           </div>
         )}
+        </div>
       </div>
 
       {/* Subtask input */}
