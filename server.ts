@@ -1806,7 +1806,9 @@ app.post('/api/inbound-email', async (req: any, res) => {
 
     // Natural-language date from the subject ("Monday: ...", "tomorrow: ...").
     const when = parseInboundWhen(subject);
-    const text = (when.text || textBody.split('\n')[0] || 'Untitled').slice(0, 500);
+    // Strip any Fwd:/Fw:/Re: prefix so a fallback task is never named "Fwd: ...".
+    const rawText = (when.text || textBody.split('\n')[0] || 'Untitled').replace(/^\s*(re|fwd?|fw)\s*:\s*/i, '').trim();
+    const text = (rawText || 'Untitled').slice(0, 500);
     const dateVal = new Date(when.dateKey + 'T12:00:00Z');
     const minOrder = await (prisma as any).dailyTodo.aggregate({
       where: { userId, date: dateVal, parentId: null }, _min: { sortOrder: true }
