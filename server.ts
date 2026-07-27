@@ -1716,8 +1716,21 @@ const upsertContact = async (
 
 app.post('/api/quick-capture', authenticate, async (req: any, res) => {
   try {
-    const rawText = (req.body?.text ?? '').toString().trim();
-    if (!rawText) return res.status(400).json({ error: 'text is required' });
+    const rawInput = (req.body?.text ?? '').toString().trim();
+    if (!rawInput) return res.status(400).json({ error: 'text is required' });
+
+    // A note can be attached two ways: an explicit `note` field, or inline in the
+    // text after a " // " separator (keeps a single Shortcut prompt). Explicit wins.
+    let rawText = rawInput;
+    let note = (req.body?.note ?? '').toString().trim();
+    if (!note) {
+      const sepIdx = rawInput.indexOf(' // ');
+      if (sepIdx >= 0) {
+        rawText = rawInput.slice(0, sepIdx).trim();
+        note = rawInput.slice(sepIdx + 4).trim();
+      }
+    }
+    if (!rawText) rawText = 'Untitled';
 
     // Default to today (UTC) when the caller doesn't send a date (e.g. the Shortcut).
     const dateKey = (req.body?.date ? String(req.body.date) : new Date().toISOString()).slice(0, 10);
@@ -1732,7 +1745,8 @@ app.post('/api/quick-capture', authenticate, async (req: any, res) => {
 
     const todo = await (prisma as any).dailyTodo.create({
       data: {
-        text: rawText,
+        text: rawText.slice(0, 500),
+        comments: note ? note.slice(0, 2000) : null,
         date: dateVal,
         sortOrder: nextOrder,
         timeBlock,
