@@ -4,7 +4,7 @@ import { useStore } from '../store/useStore';
 import { format, startOfWeek, addDays as dateAddDays, isSameDay, isToday, isBefore, startOfDay, startOfMonth, endOfMonth, getDay, addMonths, subMonths, parseISO } from 'date-fns';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import {
-  CalendarDays, Calendar, Loader2, Plus, Send, Tag, ArrowDownToLine,
+  CalendarDays, Calendar, Loader2, Plus, Send, Tag, ArrowDownToLine, ArrowUp, StickyNote,
   ChevronLeft, ChevronRight, Flame, AlertTriangle, ChevronDown, ChevronUp,
   Lightbulb, Check, Circle, ClipboardList, Clock, ImagePlus, Trash2, GripVertical, RotateCw, X
 } from 'lucide-react';
@@ -137,6 +137,8 @@ const Dashboard: React.FC = () => {
   // Quick capture state
   const [newText, setNewText] = useState('');
   const [newIdeaId, setNewIdeaId] = useState('');
+  const [newNote, setNewNote] = useState('');
+  const [showNoteInput, setShowNoteInput] = useState(false);
   const [newBlock, setNewBlock] = useState<TimeBlock>(getCurrentBlock());
   const [showTagPicker, setShowTagPicker] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -593,13 +595,16 @@ const Dashboard: React.FC = () => {
     const timeBlock = block || getCurrentBlock();
     const selectedIdeaId = newIdeaId || null;
     const selectedIdea = selectedIdeaId ? ideas.find(i => i.id === selectedIdeaId) : null;
+    const note = newNote.trim() || null;
 
     const optimistic = makeOptimisticTodo(trimmed, dateKey, timeBlock, {
       ideaId: selectedIdeaId,
       idea: selectedIdea ? { id: selectedIdea.id, title: selectedIdea.title } : null,
+      comments: note,
     });
     setAllTodos(prev => [...prev, optimistic]);
     submittingRef.current = false;
+    setNewNote(''); setShowNoteInput(false); // note is per-task — clear it for the next
     autoCreateTaskLinks(trimmed);
     clearFlash(optimistic._key);
 
@@ -609,6 +614,7 @@ const Dashboard: React.FC = () => {
         date: dateKey,
         ideaId: selectedIdeaId,
         timeBlock,
+        comments: note,
       });
       setAllTodos(prev => prev.map(t => t.id === optimistic.id ? { ...todo, _key: optimistic._key, _flash: t._flash } : t));
     } catch (err: any) {
@@ -1132,12 +1138,22 @@ const Dashboard: React.FC = () => {
                             inlineAddTodo(text, toDateKey(selectedDate), block);
                             inputRef.current?.focus();
                           }}
-                          onCancel={() => { setInlineAddTarget(null); setNewText(''); setShowTagPicker(false); setNewIdeaId(''); }}
+                          onCancel={() => { setInlineAddTarget(null); setNewText(''); setShowTagPicker(false); setNewIdeaId(''); setNewNote(''); setShowNoteInput(false); }}
                           placeholder="New task…  @ contact  # entity"
                           className="cl-composer-input"
                           multiline
                           autoFocus
                         />
+                        {showNoteInput && (
+                          <textarea
+                            className="cl-composer-note"
+                            value={newNote}
+                            onChange={(e) => setNewNote(e.target.value)}
+                            placeholder="Add a note…  (extra detail for this task)"
+                            rows={2}
+                            autoFocus
+                          />
+                        )}
                         <div className="cl-composer-controls">
                           <button
                             type="button"
@@ -1156,10 +1172,19 @@ const Dashboard: React.FC = () => {
                               ><X className="w-3 h-3" /></span>
                             )}
                           </button>
+                          <button
+                            type="button"
+                            className={`cl-idea-pill ${(newNote.trim() || showNoteInput) ? 'cl-idea-pill--active' : ''}`}
+                            onClick={() => setShowNoteInput(v => !v)}
+                            title="Add a note to this task"
+                          >
+                            <StickyNote className="w-3.5 h-3.5" />
+                            <span className="cl-idea-pill-label">{newNote.trim() ? 'Note added' : 'Add note'}</span>
+                          </button>
                           <div className="cl-composer-spacer" />
                           <button
                             className="cl-composer-btn cl-composer-btn--close"
-                            onClick={() => { setInlineAddTarget(null); setNewText(''); setShowTagPicker(false); setNewIdeaId(''); }}
+                            onClick={() => { setInlineAddTarget(null); setNewText(''); setShowTagPicker(false); setNewIdeaId(''); setNewNote(''); setShowNoteInput(false); }}
                             title="Close"
                           ><X className="w-4 h-4" /></button>
                           <button
@@ -1173,7 +1198,7 @@ const Dashboard: React.FC = () => {
                               inlineAddTodo(text, toDateKey(selectedDate), block);
                               inputRef.current?.focus();
                             }}
-                          ><Send className="w-4 h-4" style={{ marginLeft: '1px' }} /></button>
+                          ><ArrowUp className="w-5 h-5" /></button>
                         </div>
                       </div>
                       {showTagPicker && (

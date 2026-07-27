@@ -1422,7 +1422,7 @@ app.get('/api/daily-todos', authenticate, async (req: any, res) => {
 
 app.post('/api/daily-todos', authenticate, async (req: any, res) => {
   try {
-    const { text, date, isUrgent, ideaId, parentId, timeBlock } = req.body;
+    const { text, date, isUrgent, ideaId, parentId, timeBlock, comments } = req.body;
     if (!text) return res.status(400).json({ error: 'text is required' });
     // date can be null for floating/backburner tasks
     const dateVal = date ? new Date(date + 'T12:00:00Z') : null;
@@ -1441,6 +1441,7 @@ app.post('/api/daily-todos', authenticate, async (req: any, res) => {
         ideaId: ideaId || null,
         parentId: parentId || null,
         timeBlock: timeBlock || null,
+        comments: comments || null,
         userId: req.userId,
         assigneeId: req.userId // Automatically assign to creator
       },
