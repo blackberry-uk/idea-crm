@@ -19,7 +19,8 @@ import {
   Zap,
   Copy,
   Smartphone,
-  ExternalLink
+  ExternalLink,
+  ShieldCheck
 } from 'lucide-react';
 import { DEFAULT_IDEA_CONFIGS } from '../lib/idea-utils';
 import { IdeaConfig, ThemePalette } from '../types';
@@ -478,6 +479,24 @@ const Settings: React.FC = () => {
 
         {/* Email-in routing */}
         <EmailRoutingSection />
+
+        {/* Admin (owner only) */}
+        {isMaster && (
+          <section className="bg-white rounded-2xl border border-gray-200 p-8 shadow-sm col-span-1 lg:col-span-2">
+            <div className="flex items-center gap-3 mb-2">
+              <ShieldCheck className="w-5 h-5" style={{ color: 'var(--primary)' }} />
+              <h2 className="text-lg font-bold">Admin</h2>
+            </div>
+            <p className="text-sm text-gray-500 mb-4">Manage users and invitations. Only visible to you.</p>
+            <a
+              href="#/admin"
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold text-white"
+              style={{ background: 'var(--primary)' }}
+            >
+              Open admin panel <ExternalLink className="w-4 h-4" />
+            </a>
+          </section>
+        )}
 
         {/* Theme Palette Selection */}
         <section className="bg-white rounded-2xl border border-gray-200 p-8 shadow-sm col-span-1 lg:col-span-2">

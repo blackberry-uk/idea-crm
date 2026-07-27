@@ -58,13 +58,8 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     { name: 'Entities', path: '/entities', icon: Building2 },
     { name: 'Calendar', path: '/daily', icon: CalendarCheck },
     { name: 'Invitations', path: '/invitations', icon: Mail, badge: pendingInvs },
-    { name: 'Training', path: '/?training=true', icon: Brain },
     { name: 'Settings', path: '/settings', icon: SettingsIcon },
   ];
-
-  if (data.currentUser?.email === 'fernando.mora.uk@gmail.com') {
-    navItems.push({ name: 'Admin', path: '/admin', icon: ShieldCheck });
-  }
 
   if (!data.currentUser) return <>{children}</>;
 
