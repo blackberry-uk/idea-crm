@@ -650,9 +650,9 @@
             cursor: pointer;
             transition: background 0.15s;
         }
-        .daily-todo-subtask-btn--save { background: #eef2ff; color: #4f46e5; }
-        .daily-todo-subtask-btn--save:hover { background: #e0e7ff; }
-        .daily-todo-subtask-btn--save:disabled { background: #f3f4f6; color: #9ca3af; cursor: not-allowed; }
+        .daily-todo-subtask-btn--save { background: var(--primary-shadow, #eef2ff); color: var(--primary, #4f46e5); }
+        .daily-todo-subtask-btn--save:hover { filter: brightness(0.96); }
+        .daily-todo-subtask-btn--save:disabled { background: #f3f4f6; color: #9ca3af; cursor: not-allowed; filter: none; }
         .daily-todo-subtask-btn--cancel { background: #fef2f2; color: #ef4444; }
         .daily-todo-subtask-btn--cancel:hover { background: #fee2e2; }
         @media (max-width: 640px) {

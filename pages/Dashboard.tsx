@@ -1145,7 +1145,7 @@ const Dashboard: React.FC = () => {
                           style={{
                             width: 28, height: 28, borderRadius: '50%', border: 'none', cursor: newText.trim() ? 'pointer' : 'default',
                             display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-                            background: newText.trim() ? '#22c55e' : '#e5e7eb',
+                            background: newText.trim() ? 'var(--primary)' : '#e5e7eb',
                             color: newText.trim() ? '#fff' : '#9ca3af',
                             transition: 'background 0.15s, color 0.15s',
                           }}
@@ -1685,7 +1685,7 @@ const Dashboard: React.FC = () => {
                           style={{
                             width: 28, height: 28, borderRadius: '50%', border: 'none', cursor: newText.trim() ? 'pointer' : 'default',
                             display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-                            background: newText.trim() ? '#22c55e' : '#e5e7eb',
+                            background: newText.trim() ? 'var(--primary)' : '#e5e7eb',
                             color: newText.trim() ? '#fff' : '#9ca3af',
                             transition: 'background 0.15s, color 0.15s',
                           }}
