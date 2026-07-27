@@ -1135,6 +1135,7 @@ const Dashboard: React.FC = () => {
                           onCancel={() => { setInlineAddTarget(null); setNewText(''); setShowTagPicker(false); setNewIdeaId(''); }}
                           placeholder="New task…  @ contact  # entity"
                           className="cl-composer-input"
+                          multiline
                           autoFocus
                         />
                         <div className="cl-composer-controls">

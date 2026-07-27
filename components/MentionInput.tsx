@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useStore } from '../store/useStore';
 import { getActiveMentionQuery, replaceActiveMention } from '../lib/taskMentions';
 
@@ -8,16 +8,18 @@ interface MentionInputProps extends Omit<React.InputHTMLAttributes<HTMLInputElem
   onSubmit: () => void;
   onCancel?: () => void;
   containerStyle?: React.CSSProperties;
+  multiline?: boolean;
 }
 
-export const MentionInput = React.forwardRef<HTMLInputElement, MentionInputProps>(({ 
-  value, 
-  onChangeValue, 
-  onSubmit, 
-  onCancel, 
+export const MentionInput = React.forwardRef<HTMLInputElement, MentionInputProps>(({
+  value,
+  onChangeValue,
+  onSubmit,
+  onCancel,
   containerStyle,
-  style, 
-  ...props 
+  style,
+  multiline,
+  ...props
 }, forwardedRef) => {
   const { data } = useStore();
   const internalRef = useRef<HTMLInputElement>(null);
@@ -119,9 +121,9 @@ export const MentionInput = React.forwardRef<HTMLInputElement, MentionInputProps
       if (e.key === 'Escape') { setEntityQuery(null); return; }
     }
     
-    if (e.key === 'Enter' && value.trim()) { 
-      e.preventDefault(); 
-      onSubmit(); 
+    if (e.key === 'Enter' && !e.shiftKey && value.trim()) {
+      e.preventDefault();
+      onSubmit();
     }
     if (e.key === 'Escape') { 
       setMentionQuery(null); 
@@ -130,17 +132,38 @@ export const MentionInput = React.forwardRef<HTMLInputElement, MentionInputProps
     }
   };
 
+  // Auto-grow the textarea to fit its content (up to a max), and shrink when cleared.
+  useEffect(() => {
+    if (!multiline) return;
+    const el = inputRef.current as unknown as HTMLTextAreaElement | null;
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = Math.min(el.scrollHeight, 160) + 'px';
+  }, [value, multiline]);
+
   return (
     <div style={{ position: 'relative', flex: 1, display: 'flex', width: '100%', ...containerStyle }}>
-      <input
-        ref={inputRef}
-        value={value}
-        onChange={handleChange}
-        onKeyDown={handleKeyDown}
-        style={{ width: '100%', ...style }}
-        {...props}
-      />
-      
+      {multiline ? (
+        <textarea
+          ref={inputRef as any}
+          value={value}
+          onChange={handleChange}
+          onKeyDown={handleKeyDown as any}
+          rows={1}
+          style={{ width: '100%', resize: 'none', overflow: 'hidden', ...style }}
+          {...(props as any)}
+        />
+      ) : (
+        <input
+          ref={inputRef}
+          value={value}
+          onChange={handleChange}
+          onKeyDown={handleKeyDown}
+          style={{ width: '100%', ...style }}
+          {...props}
+        />
+      )}
+
       {mentionQuery !== null && (
         <div className="cl-mention-dropdown" style={{ position: 'absolute', left: 0, top: '100%', zIndex: 100 }}>
           {mentionFilteredContacts.map((c, i) => (
