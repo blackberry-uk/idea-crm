@@ -1198,7 +1198,7 @@ const Dashboard: React.FC = () => {
                               inlineAddTodo(text, toDateKey(selectedDate), block);
                               inputRef.current?.focus();
                             }}
-                          ><ArrowUp className="w-5 h-5" /></button>
+                          ><Plus className="w-5 h-5" /></button>
                         </div>
                       </div>
                       {showTagPicker && (
