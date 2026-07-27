@@ -2822,18 +2822,59 @@
             transition: all 0.15s;
         }
         .cl-idea-pill:hover { border-color: #d1d5db; }
-        .cl-idea-pill--active { background: #eef2ff; border-color: #c7d2fe; color: #4338ca; }
+        /* When an idea is chosen, mirror the card's idea chip (theme primary) */
+        .cl-idea-pill--active {
+            background: var(--primary-shadow, #eef2ff);
+            border-color: transparent;
+            color: var(--primary, #4338ca);
+        }
         .cl-idea-pill svg { flex-shrink: 0; }
         .cl-idea-pill-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .cl-idea-pill-clear { display: inline-flex; align-items: center; opacity: 0.55; }
         .cl-idea-pill-clear:hover { opacity: 1; }
+
+        /* Compact time-of-day circle selector (inactive = colored count circle,
+           active = expands to a small labelled pill in the block's colour) */
+        .cl-seg-row { display: flex; align-items: center; gap: 5px; }
+        .cl-seg {
+            height: 2rem;
+            min-width: 2rem;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 5px;
+            padding: 0 0.45rem;
+            border-radius: 999px;
+            border: 1px solid #e5e7eb;
+            background: #fff;
+            font-size: 0.8rem;
+            font-weight: 800;
+            color: #9ca3af;
+            cursor: pointer;
+            transition: all 0.15s;
+            font-variant-numeric: tabular-nums;
+        }
+        .cl-seg-dot { width: 0.55rem; height: 0.55rem; border-radius: 50%; flex-shrink: 0; }
+        .cl-seg-label { padding: 0 0.15rem; }
+        .cl-seg--active { padding: 0 0.7rem; border-color: transparent; }
+        .cl-seg--all.cl-seg--active { background: #eef1f4; color: #374151; }
+        .cl-seg--morning { color: #ea580c; }
+        .cl-seg--morning.cl-seg--active { background: #fff2e8; color: #c2410c; }
+        .cl-seg--afternoon { color: #0284c7; }
+        .cl-seg--afternoon.cl-seg--active { background: #e8f4fd; color: #0369a1; }
+        .cl-seg--evening { color: #7c3aed; }
+        .cl-seg--evening.cl-seg--active { background: #f2ecfe; color: #6d28d9; }
+        @media (max-width: 640px) {
+            .cl-seg { height: 2.1rem; min-width: 2.1rem; }
+        }
 
         /* ===== Mobile polish (phones) ===== */
         @media (max-width: 640px) {
             /* Compact header: clock + date share one row; drop the timezone chip */
             .cl-topbar { padding: 0.7rem 1rem 0.45rem; gap: 0.5rem; }
             .cl-topbar-right { flex-wrap: nowrap; width: 100%; gap: 0.5rem; justify-content: space-between; }
-            .cl-clock { font-size: 0.95rem; padding: 0.35rem 0.6rem; border-radius: 0.6rem; gap: 0.3rem; box-shadow: none; }
+            /* Quiet the clock so it stops shouting — subtle neutral chip */
+            .cl-clock { font-size: 0.9rem; padding: 0.3rem 0.55rem; border-radius: 0.6rem; gap: 0.3rem; box-shadow: none; background: rgba(20, 30, 20, 0.05); border-color: transparent; color: #4b5563; font-weight: 700; }
             .cl-clock svg, .cl-clock-tz { display: none; }
             .cl-date-nav { flex: 1; justify-content: flex-end; }
             .cl-date-nav-label { font-size: 0.82rem; }

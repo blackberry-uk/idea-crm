@@ -1505,6 +1505,19 @@ const parseInboundWhen = (subject: string): { dateKey: string; text: string } =>
   return { dateKey: toKey(base), text: subject.trim() };
 };
 
+// Pull bullet lines out of an email body — "-", "*", "•", "‣", "·" or "1." / "1)".
+// Each becomes a subtask of the main (subject) task. Capped to avoid abuse.
+const parseBullets = (body: string): string[] =>
+  (body || '')
+    .split('\n')
+    .map(l => l.trim())
+    .map(l => {
+      const m = l.match(/^(?:[-*•‣▪·◦]|\d+[.)])\s+(.+)$/);
+      return m ? m[1].trim() : '';
+    })
+    .filter(Boolean)
+    .slice(0, 50);
+
 // Minimal vCard (.vcf) parser — pulls the fields we store on a Contact. Handles
 // RFC line-folding, grouped Apple properties (item1.EMAIL), and multiple cards.
 const parseVCards = (vcf: string): Array<Record<string, string | undefined>> => {
@@ -1711,7 +1724,24 @@ app.post('/api/inbound-email', async (req: any, res) => {
         ideaId,
       }
     });
-    return res.json({ ok: true, created: 'todo', id: todo.id, date: when.dateKey, ideaId });
+
+    // Bullet points in the body become subtasks of the main (subject) task.
+    const bullets = parseBullets(textBody);
+    for (let i = 0; i < bullets.length; i++) {
+      await (prisma as any).dailyTodo.create({
+        data: {
+          text: bullets[i].slice(0, 500),
+          date: dateVal,
+          parentId: todo.id,
+          sortOrder: i,
+          userId,
+          assigneeId: userId,
+          ideaId,
+        }
+      });
+    }
+
+    return res.json({ ok: true, created: 'todo', id: todo.id, date: when.dateKey, ideaId, subtasks: bullets.length });
   } catch (err: any) {
     console.error('[inbound-email] error', err);
     // 200 so Postmark doesn't retry-storm on a parse error we can't recover from.

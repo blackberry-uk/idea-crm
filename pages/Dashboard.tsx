@@ -1040,32 +1040,47 @@ const Dashboard: React.FC = () => {
           {!isSelectedToday && (
             <button onClick={goToday} className="cl-today-btn">Today</button>
           )}
+
+          {/* Compact time-of-day selector — quiet circles that expand when active */}
+          {viewMode === 'day' && (
+            <div className="cl-seg-row">
+              <button
+                className={`cl-seg cl-seg--all ${dayFilter === 'all' ? 'cl-seg--active' : ''}`}
+                onClick={() => setDayFilter('all')}
+                title="All day"
+              >
+                {dayFilter === 'all'
+                  ? <span className="cl-seg-label">All</span>
+                  : <span className="cl-seg-num">{selectedDayTodos.filter(t => !t.completed).length || ''}</span>}
+              </button>
+              {TIME_BLOCKS.map(block => {
+                const n = selectedDayTodos.filter(t => (t.timeBlock || 'morning') === block && !t.completed).length;
+                const active = dayFilter === block;
+                return (
+                  <button
+                    key={block}
+                    className={`cl-seg cl-seg--${block} ${active ? 'cl-seg--active' : ''}`}
+                    onClick={() => setDayFilter(block)}
+                    title={BLOCK_LABELS[block]}
+                  >
+                    {active ? (
+                      <>
+                        <span className={`cl-seg-dot cl-block-dot--${block}`}></span>
+                        <span className="cl-seg-label">{BLOCK_LABELS[block]}</span>
+                      </>
+                    ) : (
+                      n > 0
+                        ? <span className="cl-seg-num">{n}</span>
+                        : <span className={`cl-seg-dot cl-block-dot--${block}`}></span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </div>
       </div>
 
-      {/* ======= DAY VIEW — section tabs + columns ======= */}
-      {viewMode === 'day' && (
-        <div className="cl-block-tabs">
-          <button
-            className={`cl-block-tab ${dayFilter === 'all' ? 'cl-block-tab--active' : ''}`}
-            onClick={() => setDayFilter('all')}
-          >All day</button>
-          {TIME_BLOCKS.map(block => {
-            const n = selectedDayTodos.filter(t => (t.timeBlock || 'morning') === block && !t.completed).length;
-            return (
-              <button
-                key={block}
-                className={`cl-block-tab ${dayFilter === block ? 'cl-block-tab--active' : ''}`}
-                onClick={() => setDayFilter(block)}
-              >
-                <span className={`cl-block-dot cl-block-dot--${block}`}></span>
-                {BLOCK_LABELS[block]}
-                {n > 0 && <span className="cl-block-tab-count">{n}</span>}
-              </button>
-            );
-          })}
-        </div>
-      )}
       {viewMode === 'day' && (
         <div className="cl-day-scroll">
           <div className={`cl-day-grid ${dayFilter !== 'all' ? 'cl-day-grid--single' : ''}`}>
