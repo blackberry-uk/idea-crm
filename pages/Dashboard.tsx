@@ -36,6 +36,12 @@ const BLOCK_LABELS: Record<TimeBlock, string> = {
   evening: 'Evening',
 };
 
+const BLOCK_ICONS: Record<TimeBlock, string> = {
+  morning: '🐓',
+  afternoon: '☀️',
+  evening: '🌙',
+};
+
 const BLOCK_TIMES: Record<TimeBlock, string> = {
   morning: '6am – 12:59pm',
   afternoon: '1pm – 6:59pm',
@@ -1044,35 +1050,32 @@ const Dashboard: React.FC = () => {
           {/* Compact time-of-day selector — quiet circles that expand when active */}
           {viewMode === 'day' && (
             <div className="cl-seg-row">
-              <button
-                className={`cl-seg cl-seg--all ${dayFilter === 'all' ? 'cl-seg--active' : ''}`}
-                onClick={() => setDayFilter('all')}
-                title="All day"
-              >
-                {dayFilter === 'all'
-                  ? <span className="cl-seg-label">All</span>
-                  : <span className="cl-seg-num">{selectedDayTodos.filter(t => !t.completed).length || ''}</span>}
-              </button>
+              {(() => {
+                const allOpen = selectedDayTodos.filter(t => !t.completed).length;
+                return (
+                  <button
+                    className={`cl-seg cl-seg--all ${dayFilter === 'all' ? 'cl-seg--active' : ''}`}
+                    onClick={() => setDayFilter('all')}
+                    title="All day"
+                  >
+                    <span className="cl-seg-label">All</span>
+                    {allOpen > 0 && <span className="cl-seg-count">{allOpen}</span>}
+                  </button>
+                );
+              })()}
               {TIME_BLOCKS.map(block => {
                 const n = selectedDayTodos.filter(t => (t.timeBlock || 'morning') === block && !t.completed).length;
                 const active = dayFilter === block;
                 return (
                   <button
                     key={block}
-                    className={`cl-seg cl-seg--${block} ${active ? 'cl-seg--active' : ''}`}
+                    className={`cl-seg ${active ? 'cl-seg--active' : ''}`}
                     onClick={() => setDayFilter(block)}
                     title={BLOCK_LABELS[block]}
                   >
-                    {active ? (
-                      <>
-                        <span className={`cl-seg-dot cl-block-dot--${block}`}></span>
-                        <span className="cl-seg-label">{BLOCK_LABELS[block]}</span>
-                      </>
-                    ) : (
-                      n > 0
-                        ? <span className="cl-seg-num">{n}</span>
-                        : <span className={`cl-seg-dot cl-block-dot--${block}`}></span>
-                    )}
+                    <span className="cl-seg-icon">{BLOCK_ICONS[block]}</span>
+                    {active && <span className="cl-seg-label">{BLOCK_LABELS[block]}</span>}
+                    {n > 0 && <span className="cl-seg-count">{n}</span>}
                   </button>
                 );
               })}
