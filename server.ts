@@ -1734,6 +1734,26 @@ app.post('/api/quick-capture', authenticate, async (req: any, res) => {
     }
     if (!rawText) rawText = 'Untitled';
 
+    // Bullets / dashes become subtasks. Two shapes are supported:
+    //   • multi-line  — first line is the task, each following line a subtask
+    //                   (leading bullet/number optional; e.g. the capture page)
+    //   • single line — "Task - a - b - c" (spaced dash) or bullet chars split
+    //                   the first chunk as the task and the rest as subtasks
+    // Spaced separators are required so hyphenated words (e-commerce) never split.
+    const stripBullet = (s: string) => s.replace(/^(?:[-*•‣▪·◦]|\d+[.)])\s+/, '').trim();
+    let mainText = rawText;
+    let subTexts: string[] = [];
+    const lines = rawText.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+    if (lines.length > 1) {
+      mainText = stripBullet(lines[0]);
+      subTexts = lines.slice(1).map(stripBullet).filter(Boolean);
+    } else {
+      const parts = rawText.split(/\s+[-–—•·‣▪◦]\s+/).map(s => s.trim()).filter(Boolean);
+      if (parts.length > 1) { mainText = parts[0]; subTexts = parts.slice(1); }
+    }
+    if (!mainText) mainText = 'Untitled';
+    subTexts = subTexts.slice(0, 50);
+
     // Default to today (UTC) when the caller doesn't send a date (e.g. the Shortcut).
     const dateKey = (req.body?.date ? String(req.body.date) : new Date().toISOString()).slice(0, 10);
     const dateVal = new Date(dateKey + 'T12:00:00Z');
@@ -1747,7 +1767,7 @@ app.post('/api/quick-capture', authenticate, async (req: any, res) => {
 
     const todo = await (prisma as any).dailyTodo.create({
       data: {
-        text: rawText.slice(0, 500),
+        text: mainText.slice(0, 500),
         comments: note ? note.slice(0, 2000) : null,
         date: dateVal,
         sortOrder: nextOrder,
@@ -1756,7 +1776,23 @@ app.post('/api/quick-capture', authenticate, async (req: any, res) => {
         assigneeId: req.userId,
       }
     });
-    res.json({ ok: true, todo });
+
+    // Create any subtasks under the freshly-made task.
+    for (let i = 0; i < subTexts.length; i++) {
+      await (prisma as any).dailyTodo.create({
+        data: {
+          text: subTexts[i].slice(0, 500),
+          date: dateVal,
+          parentId: todo.id,
+          sortOrder: i,
+          timeBlock,
+          userId: req.userId,
+          assigneeId: req.userId,
+        }
+      });
+    }
+
+    res.json({ ok: true, todo, subtasks: subTexts.length });
   } catch (err: any) {
     console.error('Quick capture error:', err);
     res.status(500).json({ error: 'Failed to capture', details: err.message });
