@@ -1767,7 +1767,10 @@ app.post('/api/inbound-email', async (req: any, res) => {
     // AI mode: a forwarded email (Fwd:), OR a body that starts with a "/" instruction.
     // The prose you write at the top becomes an explicit prompt for the AI.
     const fullBody = (body.TextBody || textBody || '').toString();
-    const isForward = /^\s*(fwd?|fw)\s*:/i.test(subject);
+    // A forward — by subject (Fwd:/Fw:) OR by a "Forwarded message" marker in the body
+    // (covers forwards whose subject was renamed). The prose above the marker is the prompt.
+    const isForward = /^\s*(fwd?|fw)\s*:/i.test(subject)
+      || /(-{2,}\s*forwarded message|begin forwarded message)/i.test(fullBody);
     const isCommand = /^\s*\//.test(fullBody);
     if (isForward || isCommand) {
       const { instruction, content } = splitInstruction(fullBody);
