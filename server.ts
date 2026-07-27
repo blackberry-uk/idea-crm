@@ -1850,7 +1850,7 @@ const renderDigestHtml = (
     </div>`).join('');
 
   const yestList = yest.items.length
-    ? yest.items.map((t: any) => `<div style="font-size:14px;margin:4px 0;color:${t.completed ? '#9ca3af' : '#374151'};">${t.completed ? '✅' : '❌'} <span style="${t.completed ? 'text-decoration:line-through;' : ''}">${esc(t.text)}</span></div>`).join('')
+    ? yest.items.map((t: any) => `<div style="font-size:14px;margin:4px 0;color:#374151;">${t.completed ? '✅' : '❌'} ${esc(t.text)}</div>`).join('')
     : `<div style="font-size:14px;color:#9ca3af;">No tasks were scheduled yesterday.</div>`;
   const pct = yest.total ? ` (${Math.round((yest.done / yest.total) * 100)}%)` : '';
   const appUrl = process.env.FRONTEND_URL || 'https://idea-crm-nine.vercel.app';
