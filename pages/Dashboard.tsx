@@ -1134,8 +1134,8 @@ const Dashboard: React.FC = () => {
                             inputRef.current?.focus();
                           }}
                           onCancel={() => { setInlineAddTarget(null); setNewText(''); setShowTagPicker(false); setNewIdeaId(''); }}
-                          placeholder="New task… (@ contact, # entity)"
-                          style={{ flex: 1, padding: '6px 10px', borderRadius: '8px', border: '1px solid #e5e7eb', fontSize: '0.8rem', outline: 'none' }}
+                          placeholder="New task…  @ contact  # entity"
+                          style={{ flex: 1, padding: '12px 16px', borderRadius: '14px', border: '1px solid #e5e7eb', fontSize: '1rem', outline: 'none' }}
                           autoFocus
                         />
                         <button
@@ -1149,14 +1149,25 @@ const Dashboard: React.FC = () => {
                           disabled={!newText.trim()}
                           title="Add task"
                           style={{
-                            width: 28, height: 28, borderRadius: '50%', border: 'none', cursor: newText.trim() ? 'pointer' : 'default',
+                            width: 34, height: 34, borderRadius: '50%', border: 'none', cursor: newText.trim() ? 'pointer' : 'default',
                             display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
                             background: newText.trim() ? 'var(--primary)' : '#e5e7eb',
                             color: newText.trim() ? '#fff' : '#9ca3af',
                             transition: 'background 0.15s, color 0.15s',
                           }}
                         >
-                          <Send className="w-3.5 h-3.5" style={{ marginLeft: '1px' }} />
+                          <Send className="w-4 h-4" style={{ marginLeft: '1px' }} />
+                        </button>
+                        <button
+                          onClick={() => { setInlineAddTarget(null); setNewText(''); setShowTagPicker(false); setNewIdeaId(''); }}
+                          title="Close"
+                          style={{
+                            width: 34, height: 34, borderRadius: '50%', border: 'none', cursor: 'pointer',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                            background: '#f3f4f6', color: '#9ca3af',
+                          }}
+                        >
+                          <X className="w-4 h-4" />
                         </button>
                       </div>
                       {/* Idea selector — Claude "Manual"-style pill */}
@@ -1208,7 +1219,7 @@ const Dashboard: React.FC = () => {
                         }}
                         className={draggingTodoId === todo.id ? 'cl-todo-dragging' : ''}
                       >
-                        <DailyTodoItem todo={todo} ideas={ideas} hideTimeTag={dayFilter !== 'all'} onOpenContact={handleOpenContactByName} onOpenEntity={handleOpenEntityByName} onAssigneeChange={(id, assigneeId) => updateTodo(id, { assigneeId })} onDuplicate={duplicateTodo}
+                        <DailyTodoItem todo={todo} ideas={ideas} hideTimeTag={true} onOpenContact={handleOpenContactByName} onOpenEntity={handleOpenEntityByName} onAssigneeChange={(id, assigneeId) => updateTodo(id, { assigneeId })} onDuplicate={duplicateTodo}
                           onToggleComplete={toggleComplete} onToggleUrgent={toggleUrgent}
                           onDelete={deleteTodo} onSaveEdit={saveEdit} onTagIdea={tagTodoToIdea}
                           onAddSubtask={addSubtask} onOpenDetail={openDetail}
@@ -1674,8 +1685,8 @@ const Dashboard: React.FC = () => {
                             inputRef.current?.focus();
                           }}
                           onCancel={() => { setInlineAddTarget(null); setNewText(''); }}
-                          placeholder="New task… (@ contact, # entity)"
-                          style={{ flex: 1, padding: '6px 10px', borderRadius: '8px', border: '1px solid #e5e7eb', fontSize: '0.78rem', outline: 'none' }}
+                          placeholder="New task…  @ contact  # entity"
+                          style={{ flex: 1, padding: '11px 15px', borderRadius: '13px', border: '1px solid #e5e7eb', fontSize: '0.98rem', outline: 'none' }}
                           autoFocus
                         />
                         <button

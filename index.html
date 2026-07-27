@@ -1804,8 +1804,8 @@
         }
         .wv-task-text {
             font-size: 0.92rem;
-            font-weight: 400;
-            color: #374151;
+            font-weight: 560;
+            color: #1f2937;
             line-height: 1.3;
             overflow: hidden;
             white-space: nowrap;
@@ -1849,18 +1849,19 @@
         }
 
         /* Task actions & UI */
+        /* Subtle tan tag so it recedes behind the task text (Claude-style) */
         .wv-task-idea {
             display: inline-flex;
             align-items: center;
-            gap: 2px;
-            padding: 2px 4px;
-            border-radius: 4px;
-            font-size: 0.55rem;
-            font-weight: 700;
-            text-transform: uppercase;
+            gap: 3px;
+            padding: 2px 6px;
+            border-radius: 5px;
+            font-size: 0.6rem;
+            font-weight: 600;
+            text-transform: none;
             text-decoration: none;
-            background: var(--primary-shadow, #eef2ff);
-            color: var(--primary, #6366f1);
+            background: #ece4d3;
+            color: #7f6c4c;
             margin-left: 6px;
             transition: opacity 0.15s;
         }
@@ -2810,24 +2811,24 @@
         .cl-idea-pill {
             display: inline-flex;
             align-items: center;
-            gap: 6px;
+            gap: 5px;
             max-width: 100%;
-            padding: 0.45rem 0.85rem;
+            padding: 0.28rem 0.6rem;
             border-radius: 999px;
             border: 1px solid #e5e7eb;
             background: #fff;
-            color: #6b7280;
-            font-size: 0.82rem;
-            font-weight: 700;
+            color: #9ca3af;
+            font-size: 0.74rem;
+            font-weight: 600;
             cursor: pointer;
             transition: all 0.15s;
         }
         .cl-idea-pill:hover { border-color: #d1d5db; }
-        /* When an idea is chosen, mirror the card's idea chip (theme primary) */
+        /* When an idea is chosen, mirror the card's subtle tan chip */
         .cl-idea-pill--active {
-            background: var(--primary-shadow, #eef2ff);
+            background: #ece4d3;
             border-color: transparent;
-            color: var(--primary, #4338ca);
+            color: #7f6c4c;
         }
         .cl-idea-pill svg { flex-shrink: 0; }
         .cl-idea-pill-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
