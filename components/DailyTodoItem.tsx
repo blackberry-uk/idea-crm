@@ -345,7 +345,7 @@ const DailyTodoItem: React.FC<DailyTodoItemProps> = ({
               </Link>
             )}
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: '30px', marginLeft: 'auto' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginLeft: 'auto' }}>
               {todo.completed && todo.completedBy && (
                 <span style={{ fontSize: '10px', fontWeight: 400, color: '#9ca3af', display: 'flex', alignItems: 'center', gap: '3px', whiteSpace: 'nowrap' }}>
                   ✓ {todo.completedBy.name.split(' ')[0]}
@@ -358,7 +358,7 @@ const DailyTodoItem: React.FC<DailyTodoItemProps> = ({
                   onClick={e => { e.preventDefault(); e.stopPropagation(); onOpenDetail?.(todo); }}
                   title="View note"
                 >
-                  <span className="wv-task-note-emoji">🔖</span>
+                  <span className="wv-task-note-emoji">🧠</span>
                 </button>
               )}
 
