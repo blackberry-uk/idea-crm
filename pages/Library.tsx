@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { apiClient } from '../lib/api/client';
-import { BookOpen, ExternalLink, Trash2, Search, Lightbulb, Loader2 } from 'lucide-react';
+import { useStore } from '../store/useStore';
+import { BookOpen, ExternalLink, Trash2, Search, Lightbulb, Loader2, Plus } from 'lucide-react';
 import { format } from 'date-fns';
 
 interface LibItem {
@@ -18,14 +19,36 @@ const hostOf = (url: string) => {
 };
 
 const Library: React.FC = () => {
+  const { data } = useStore();
+  const ownedIdeas = (data.ideas || [])
+    .filter((i: any) => i.ownerId === data.currentUser?.id && i.status !== 'Archived')
+    .sort((a: any, b: any) => a.title.localeCompare(b.title));
+
   const [items, setItems] = useState<LibItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [q, setQ] = useState('');
+  const [newUrl, setNewUrl] = useState('');
+  const [newIdeaId, setNewIdeaId] = useState('');
+  const [adding, setAdding] = useState(false);
+  const [addError, setAddError] = useState('');
 
   useEffect(() => {
     document.title = 'Library | Idea-CRM';
     apiClient.get('/library').then(setItems).catch(() => {}).finally(() => setLoading(false));
   }, []);
+
+  const add = async () => {
+    const url = newUrl.trim();
+    if (!/^https?:\/\//i.test(url)) { setAddError('Enter a valid URL (starting with http)'); return; }
+    setAdding(true); setAddError('');
+    try {
+      const item = await apiClient.post('/library', { url, ideaId: newIdeaId || null });
+      setItems(prev => [item, ...prev]);
+      setNewUrl(''); setNewIdeaId('');
+    } catch (e: any) {
+      setAddError(e.message || 'Failed to add link');
+    } finally { setAdding(false); }
+  };
 
   const remove = async (id: string) => {
     setItems(prev => prev.filter(i => i.id !== id)); // optimistic
@@ -60,6 +83,36 @@ const Library: React.FC = () => {
       <p className="text-gray-500 mb-6">
         Links &amp; articles you saved by email (subject <code className="bg-gray-100 px-1.5 py-0.5 rounded text-gray-700">lib:</code>) — summarized and filed by project.
       </p>
+
+      {/* Manual add */}
+      <div className="bg-white rounded-2xl border border-gray-200 p-4 shadow-sm mb-4">
+        <div className="flex flex-col sm:flex-row gap-2">
+          <input
+            value={newUrl}
+            onChange={e => { setNewUrl(e.target.value); setAddError(''); }}
+            onKeyDown={e => { if (e.key === 'Enter') add(); }}
+            placeholder="Paste a link to save…"
+            className="flex-1 px-4 py-2.5 rounded-xl border border-gray-200 outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500/40"
+          />
+          <select
+            value={newIdeaId}
+            onChange={e => setNewIdeaId(e.target.value)}
+            className="px-3 py-2.5 rounded-xl border border-gray-200 bg-white text-sm sm:max-w-[38%]"
+          >
+            <option value="">No project</option>
+            {ownedIdeas.map((i: any) => <option key={i.id} value={i.id}>{i.title}</option>)}
+          </select>
+          <button
+            onClick={add}
+            disabled={adding || !newUrl.trim()}
+            className="px-4 py-2.5 rounded-xl font-bold text-white disabled:opacity-50 inline-flex items-center gap-2 justify-center whitespace-nowrap"
+            style={{ background: 'var(--primary)' }}
+          >
+            {adding ? <><Loader2 className="w-4 h-4 animate-spin" /> Summarizing…</> : <><Plus className="w-4 h-4" /> Add</>}
+          </button>
+        </div>
+        {addError && <p className="text-xs font-bold text-red-500 mt-2">{addError}</p>}
+      </div>
 
       <div className="relative mb-6">
         <Search className="w-4 h-4 text-gray-400 absolute left-3.5 top-1/2 -translate-y-1/2" />

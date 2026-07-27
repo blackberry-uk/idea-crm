@@ -2012,6 +2012,27 @@ app.get('/api/library', authenticate, async (req: any, res) => {
   }
 });
 
+app.post('/api/library', authenticate, async (req: any, res) => {
+  try {
+    const url = (req.body?.url || '').toString().trim();
+    const ideaId = req.body?.ideaId || null;
+    if (!/^https?:\/\//i.test(url)) return res.status(400).json({ error: 'A valid URL (http/https) is required' });
+    if (ideaId) {
+      const idea = await prisma.idea.findFirst({ where: { id: ideaId, ownerId: req.userId } });
+      if (!idea) return res.status(400).json({ error: 'Idea not found' });
+    }
+    const page = await fetchPageText(url);
+    const { title, summary } = await summarizeLink(url, page, '');
+    const item = await (prisma as any).libraryItem.create({
+      data: { url, title, summary: summary || null, userId: req.userId, ideaId },
+      include: { idea: { select: { id: true, title: true } } },
+    });
+    res.json(item);
+  } catch (err: any) {
+    res.status(500).json({ error: 'Failed to add item', details: err.message });
+  }
+});
+
 app.delete('/api/library/:id', authenticate, async (req: any, res) => {
   try {
     const existing = await (prisma as any).libraryItem.findUnique({ where: { id: req.params.id } });
