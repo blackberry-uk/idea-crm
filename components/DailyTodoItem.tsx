@@ -259,7 +259,6 @@ const DailyTodoItem: React.FC<DailyTodoItemProps> = ({
             <div className="wv-task-text-container" onClick={startEdit} style={{ display: 'flex', alignItems: 'center' }}>
               <span className="wv-task-text" title={todo.text}>
                 {renderTextWithMentions(todo.text)}
-                {todo.comments && !isSubtask && <span style={{ marginLeft: '4px', opacity: 0.5 }}>📝</span>}
               </span>
               {todo.assignee && (
                 <div
@@ -349,6 +348,17 @@ const DailyTodoItem: React.FC<DailyTodoItemProps> = ({
                   ✓ {todo.completedBy.name.split(' ')[0]}
                 </span>
               )}
+              {/* Note indicator — opens the task's note */}
+              {todo.comments && !isSubtask && (
+                <button
+                  className="wv-task-action-btn wv-task-action-btn--note"
+                  onClick={e => { e.preventDefault(); e.stopPropagation(); onOpenDetail?.(todo); }}
+                  title="View note"
+                >
+                  <span className="wv-task-note-emoji">📝</span>
+                </button>
+              )}
+
               {/* Add subtask button */}
               {onAddSubtask && !todo.completed && (
                 <button
