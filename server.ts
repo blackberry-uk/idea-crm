@@ -6,7 +6,7 @@ import bcrypt from 'bcryptjs';
 import cors from 'cors';
 // Note: dotenv not needed in production (Vercel injects env vars)
 // In local dev, use: node --env-file=.env or load dotenv manually
-import { sendInvitationEmail, sendTaskAssignmentEmail, sendNoteMentionEmail, sendInvitationAcceptedEmail } from './lib/email.js';
+import { sendInvitationEmail, sendTaskAssignmentEmail, sendNoteMentionEmail, sendInvitationAcceptedEmail, sendDigestEmail } from './lib/email.js';
 import prisma from './lib/prisma.js';
 import { OAuth2Client } from 'google-auth-library';
 import { GoogleGenerativeAI } from '@google/generative-ai';
@@ -1808,6 +1808,136 @@ app.get('/api/capture-token', authenticate, async (req: any, res) => {
   } catch (err: any) {
     console.error('Capture token error:', err);
     res.status(500).json({ error: 'Failed to mint capture token' });
+  }
+});
+
+// --- Daily digest email (Vercel Cron) --------------------------------------
+// A morning brief: today's to-dos grouped by time block, with a recap of
+// yesterday at the bottom. Fired by Vercel Cron (see vercel.json), secured by
+// CRON_SECRET (Vercel adds it as a Bearer header on scheduled runs). Recipient
+// and which user's list to use are env-configurable (defaults to Fer's setup).
+const DIGEST_BLOCKS: Record<string, { emoji: string; label: string }> = {
+  morning: { emoji: '🐓', label: 'Morning' },
+  afternoon: { emoji: '☀️', label: 'Afternoon' },
+  evening: { emoji: '🌙', label: 'Evening' },
+  anytime: { emoji: '🗒️', label: 'Anytime' },
+};
+const esc = (s: string) => (s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+const renderDigestHtml = (
+  name: string, todayLabel: string,
+  groups: Record<string, any[]>, childrenByParent: Record<string, any[]>,
+  yest: { total: number; done: number; undone: any[] }
+): string => {
+  const order = ['morning', 'afternoon', 'evening', 'anytime'];
+  const totalToday = order.reduce((n, b) => n + (groups[b]?.length || 0), 0);
+
+  const taskRow = (t: any) => {
+    const kids = childrenByParent[t.id] || [];
+    const ideaTag = t.idea?.title
+      ? `<span style="display:inline-block;margin-left:8px;font-size:12px;color:#7c6f52;background:#efe9db;border-radius:6px;padding:2px 8px;">${esc(t.idea.title)}</span>` : '';
+    const note = t.comments ? `<div style="margin:4px 0 0 2px;font-size:13px;color:#6b7280;">📝 ${esc(String(t.comments).slice(0, 200))}</div>` : '';
+    const subrows = kids.map((k: any) => `<div style="margin:3px 0 0 22px;font-size:14px;color:#4b5563;">◦ ${esc(k.text)}</div>`).join('');
+    return `<div style="padding:12px 14px;border:1px solid #e5e7eb;border-radius:12px;margin-bottom:8px;">
+        <div style="font-size:16px;font-weight:600;color:#111827;">${t.isUrgent ? '🔥 ' : ''}${esc(t.text)}${ideaTag}</div>${note}${subrows}
+      </div>`;
+  };
+
+  const blocksHtml = order.filter(b => groups[b]?.length).map(b => `
+    <div style="margin-bottom:18px;">
+      <div style="font-size:13px;font-weight:800;letter-spacing:0.04em;text-transform:uppercase;color:#6b7280;margin:0 0 8px 2px;">${DIGEST_BLOCKS[b].emoji} ${DIGEST_BLOCKS[b].label}</div>
+      ${groups[b].map(taskRow).join('')}
+    </div>`).join('');
+
+  const yestList = yest.undone.length
+    ? yest.undone.map((t: any) => `<div style="font-size:14px;color:#4b5563;margin:3px 0;">• ${esc(t.text)}</div>`).join('')
+    : `<div style="font-size:14px;color:#059669;">All clear — everything got done. 🎉</div>`;
+  const pct = yest.total ? ` (${Math.round((yest.done / yest.total) * 100)}%)` : '';
+  const appUrl = process.env.FRONTEND_URL || 'https://idea-crm-nine.vercel.app';
+
+  return `<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+  <body style="margin:0;padding:0;background:#f3f4f6;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+    <table width="100%" cellpadding="0" cellspacing="0" style="background:#f3f4f6;padding:28px 14px;"><tr><td align="center">
+      <table width="100%" cellpadding="0" cellspacing="0" style="max-width:600px;background:#ffffff;border-radius:20px;overflow:hidden;box-shadow:0 8px 24px rgba(0,0,0,0.08);">
+        <tr><td style="background:linear-gradient(135deg,#4f46e5,#0ea5e9);padding:28px 32px;">
+          <div style="color:rgba(255,255,255,0.85);font-size:13px;font-weight:700;letter-spacing:0.05em;">GOOD MORNING${name ? ', ' + esc(name.split(' ')[0].toUpperCase()) : ''}</div>
+          <div style="color:#ffffff;font-size:22px;font-weight:800;margin-top:4px;">${esc(todayLabel)}</div>
+          <div style="color:rgba(255,255,255,0.9);font-size:14px;margin-top:6px;">${totalToday} ${totalToday === 1 ? 'task' : 'tasks'} on today's list</div>
+        </td></tr>
+        <tr><td style="padding:26px 32px 8px;">
+          ${blocksHtml || '<div style="color:#9ca3af;font-size:15px;text-align:center;padding:20px 0;">Nothing scheduled for today — a clean slate. ✨</div>'}
+        </td></tr>
+        <tr><td style="padding:6px 32px 26px;">
+          <div style="border-top:1px solid #e5e7eb;padding-top:18px;">
+            <div style="font-size:13px;font-weight:800;letter-spacing:0.04em;text-transform:uppercase;color:#6b7280;margin-bottom:8px;">Yesterday</div>
+            <div style="font-size:15px;color:#111827;font-weight:600;margin-bottom:8px;">${yest.done} of ${yest.total} done${pct}</div>
+            ${yest.undone.length ? '<div style="font-size:13px;color:#9ca3af;margin-bottom:4px;">Still open:</div>' : ''}
+            ${yestList}
+          </div>
+        </td></tr>
+        <tr><td style="padding:0 32px 30px;">
+          <a href="${appUrl}/" style="display:inline-block;background:#4f46e5;color:#ffffff;text-decoration:none;font-weight:700;font-size:14px;padding:12px 22px;border-radius:12px;">Open checklist →</a>
+        </td></tr>
+      </table>
+      <div style="color:#9ca3af;font-size:12px;margin-top:16px;">Your Idea-CRM daily brief</div>
+    </td></tr></table>
+  </body></html>`;
+};
+
+app.get('/api/cron/daily-digest', async (req: any, res) => {
+  try {
+    const secret = process.env.CRON_SECRET;
+    const auth = req.headers.authorization;
+    const provided = auth?.startsWith('Bearer ') ? auth.slice(7) : (req.query.secret as string);
+    if (!secret || provided !== secret) return res.status(401).json({ error: 'Unauthorized' });
+
+    const recipient = process.env.DIGEST_TO || 'fernando@double--dash.ai';
+    const userEmail = (process.env.DIGEST_USER_EMAIL || 'fernando.mora.uk@gmail.com').toLowerCase();
+    const user = await (prisma as any).user.findFirst({ where: { email: userEmail } });
+    if (!user) return res.status(404).json({ error: `Digest user ${userEmail} not found` });
+
+    const londonKey = (d: Date) => new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/London' }).format(d);
+    const shiftKey = (key: string, n: number) => { const dt = new Date(key + 'T12:00:00Z'); dt.setUTCDate(dt.getUTCDate() + n); return londonKey(dt); };
+    const todayKey = londonKey(new Date());
+    const tomorrowKey = shiftKey(todayKey, 1);
+    const yesterdayKey = shiftKey(todayKey, -1);
+
+    const [todayAll, yestAll] = await Promise.all([
+      (prisma as any).dailyTodo.findMany({
+        where: { userId: user.id, date: { gte: new Date(todayKey + 'T00:00:00Z'), lt: new Date(tomorrowKey + 'T00:00:00Z') } },
+        include: { idea: { select: { title: true } } },
+        orderBy: { sortOrder: 'asc' },
+      }),
+      (prisma as any).dailyTodo.findMany({
+        where: { userId: user.id, date: { gte: new Date(yesterdayKey + 'T00:00:00Z'), lt: new Date(todayKey + 'T00:00:00Z') } },
+      }),
+    ]);
+
+    const childrenByParent: Record<string, any[]> = {};
+    for (const t of todayAll) if (t.parentId) (childrenByParent[t.parentId] = childrenByParent[t.parentId] || []).push(t);
+    const groups: Record<string, any[]> = {};
+    for (const t of todayAll.filter((t: any) => !t.parentId)) {
+      const b = ['morning', 'afternoon', 'evening'].includes(t.timeBlock) ? t.timeBlock : 'anytime';
+      (groups[b] = groups[b] || []).push(t);
+    }
+    const parentCount = todayAll.filter((t: any) => !t.parentId).length;
+
+    const yest = {
+      total: yestAll.length,
+      done: yestAll.filter((t: any) => t.completed).length,
+      undone: yestAll.filter((t: any) => !t.completed && !t.parentId).slice(0, 20),
+    };
+
+    const todayLabel = new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/London', weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).format(new Date());
+    const shortLabel = new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/London', weekday: 'short', day: 'numeric', month: 'short' }).format(new Date());
+    const html = renderDigestHtml(user.name || '', todayLabel, groups, childrenByParent, yest);
+    const subject = `☀️ Today — ${shortLabel} · ${parentCount} ${parentCount === 1 ? 'task' : 'tasks'}`;
+
+    await sendDigestEmail(recipient, subject, html);
+    res.json({ ok: true, sentTo: recipient, today: todayKey, tasks: parentCount, yesterday: { total: yest.total, done: yest.done, open: yest.undone.length } });
+  } catch (err: any) {
+    console.error('Daily digest error:', err);
+    res.status(500).json({ error: 'Failed to send digest', details: err.message });
   }
 });
 

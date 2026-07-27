@@ -373,3 +373,15 @@ export const sendInvitationAcceptedEmail = async (ownerEmail: string, ideaTitle:
     throw error;
   }
 };
+
+// Generic sender used by the daily digest cron (HTML is assembled by the caller).
+export const sendDigestEmail = async (to: string, subject: string, html: string) => {
+  if (!process.env.RESEND_API_KEY) {
+    console.warn('RESEND_API_KEY is not set. Skipping digest email.');
+    return { id: 'mocked-id' };
+  }
+  const fromAddress = process.env.RESEND_FROM || 'Idea-CRM <noreply@idea-crm.com>';
+  const data = await resend.emails.send({ from: fromAddress, to: [to], subject, html });
+  console.log(`Digest email sent to ${to}:`, data);
+  return data;
+};
