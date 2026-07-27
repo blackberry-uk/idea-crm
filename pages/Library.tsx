@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { apiClient } from '../lib/api/client';
 import { useStore } from '../store/useStore';
+import { pastelForId } from '../lib/utils';
 import { BookOpen, ExternalLink, Trash2, Search, Lightbulb, Loader2, Plus } from 'lucide-react';
 import { format } from 'date-fns';
 
@@ -155,7 +156,16 @@ const Library: React.FC = () => {
                       </button>
                     </div>
                     {it.summary && <p className="text-sm text-gray-600 mt-2 leading-relaxed">{it.summary}</p>}
-                    <div className="flex items-center gap-2 mt-3 text-xs text-gray-400">
+                    <div className="flex items-center gap-2 mt-3 text-xs text-gray-400 flex-wrap">
+                      {it.idea?.title && (
+                        <span
+                          className="inline-flex items-center gap-1 font-semibold rounded-md px-2 py-0.5"
+                          style={{ background: pastelForId(it.idea.id).bg, color: pastelForId(it.idea.id).fg }}
+                        >
+                          <Lightbulb className="w-3 h-3" />
+                          {it.idea.title}
+                        </span>
+                      )}
                       <span>{hostOf(it.url)}</span>
                       <span>·</span>
                       <span>{format(new Date(it.createdAt), 'd MMM yyyy')}</span>
