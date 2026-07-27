@@ -1682,8 +1682,8 @@ const Dashboard: React.FC = () => {
                     )}
                   </div>
                   {inlineAddTarget === `wk-${dayKey}` && (
-                    <div style={{ padding: '0 8px 6px', position: 'relative' }}>
-                      <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                    <div style={{ padding: '0 8px 8px', position: 'relative' }}>
+                      <div className="cl-composer">
                         <MentionInput
                           ref={inputRef}
                           value={newText}
@@ -1695,32 +1695,74 @@ const Dashboard: React.FC = () => {
                             inlineAddTodo(text, dayKey);
                             inputRef.current?.focus();
                           }}
-                          onCancel={() => { setInlineAddTarget(null); setNewText(''); }}
+                          onCancel={() => { setInlineAddTarget(null); setNewText(''); setShowTagPicker(false); setNewIdeaId(''); setNewNote(''); setShowNoteInput(false); }}
                           placeholder="New task…  @ contact  # entity"
-                          style={{ flex: 1, padding: '11px 15px', borderRadius: '13px', border: '1px solid #e5e7eb', fontSize: '0.98rem', outline: 'none' }}
+                          className="cl-composer-input"
+                          multiline
                           autoFocus
                         />
-                        <button
-                          onClick={() => {
-                            const text = newText.trim();
-                            if (!text) return;
-                            setNewText('');
-                            inlineAddTodo(text, dayKey);
-                            inputRef.current?.focus();
-                          }}
-                          disabled={!newText.trim()}
-                          title="Add task"
-                          style={{
-                            width: 28, height: 28, borderRadius: '50%', border: 'none', cursor: newText.trim() ? 'pointer' : 'default',
-                            display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-                            background: newText.trim() ? 'var(--primary)' : '#e5e7eb',
-                            color: newText.trim() ? '#fff' : '#9ca3af',
-                            transition: 'background 0.15s, color 0.15s',
-                          }}
-                        >
-                          <Send className="w-3.5 h-3.5" style={{ marginLeft: '1px' }} />
-                        </button>
+                        {showNoteInput && (
+                          <textarea
+                            className="cl-composer-note"
+                            value={newNote}
+                            onChange={(e) => setNewNote(e.target.value)}
+                            placeholder="Add a note…  (extra detail for this task)"
+                            rows={2}
+                            autoFocus
+                          />
+                        )}
+                        <div className="cl-composer-controls">
+                          <button
+                            type="button"
+                            className={`cl-idea-pill ${newIdeaId ? 'cl-idea-pill--active' : ''}`}
+                            onClick={() => setShowTagPicker(v => !v)}
+                          >
+                            <Lightbulb className="w-3.5 h-3.5" />
+                            <span className="cl-idea-pill-label">
+                              {newIdeaId ? (ideas.find(i => i.id === newIdeaId)?.title || 'Idea') : 'Add to idea'}
+                            </span>
+                            {newIdeaId && (
+                              <span className="cl-idea-pill-clear" onClick={(e) => { e.stopPropagation(); setNewIdeaId(''); }} title="Clear idea"><X className="w-3 h-3" /></span>
+                            )}
+                          </button>
+                          <button
+                            type="button"
+                            className={`cl-idea-pill ${(newNote.trim() || showNoteInput) ? 'cl-idea-pill--active' : ''}`}
+                            onClick={() => setShowNoteInput(v => !v)}
+                            title="Add a note to this task"
+                          >
+                            <StickyNote className="w-3.5 h-3.5" />
+                            <span className="cl-idea-pill-label">{newNote.trim() ? 'Note added' : 'Add note'}</span>
+                          </button>
+                          <div className="cl-composer-spacer" />
+                          <button
+                            className="cl-composer-btn cl-composer-btn--close"
+                            onClick={() => { setInlineAddTarget(null); setNewText(''); setShowTagPicker(false); setNewIdeaId(''); setNewNote(''); setShowNoteInput(false); }}
+                            title="Close"
+                          ><X className="w-4 h-4" /></button>
+                          <button
+                            className="cl-composer-btn cl-composer-btn--send"
+                            disabled={!newText.trim()}
+                            title="Add task"
+                            onClick={() => {
+                              const text = newText.trim();
+                              if (!text) return;
+                              setNewText('');
+                              inlineAddTodo(text, dayKey);
+                              inputRef.current?.focus();
+                            }}
+                          ><Plus className="w-5 h-5" /></button>
+                        </div>
                       </div>
+                      {showTagPicker && (
+                        <IdeaPickerDropdown
+                          ideas={ideas as any}
+                          selectedIdeaId={newIdeaId || null}
+                          onSelect={(id) => { setNewIdeaId(id); setShowTagPicker(false); inputRef.current?.focus(); }}
+                          onRemove={() => { setNewIdeaId(''); setShowTagPicker(false); }}
+                          showRemove={!!newIdeaId}
+                        />
+                      )}
                     </div>
                   )}
                   <div className="wv-day-list">
@@ -1765,7 +1807,7 @@ const Dashboard: React.FC = () => {
                             </div>
 
                             <div className="wv-task-row-2">
-                              <span className={`wv-task-block wv-task-block--${(todo.timeBlock as TimeBlock) || 'morning'}`}>{blockTag}</span>
+                              <span className="wv-task-emoji" title={BLOCK_LABELS[(todo.timeBlock as TimeBlock) || 'morning']}>{BLOCK_ICONS[(todo.timeBlock as TimeBlock) || 'morning']}</span>
                               
                               {todo.ideaId && todo.idea?.title && (
                                 <Link to={`/ideas/${todo.ideaId}`} className="wv-task-idea" onClick={e => e.stopPropagation()} title={todo.idea.title} style={{ margin: 0 }}>
