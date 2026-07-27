@@ -1519,6 +1519,44 @@ const parseBullets = (body: string): string[] =>
     .filter(Boolean)
     .slice(0, 50);
 
+// Forwarded-email → tasks, via Gemini. Returns an array of tasks or null on failure.
+const parseLooseJson = (text: string): any => {
+  try { return JSON.parse(text); } catch {}
+  const m = text.match(/\{[\s\S]*\}/);
+  if (m) { try { return JSON.parse(m[0]); } catch {} }
+  return null;
+};
+const interpretForwardedEmail = async (subject: string, body: string): Promise<any[] | null> => {
+  if (!genAI) return null;
+  const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/London' }).format(new Date());
+  const cleanSubject = (subject || '').replace(/^\s*(re|fwd?|fw)\s*:\s*/i, '').trim();
+  const model = genAI.getGenerativeModel({
+    model: 'gemini-flash-latest',
+    generationConfig: { responseMimeType: 'application/json' } as any,
+  });
+  const prompt = `You convert a forwarded email into actionable to-do items for a personal task manager.
+Today is ${today} (Europe/London). If the user wrote instructions at the very top of the body, follow them.
+Prefer ONE task unless the email clearly contains multiple distinct action items.
+
+Return ONLY JSON of this exact shape:
+{"tasks":[{"title":"short imperative task","subtasks":["concrete step"],"note":"1-2 sentence summary/context","date":"YYYY-MM-DD or null"}]}
+Rules: title concise & imperative; subtasks only concrete steps ([] if none); note brief ("" if not useful);
+date only if a due date is clearly stated/implied else null; max 8 tasks, max 15 subtasks each.
+
+SUBJECT: ${cleanSubject}
+BODY:
+${(body || '').slice(0, 8000)}`;
+  try {
+    const result = await model.generateContent(prompt);
+    const text = (await result.response).text();
+    const parsed = parseLooseJson(text);
+    if (parsed && Array.isArray(parsed.tasks)) return parsed.tasks.slice(0, 8);
+  } catch (e: any) {
+    console.error('[inbound-email] AI interpret failed:', e?.message);
+  }
+  return null;
+};
+
 // Minimal vCard (.vcf) parser — pulls the fields we store on a Contact. Handles
 // RFC line-folding, grouped Apple properties (item1.EMAIL), and multiple cards.
 const parseVCards = (vcf: string): Array<Record<string, string | undefined>> => {
@@ -1704,6 +1742,39 @@ app.post('/api/inbound-email', async (req: any, res) => {
       const fullName = rest.replace(/<?[^\s<>]+@[^\s<>]+>?/, '').trim() || rest;
       const r = await upsertContact(userId, { fullName, email }, ideaId);
       return res.json({ ok: true, created: 'contact', id: r.id, action: r.action });
+    }
+
+    // Forwarded email → let Gemini interpret the content into task(s) + subtasks + note + date.
+    if (/^\s*(fwd?|fw)\s*:/i.test(subject)) {
+      const fullBody = (body.TextBody || textBody || '').toString();
+      const aiTasks = await interpretForwardedEmail(subject, fullBody);
+      if (aiTasks && aiTasks.length) {
+        const londonToday = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/London' }).format(new Date());
+        const createdIds: string[] = [];
+        for (const t of aiTasks) {
+          const dKey = (typeof t?.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(t.date)) ? t.date : londonToday;
+          const dVal = new Date(dKey + 'T12:00:00Z');
+          const minOrder = await (prisma as any).dailyTodo.aggregate({ where: { userId, date: dVal, parentId: null }, _min: { sortOrder: true } });
+          const nextOrder = (minOrder._min.sortOrder ?? 0) - 1;
+          const main = await (prisma as any).dailyTodo.create({
+            data: {
+              text: String(t?.title || 'Untitled').slice(0, 500),
+              date: dVal, sortOrder: nextOrder, timeBlock: blockForHour(new Date().getUTCHours()),
+              comments: t?.note ? String(t.note).slice(0, 2000) : null,
+              userId, assigneeId: userId, ideaId,
+            }
+          });
+          createdIds.push(main.id);
+          const subs = Array.isArray(t?.subtasks) ? t.subtasks.slice(0, 15) : [];
+          for (let i = 0; i < subs.length; i++) {
+            await (prisma as any).dailyTodo.create({
+              data: { text: String(subs[i]).slice(0, 500), date: dVal, parentId: main.id, sortOrder: i, userId, assigneeId: userId, ideaId }
+            });
+          }
+        }
+        return res.json({ ok: true, created: 'ai-tasks', count: createdIds.length });
+      }
+      // AI unavailable/failed → fall through to normal subject-as-task handling.
     }
 
     // Natural-language date from the subject ("Monday: ...", "tomorrow: ...").
