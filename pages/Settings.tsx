@@ -415,6 +415,9 @@ const Settings: React.FC = () => {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        {/* Quick Capture — first so it's easy to find */}
+        <QuickCaptureSection />
+
         {/* User Info */}
         <section className="bg-white rounded-2xl border border-gray-200 p-8 shadow-sm col-span-1 lg:col-span-2">
           <div className="flex items-center gap-3 mb-6">
@@ -473,9 +476,6 @@ const Settings: React.FC = () => {
             <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-3">Select a distinct color to stand out in projects</p>
           </div>
         </section>
-
-        {/* Quick Capture */}
-        <QuickCaptureSection />
 
         {/* Email-in routing */}
         <EmailRoutingSection />
