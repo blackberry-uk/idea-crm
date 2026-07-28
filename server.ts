@@ -1734,6 +1734,14 @@ app.post('/api/quick-capture', authenticate, async (req: any, res) => {
     }
     if (!rawText) rawText = 'Untitled';
 
+    // A leading natural-language date reschedules the task: "wednesday: X",
+    // "tomorrow: X", "monday +1w: X" (Europe/London). No date word → today.
+    // parseInboundWhen only reschedules when the first word is an actual date
+    // word, so it won't disturb the // note or " - " subtask syntax.
+    const londonToday = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/London' }).format(new Date());
+    const when = parseInboundWhen(rawText);
+    rawText = when.text || rawText;
+
     // Bullets / dashes become subtasks. Two shapes are supported:
     //   • multi-line  — first line is the task, each following line a subtask
     //                   (leading bullet/number optional; e.g. the capture page)
@@ -1754,10 +1762,11 @@ app.post('/api/quick-capture', authenticate, async (req: any, res) => {
     if (!mainText) mainText = 'Untitled';
     subTexts = subTexts.slice(0, 50);
 
-    // Default to today (UTC) when the caller doesn't send a date (e.g. the Shortcut).
-    const dateKey = (req.body?.date ? String(req.body.date) : new Date().toISOString()).slice(0, 10);
+    // An explicit `date` from the caller wins; otherwise use the date parsed from
+    // the text (defaults to today). Future-dated tasks default to the morning block.
+    const dateKey = (req.body?.date ? String(req.body.date) : when.dateKey).slice(0, 10);
     const dateVal = new Date(dateKey + 'T12:00:00Z');
-    const timeBlock = req.body?.timeBlock || blockForHour(new Date().getUTCHours());
+    const timeBlock = req.body?.timeBlock || (dateKey !== londonToday ? 'morning' : blockForHour(new Date().getUTCHours()));
 
     const minOrder = await (prisma as any).dailyTodo.aggregate({
       where: { userId: req.userId, date: dateVal, parentId: null },
