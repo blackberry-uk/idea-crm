@@ -712,6 +712,31 @@ const Dashboard: React.FC = () => {
   };
 
   const tagTodoToIdea = async (todoId: string, ideaId: string | null) => {
+    // Optimistic: apply the tag instantly so it never looks "unselected" while the
+    // server round-trips (which used to make people retry → double-PUT → error).
+    const ideaObj = ideaId ? ideas.find((i: any) => i.id === ideaId) : null;
+    const optimisticIdea = ideaObj ? { id: ideaObj.id, title: ideaObj.title } : null;
+
+    // Snapshot the current idea so we can revert if the request fails.
+    const findTodo = (id: string): any => {
+      for (const t of allTodos) {
+        if (t.id === id) return t;
+        const c = t.children?.find((x: any) => x.id === id);
+        if (c) return c;
+      }
+      return null;
+    };
+    const orig = findTodo(todoId);
+    const revert = { ideaId: orig?.ideaId ?? null, idea: orig?.idea ?? null };
+    const patch = (vals: any) => (t: any) => t.id === todoId ? { ...t, ideaId: vals.ideaId, idea: vals.idea } : t;
+    const applyEverywhere = (vals: any) => setAllTodos(prev => prev
+      .map(patch(vals))
+      .map(t => t.children ? { ...t, children: t.children.map(patch(vals)) } : t)
+    );
+
+    applyEverywhere({ ideaId: ideaId || null, idea: optimisticIdea });
+    if (detailTodo?.id === todoId) setDetailTodo(prev => prev ? { ...prev, ideaId: ideaId || null, idea: optimisticIdea } as any : prev);
+
     try {
       const updated = await apiClient.put(`/daily-todos/${todoId}`, { ideaId });
       setAllTodos(prev => prev
@@ -720,6 +745,8 @@ const Dashboard: React.FC = () => {
       );
       if (detailTodo?.id === todoId) setDetailTodo(updated);
     } catch (err: any) {
+      applyEverywhere(revert); // roll back the optimistic tag
+      if (detailTodo?.id === todoId) setDetailTodo(prev => prev ? { ...prev, ...revert } as any : prev);
       showToast(err.message || 'Failed to tag todo', 'error');
     }
   };
